@@ -5,19 +5,29 @@
 # --------------------------------------------------------------------------
 
 import functools
-from typing import IO, Any, ClassVar, List, Mapping, Optional, Dict, Literal, Set, overload
+from enum import Enum
+from typing import IO, Any, ClassVar, List, Mapping, Optional, Dict, Literal, Set, Tuple, overload
 from dataclasses import InitVar, dataclass, field
-
+from ._roles import RoleAssignment, RoleAssignmentProperties
 from ._resource import (
+    PrincipalId,
     _serialize_resource,
     Resource,
     LocatedResource,
     ResourceGroup,
     dataclass_model,
     generate_symbol,
-    _UNSET
+    _UNSET,
+    _SKIP,
+    GuidName
 )
 
+
+class StorageRoleAssignments(Enum):
+    BLOB_DATA_CONTRIBUTOR = "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
+    TABLE_DATA_CONTRIBUTOR = "0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3"
+
+PrincipalType = Literal['User', 'Group', 'ServicePrincipal', 'Unknown', 'DirectoryRoleTemplate', 'ForeignGroup', 'Application', 'MSI', 'DirectoryObjectOrGroup', 'Everyone']
 
 @dataclass_model
 class Sku:
@@ -181,18 +191,49 @@ class Properties:
 
 
 @dataclass_model
-class BlobServices(Resource):
-    _resource: ClassVar[Literal['Microsoft.Storage/storageAccounts/blobServices']] = 'Microsoft.Storage/storageAccounts/blobServices'
-    _version: ClassVar[str] = '2023-01-01'
-    _symbolicname: str = field(default_factory=lambda: generate_symbol("blobservice"), init=False, repr=False)
-    name: Literal['default'] = field(default='default', init=False, metadata={'rest': 'name'})
-
-
-@dataclass_model
 class Container(Resource):
+    name: str = field(metadata={'rest': 'name'})
     _resource: ClassVar[Literal['Microsoft.Storage/storageAccounts/blobServices/containers']] = 'Microsoft.Storage/storageAccounts/blobServices/containers'
     _version: ClassVar[str] = '2023-01-01'
     _symbolicname: str = field(default_factory=lambda: generate_symbol("container"), init=False, repr=False)
+
+
+@dataclass_model
+class Table(Resource):
+    name: str = field(metadata={'rest': 'name'})
+    _resource: ClassVar[Literal['Microsoft.Storage/storageAccounts/tableServices/tables']] = 'Microsoft.Storage/storageAccounts/tableServices/tables'
+    _version: ClassVar[str] = '2023-05-01'
+    _symbolicname: str = field(default_factory=lambda: generate_symbol("table"), init=False, repr=False)
+
+
+@dataclass_model
+class BlobServices(Resource):
+    _resource: ClassVar[Literal['Microsoft.Storage/storageAccounts/blobServices']] = 'Microsoft.Storage/storageAccounts/blobServices'
+    _version: ClassVar[str] = '2023-01-01'
+    _symbolicname: str = field(default_factory=lambda: generate_symbol("blobs"), init=False, repr=False)
+    name: str = field(init=False, default="default", metadata={'rest': 'name'})
+    containers: List[Container] = field(default_factory=list, metadata={'rest': _SKIP})
+
+    def write(self, bicep: IO[str]) -> None:
+        _serialize_resource(bicep, self)
+        for container in self.containers:
+            container._parent = self
+            container.write(bicep)
+
+
+@dataclass_model
+class TableServices(Resource):
+    _resource: ClassVar[Literal['Microsoft.Storage/storageAccounts/tableServices']] = 'Microsoft.Storage/storageAccounts/tableServices'
+    _version: ClassVar[str] = '2023-05-01'
+    _symbolicname: str = field(default_factory=lambda: generate_symbol("tables"), init=False, repr=False)
+    name: str = field(init=False, default="default", metadata={'rest': 'name'})
+    tables: List[Container] = field(default_factory=list, metadata={'rest': _SKIP})
+
+    def write(self, bicep: IO[str]) -> None:
+        _serialize_resource(bicep, self)
+        for table in self.tables:
+            table._parent = self
+            table.write(bicep)
 
 
 @dataclass_model
@@ -202,32 +243,40 @@ class StorageAccount(LocatedResource):
     extended_location : Optional[ExtendedLocation] = field(default=_UNSET, metadata={'rest': 'extendedLocation'})
     identity: Optional[Identity] = field(default=_UNSET, metadata={'rest': 'identity'})
     properties: Optional[Properties] = field(default=_UNSET, metadata={'rest': 'properties'})
-    services: InitVar[Optional[BlobServices]] = None
-    containers: InitVar[Optional[List[Container]]] = None
-    _services: BlobServices = field(default_factory=BlobServices)
-    _containers: List[Container] = field(init=False, default_factory=list)
+    blobs: Optional[BlobServices] = field(default=None, metadata={'rest': _SKIP})
+    tables: Optional[TableServices] = field(default=None, metadata={'rest': _SKIP})
+    roles: Optional[List[RoleAssignment]] = field(default_factory=list, metadata={'rest': _SKIP})
     _resource: ClassVar[Literal['Microsoft.Storage/storageAccounts']] = 'Microsoft.Storage/storageAccounts'
     _version: ClassVar[str] = '2023-01-01'
     _symbolicname: str = field(default_factory=lambda: generate_symbol("storage"), init=False, repr=False)
 
-    def __post_init__(
-            self,
-            parent: Optional[Resource],
-            scope: Optional[ResourceGroup],
-            services: Optional[BlobServices],
-            containers: Optional[List[Container]]
-    ):
-        if services:
-            self._services = services
-        self._services._parent = self
-        if containers:
-            for c in containers:
-                c._parent = self._services
-                self._containers.append(c)
-        super().__post_init__(parent, scope)
-
     def write(self, bicep: IO[str]) -> None:
         _serialize_resource(bicep, self)
-        self._services.write(bicep)
-        for container in self._containers:
-            container.write(bicep)
+        if self.blobs:
+            self.blobs._parent = self
+            self.blobs.write(bicep)
+        if self.tables:
+           self.tables._parent = self
+           self.tables.write(bicep)
+        for role in self.roles:
+            role.name = GuidName(self, PrincipalId(), role.properties.role_definition_id)
+            role._scope = self
+            role.write(bicep)
+
+        if self._fname:
+            output_prefix = self._fname.title()
+        else:
+            output_prefix = ""
+
+        self._outputs.append(output_prefix + 'Id')
+        bicep.write(f"output {output_prefix}Id string = {self._symbolicname}.id\n")
+        self._outputs.append(output_prefix + 'Name')
+        bicep.write(f"output {output_prefix}Name string = {self._symbolicname}.name\n")
+        if self.blobs:
+            output_name = output_prefix + "BlobEndpoint"
+            self._outputs.append(output_name)
+            bicep.write(f"output {output_name} string = {self._symbolicname}.properties.primaryEndpoints.blob\n")
+        if self.tables:
+            output_name = output_prefix + "TableEndpoint"
+            self._outputs.append(output_name)
+            bicep.write(f"output {output_name} string = {self._symbolicname}.properties.primaryEndpoints.table\n\n")

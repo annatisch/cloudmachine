@@ -10,8 +10,28 @@ import shutil
 import copy
 from typing import IO, Literal, Dict, Any, Optional, Union, Unpack, overload, List
 
-from ._resource import ResourceGroup, _DEFAULT_LOCATION
-from ._storage import StorageAccount, Sku
+from ._resource import ResourceGroup, SubscriptionResourceId, PrincipalId
+from ._roles import RoleAssignment, RoleAssignmentProperties
+from ._servicebus import (
+    ServiceBusNamespace,
+    ServiceBusSku,
+    ServiceBusRoleAssignments,
+    AuthorizationRule,
+    AuthorizationRuleProperties,
+    ServiceBusTopic,
+    TopicProperties
+)
+from ._storage import (
+    Container,
+    StorageAccount,
+    Sku,
+    BlobServices,
+    Properties,
+    Identity,
+    StorageRoleAssignments,
+    Table,
+    TableServices
+)
 
 
 # @dataclass
@@ -39,7 +59,10 @@ DEFAULT_PARAMS = {
         "environmentName": {
             "value": "${AZURE_ENV_NAME}"
         },
-        "cloudmachine": {
+        "principalId": {
+            "value": "${AZURE_PRINCIPAL_ID}"
+        },
+        "cloudmachineName": {
             "value": None
         },
         "location": {
@@ -63,48 +86,116 @@ class CloudMachineDeployment:
 
     id: str
     name: str
-    resources: List[ResourceGroup]
+    groups: List[ResourceGroup]
 
     @overload
     def __init__(
         self,
         *,
         name: str,
-        location: str = _DEFAULT_LOCATION,
+        location: Optional[str] = None,
         host: Literal['appservice'] = 'appservice',  # Union[Literal['appservice', 'container'], AppService, ContainerService]
         storage: Union[bool, StorageAccount] = True,
         fs: bool = False,  # Union[bool, DatalakeStorage]
-        db: bool = False, # Union[bool, Literal['tables', 'cosmos'], Tables, Cosmos]
+        db: Union[bool, Literal['tables']] = 'tables', # Union[bool, Literal['tables', 'cosmos'], Tables, Cosmos]
         telemetry: bool = False,
         vault: bool = False,  # Union[bool, KeyVault]
         events: bool = False,
-        messaging: bool = False,
+        messaging: Union[bool, ServiceBusNamespace] = True,
     ) -> None:
         ...
 
     @overload
-    def __init__(self, resources: ResourceGroup, /, name: str) -> None:
+    def __init__(self, resources: List[ResourceGroup], /, *, name: str) -> None:
         ...
     
     def __init__(self, *args, **kwargs) -> None:
         self._name = kwargs['name']
         self._params = copy.deepcopy(DEFAULT_PARAMS)
         if args:
-            self.resources = args[0]
+            self.groups = args[0]
         else:
-            location = kwargs.pop('location', None) or _DEFAULT_LOCATION()
-            self.resources = ResourceGroup(
-                location=location,
+            rg = ResourceGroup(
+                friendly_name=self._name,
                 tags={"abc": "def"},
             )
-            self.resources.add(self._define_storage(kwargs))
+            rg.add(self._define_storage(kwargs))
+            rg.add(self._define_messaging(kwargs))
+            self.groups = [rg]
+
+    def _define_messaging(self, kwargs: Dict[str,Any]) -> Optional[ServiceBusNamespace]:
+        sb = kwargs.pop('messaging', True)
+        if sb is True:
+            return ServiceBusNamespace(
+                sku=ServiceBusSku(
+                    name='Standard',
+                    tier='Standard'
+                ),
+                roles=[
+                    RoleAssignment(
+                        properties=RoleAssignmentProperties(
+                            role_definition_id=SubscriptionResourceId('Microsoft.Authorization/roleDefinitions', StorageRoleAssignments.BLOB_DATA_CONTRIBUTOR),
+                            principal_id=PrincipalId(),
+                            principal_type="User"
+                        )
+                    )
+                ],
+                auth_rules=[
+                    AuthorizationRule(
+                        properties=AuthorizationRuleProperties(
+                            rights=['Listen', 'Send', 'Manage']
+                        )
+                    )
+                ],
+                topics=[
+                    ServiceBusTopic(
+                        properties=TopicProperties(
+                            default_message_time_to_live='P14D',
+                            enable_batched_operations=True,
+                            max_message_size_in_kilobytes=256,
+                            requires_duplicate_detection=False,
+                            status='Active',
+                            support_ordering=True
+                        )
+                    )
+                ]
+            )
 
     def _define_storage(self, kwargs: Dict[str, Any]) -> Optional[StorageAccount]:
         storage = kwargs.pop('storage', True)
         if storage is True:
             return StorageAccount(
+                friendly_name="anna",
                 kind='StorageV2',
-                sku=Sku(name='Standard_LRS')
+                sku=Sku(name='Standard_LRS'),
+                blobs=BlobServices(
+                    containers=[
+                        Container(name="default")
+                    ]
+                ),
+                tables=TableServices(
+                    tables=[
+                        Table(name="default")
+                    ]
+                ),
+                properties=Properties(access_tier="Hot"),
+                identity=Identity(type='SystemAssigned'),
+                roles=[
+                    RoleAssignment(
+                        properties=RoleAssignmentProperties(
+                            role_definition_id=SubscriptionResourceId('Microsoft.Authorization/roleDefinitions', StorageRoleAssignments.BLOB_DATA_CONTRIBUTOR),
+                            principal_id=PrincipalId(),
+                            principal_type="User"
+                        )
+                    ),
+                    RoleAssignment(
+                        properties=RoleAssignmentProperties(
+                            role_definition_id=SubscriptionResourceId('Microsoft.Authorization/roleDefinitions', StorageRoleAssignments.TABLE_DATA_CONTRIBUTOR),
+                            principal_id=PrincipalId(),
+                            principal_type="User"
+                        )
+                    )
+                ]
             )
         elif isinstance(storage, StorageAccount):
             return storage
@@ -123,17 +214,20 @@ class CloudMachineDeployment:
             main.write("@maxLength(64)\n")
             main.write("@description('AZD environment name')\n")
             main.write("param environmentName string\n\n")
+            main.write("@description('Id of the user or app to assign application roles')\n")
+            main.write("param principalId string\n\n")
             main.write("@minLength(1)\n")
             main.write("@maxLength(64)\n")
             main.write("@description('Cloud Machine name')\n")
-            main.write("param cloudmachine string\n\n")
+            main.write("param cloudmachineName string\n\n")
             main.write("@minLength(1)\n")
             main.write("@description('Primary location for all resources')\n")
             main.write("param location string\n\n")
-            main.write("var tags = { 'azd-env-name': environmentName, 'cloudmachine-name': cloudmachine }\n")
-            main.write("var resourceToken = toLower(uniqueString(subscription().id, cloudmachine, location))\n\n")
-            self.resources.write(main)
+            main.write("var tags = { 'azd-env-name': environmentName, 'cloudmachine-name': cloudmachineName }\n")
+
+            for rg in self.groups:
+                rg.write(main)
         params_json = os.path.join(infra_dir, "main.parameters.json")
         with open(params_json, 'w') as params:
-            self._params["parameters"]["cloudmachine"]["value"] = self._name
+            self._params["parameters"]["cloudmachineName"]["value"] = self._name
             json.dump(self._params, params, indent=4)

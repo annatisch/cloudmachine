@@ -4,43 +4,57 @@
 # license information.
 # --------------------------------------------------------------------------
 
-from typing import TypeVar, Generic, TYPE_CHECKING, Literal, ContextManager
+import os
+import json
+from typing import IO, Dict, Iterable, TypeVar, Generic, TYPE_CHECKING, Literal, ContextManager
 
+from dotenv import load_dotenv
 from azure.core import PipelineClient
 from azure.core.pipeline.transport import RequestsTransport
 from azure.storage.blob import BlobServiceClient
+from azure.identity import DefaultAzureCredential
 
-if TYPE_CHECKING:
-    from azure.storage.blob import BlobServiceClient
+from .resources import CloudMachineDeployment, StorageAccount
 
-ClientType = TypeVar("ClientType", bound=ContextManager)
 
-class CloudMachineStorage(Generic[ClientType]):
-    kind: str
-    client: ClientType
+def load_dev_environment():
+    azd_dir = os.path.join(os.getcwd(), ".azure")
+    if not os.path.isdir(azd_dir):
+        raise RuntimeError("No '.azure' directory found in current working dir. Please run 'azd init' with the Minimal template.")
 
-class CloudMachineBlobStorage(CloudMachineStorage[BlobServiceClient]):
+    try:
+        azd_env_name = os.environ['AZURE_ENV_NAME']
+    except KeyError:
+        with open(os.path.join(azd_dir, "config.json")) as azd_config:
+            azd_env_name = json.load(azd_config)["defaultEnvironment"]
 
-    client: BlobServiceClient
-    kind: Literal["blob"] = "blob"
+    env_loaded = load_dotenv(os.path.join(azd_dir, azd_env_name, ".env"), override=True)
+    if not env_loaded:
+        raise RuntimeError("No cloudmachine infrastructure loaded. Please run 'azd provision' to provision cloudmachine resources.")
+
+
+
+class CloudMachineStorage:
     
-    def __init__(self, endpoint, credential, *, transport=None):
-        self._transport = transport or RequestsTransport()
-        self._pipeline = PipelineClient(transport=self._transport)
-        self._client
+    def __init__(self, deployment: CloudMachineDeployment):
+        self._storage_accounts: Dict[str, str] = {}
+        endpoint = os.environ['AZURE_STORAGE_ACCOUNT_BLOB_ENDPOINT']
+        self._client = BlobServiceClient(
+            account_url=endpoint,
+            credential=DefaultAzureCredential()
+        )
+        self._default_container = self._client.get_container_client("default")
 
-    @property
-    def sdk(self) -> "BlobServiceClient":
-        try:
-            from azure.storage.blob import BlobServiceClient
-            return BlobServiceClient()
-        except ImportError:
-            raise ImportError("To access the Blob Storage SDK, please install azure-storage-blob.")
+    # def _list_accounts(self, deployment):
+    #     for rg in deployment.groups:
+    #         for resource in rg.resources:
+    #             if isinstance(resource, StorageAccount):
+
+    def upload(self, name: str, filedata: IO[bytes]) -> None:
+        self._default_container.upload_blob(name, filedata)
+
+    def download(self) -> Iterable[bytes]:
+        return self._default_container.download_blob()
 
     def close(self) -> None:
-        self._pipeline.close()
-        self._transport.close()
-
-class CloudMachineDataStorage(CloudMachineStorage):
-
-    pass
+        self._client.close()
