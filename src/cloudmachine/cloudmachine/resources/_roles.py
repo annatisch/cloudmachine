@@ -33,6 +33,7 @@ class RoleAssignmentProperties:
 
 @dataclass_model
 class RoleAssignment(Resource):
+    name: str = field(init=False, default="", metadata={'rest': 'name'})
     properties: RoleAssignmentProperties = field(metadata={'rest': 'properties'})
     _resource: ClassVar[Literal['Microsoft.Authorization/roleAssignments']] = 'Microsoft.Authorization/roleAssignments'
     _version: ClassVar[str] = '2022-04-01'

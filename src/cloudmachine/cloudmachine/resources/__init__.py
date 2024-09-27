@@ -12,6 +12,7 @@ from typing import IO, Literal, Dict, Any, Optional, Union, Unpack, overload, Li
 
 from ._resource import ResourceGroup, SubscriptionResourceId, PrincipalId
 from ._roles import RoleAssignment, RoleAssignmentProperties
+from ._identity import ManagedIdentity, UserAssignedIdentities
 from ._servicebus import (
     ServiceBusNamespace,
     ServiceBusSku,
@@ -19,7 +20,9 @@ from ._servicebus import (
     AuthorizationRule,
     AuthorizationRuleProperties,
     ServiceBusTopic,
-    TopicProperties
+    TopicProperties,
+    TopicSubsciprtion,
+    SubscriptionProperties
 )
 from ._storage import (
     Container,
@@ -62,9 +65,6 @@ DEFAULT_PARAMS = {
         "principalId": {
             "value": "${AZURE_PRINCIPAL_ID}"
         },
-        "cloudmachineName": {
-            "value": None
-        },
         "location": {
             "value": "${AZURE_LOCATION}"
         }
@@ -94,7 +94,7 @@ class CloudMachineDeployment:
         *,
         name: str,
         location: Optional[str] = None,
-        host: Literal['appservice'] = 'appservice',  # Union[Literal['appservice', 'container'], AppService, ContainerService]
+        host: Literal['local', 'appservice'] = 'appservice',  # Union[Literal['appservice', 'container'], AppService, ContainerService]
         storage: Union[bool, StorageAccount] = True,
         fs: bool = False,  # Union[bool, DatalakeStorage]
         db: Union[bool, Literal['tables']] = 'tables', # Union[bool, Literal['tables', 'cosmos'], Tables, Cosmos]
@@ -119,6 +119,8 @@ class CloudMachineDeployment:
                 friendly_name=self._name,
                 tags={"abc": "def"},
             )
+            self._identity = ManagedIdentity()
+            rg.add(self._identity)
             rg.add(self._define_storage(kwargs))
             rg.add(self._define_messaging(kwargs))
             self.groups = [rg]
@@ -134,9 +136,16 @@ class CloudMachineDeployment:
                 roles=[
                     RoleAssignment(
                         properties=RoleAssignmentProperties(
-                            role_definition_id=SubscriptionResourceId('Microsoft.Authorization/roleDefinitions', StorageRoleAssignments.BLOB_DATA_CONTRIBUTOR),
+                            role_definition_id=SubscriptionResourceId('Microsoft.Authorization/roleDefinitions', ServiceBusRoleAssignments.DATA_OWNER),
                             principal_id=PrincipalId(),
                             principal_type="User"
+                        )
+                    ),
+                    RoleAssignment(
+                        properties=RoleAssignmentProperties(
+                            role_definition_id=SubscriptionResourceId('Microsoft.Authorization/roleDefinitions', ServiceBusRoleAssignments.DATA_SENDER),
+                            principal_id=PrincipalId(self._identity),
+                            principal_type="ServicePrincipal"
                         )
                     )
                 ],
@@ -149,6 +158,7 @@ class CloudMachineDeployment:
                 ],
                 topics=[
                     ServiceBusTopic(
+                        name="cm_internal_topic",
                         properties=TopicProperties(
                             default_message_time_to_live='P14D',
                             enable_batched_operations=True,
@@ -156,7 +166,49 @@ class CloudMachineDeployment:
                             requires_duplicate_detection=False,
                             status='Active',
                             support_ordering=True
-                        )
+                        ),
+                        subscriptions=[
+                            TopicSubsciprtion(
+                                properties=SubscriptionProperties(
+                                    dead_lettering_on_filter_evaluation_exceptions=True,
+                                    dead_lettering_on_message_expiration=True,
+                                    default_message_time_to_live='P14D',
+                                    enable_batched_operations=True,
+                                    is_client_affine=False,
+                                    lock_duration='PT30S',
+                                    max_delivery_count=10,
+                                    requires_session=False,
+                                    status='Active'
+                                )
+                            )
+                        ]
+                    ),
+                    ServiceBusTopic(
+                        name="cm_default_topic",
+                        properties=TopicProperties(
+                            default_message_time_to_live='P14D',
+                            enable_batched_operations=True,
+                            max_message_size_in_kilobytes=256,
+                            requires_duplicate_detection=False,
+                            status='Active',
+                            support_ordering=True
+                        ),
+                        subscriptions=[
+                            TopicSubsciprtion(
+                                name="cm_default_subscription",
+                                properties=SubscriptionProperties(
+                                    dead_lettering_on_filter_evaluation_exceptions=True,
+                                    dead_lettering_on_message_expiration=True,
+                                    default_message_time_to_live='P14D',
+                                    enable_batched_operations=True,
+                                    is_client_affine=False,
+                                    lock_duration='PT30S',
+                                    max_delivery_count=10,
+                                    requires_session=False,
+                                    status='Active'
+                                )
+                            )
+                        ]
                     )
                 ]
             )
@@ -178,8 +230,14 @@ class CloudMachineDeployment:
                         Table(name="default")
                     ]
                 ),
-                properties=Properties(access_tier="Hot"),
-                identity=Identity(type='SystemAssigned'),
+                properties=Properties(
+                    access_tier="Hot",
+                    allow_blob_public_access=False,
+                    is_hns_enabled=True
+                ),
+                identity=Identity(
+                    type='UserAssigned',
+                    user_assigned_identities=UserAssignedIdentities((self._identity, {}))),
                 roles=[
                     RoleAssignment(
                         properties=RoleAssignmentProperties(
@@ -207,7 +265,6 @@ class CloudMachineDeployment:
     def write(self, root_path: str):
         infra_dir = get_empty_directory(root_path, "infra")
         main_bicep = os.path.join(infra_dir, "main.bicep")
-        get_empty_directory(infra_dir, "core")
         with open(main_bicep, 'w') as main:
             main.write("targetScope = 'subscription'\n\n")
             main.write("@minLength(1)\n")
@@ -217,17 +274,13 @@ class CloudMachineDeployment:
             main.write("@description('Id of the user or app to assign application roles')\n")
             main.write("param principalId string\n\n")
             main.write("@minLength(1)\n")
-            main.write("@maxLength(64)\n")
-            main.write("@description('Cloud Machine name')\n")
-            main.write("param cloudmachineName string\n\n")
-            main.write("@minLength(1)\n")
             main.write("@description('Primary location for all resources')\n")
             main.write("param location string\n\n")
-            main.write("var tags = { 'azd-env-name': environmentName, 'cloudmachine-name': cloudmachineName }\n")
+            main.write("var tags = { 'azd-env-name': environmentName }\n")
+            main.write("var cloudmachineId = uniqueString(subscription().subscriptionId, environmentName, location)\n\n")
 
             for rg in self.groups:
                 rg.write(main)
         params_json = os.path.join(infra_dir, "main.parameters.json")
         with open(params_json, 'w') as params:
-            self._params["parameters"]["cloudmachineName"]["value"] = self._name
             json.dump(self._params, params, indent=4)

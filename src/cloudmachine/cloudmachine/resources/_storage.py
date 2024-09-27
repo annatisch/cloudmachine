@@ -6,9 +6,10 @@
 
 import functools
 from enum import Enum
-from typing import IO, Any, ClassVar, List, Mapping, Optional, Dict, Literal, Set, Tuple, overload
+from typing import IO, Any, ClassVar, List, Mapping, Optional, Dict, Literal, Set, Tuple, Union, overload
 from dataclasses import InitVar, dataclass, field
-from ._roles import RoleAssignment, RoleAssignmentProperties
+from ._roles import RoleAssignment
+from ._identity import UserAssignedIdentities
 from ._resource import (
     PrincipalId,
     _serialize_resource,
@@ -43,7 +44,7 @@ class ExtendedLocation:
 @dataclass_model
 class Identity:
     type: Literal['None', 'SystemAssigned', 'SystemAssigned,UserAssigned','UserAssigned'] = field(metadata={'rest': 'type'})
-    user_assigned_identities: Optional[Dict[str, str]] = field(default=_UNSET, metadata={'rest': 'userAssignedIdentities'})
+    user_assigned_identities: Optional[UserAssignedIdentities] = field(default=_UNSET, metadata={'rest': 'userAssignedIdentities'})
 
 
 @dataclass_model
@@ -168,7 +169,7 @@ class SasPolicy:
 @dataclass_model
 class Properties:
     access_tier: Optional[Literal["Hot", "Cool", "Premium"]] = field(default=_UNSET, metadata={'rest': 'accessTier'})
-    allow_blob_public_acess: Optional[bool] = field(default=_UNSET, metadata={'rest': 'allowBlobPublicAccess'})
+    allow_blob_public_access: Optional[bool] = field(default=_UNSET, metadata={'rest': 'allowBlobPublicAccess'})
     allow_cross_tenant_replication: Optional[bool] = field(default=_UNSET, metadata={'rest': 'allowCrossTenantReplication'})
     allowed_copy_scope: Optional[Literal['AAD','PrivateLink']] = field(default=_UNSET, metadata={'rest': 'allowedCopyScope'})
     allow_shared_key_access: Optional[bool] = field(default=_UNSET, metadata={'rest': 'allowSharedKeyAccess'})

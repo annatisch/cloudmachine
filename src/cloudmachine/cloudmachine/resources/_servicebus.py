@@ -10,6 +10,7 @@ from dataclasses import InitVar, dataclass, field
 
 from ._roles import RoleAssignment
 from ._resource import (
+    UniqueName,
     _serialize_resource,
     Resource,
     LocatedResource,
@@ -102,6 +103,7 @@ class AuthorizationRule(Resource):
     _resource: ClassVar[Literal['Microsoft.ServiceBus/namespaces/AuthorizationRules']] = 'Microsoft.ServiceBus/namespaces/AuthorizationRules'
     _version: ClassVar[str] = '2021-11-01'
     _symbolicname: str = field(default_factory=lambda: generate_symbol("sbar"), init=False, repr=False)
+    name: str = field(default_factory=lambda: UniqueName(prefix="cm_sb_auth_rule-", length=50), metadata={'rest': 'name'})
     properties: AuthorizationRuleProperties = field(metadata={'rest': 'properties'})
 
 
@@ -135,7 +137,8 @@ class TopicSubsciprtion(Resource):
     _resource: ClassVar[Literal['Microsoft.ServiceBus/namespaces/topics/subscriptions']] = 'Microsoft.ServiceBus/namespaces/topics/subscriptions'
     _version: ClassVar[str] = '2021-11-01'
     _symbolicname: str = field(default_factory=lambda: generate_symbol("sbsub"), init=False, repr=False)
-    properties: AuthorizationRuleProperties = field(metadata={'rest': 'properties'})
+    name: str = field(default_factory=lambda: UniqueName(prefix="cm_sb_subscription-", length=50), metadata={'rest': 'name'})
+    properties: SubscriptionProperties = field(metadata={'rest': 'properties'})
 
 
 @dataclass_model
@@ -156,8 +159,9 @@ class TopicProperties:
 @dataclass_model
 class ServiceBusTopic(Resource):
     _resource: ClassVar[Literal['Microsoft.ServiceBus/namespaces/topics']] = 'Microsoft.ServiceBus/namespaces/topics'
-    _version: ClassVar[str] = '2023-01-01-preview'
+    _version: ClassVar[str] = '2021-11-01'
     _symbolicname: str = field(default_factory=lambda: generate_symbol("sbtp"), init=False, repr=False)
+    name: str = field(default_factory=lambda: UniqueName(prefix="cm_sb_topic-", length=50), metadata={'rest': 'name'})
     properties: Optional[TopicProperties] = field(metadata={'rest': 'properties'})
     subscriptions: List[TopicSubsciprtion] = field(default_factory=list, metadata={'rest': _SKIP})
 
