@@ -221,4 +221,4 @@ class ServiceBusNamespace(LocatedResource):
         self._outputs.append(output_prefix + 'Name')
         bicep.write(f"output {output_prefix}Name string = {self._symbolicname}.name\n")
         self._outputs.append(output_prefix + 'Endpoint')
-        bicep.write(f"output {output_prefix}Endpoint string = {self._symbolicname}.properties.serviceBusEndpoint\n")
+        bicep.write(f"output {output_prefix}Endpoint string = {self._symbolicname}.properties.serviceBusEndpoint\n\n")

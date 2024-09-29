@@ -10,7 +10,7 @@ import shutil
 import copy
 from typing import IO, Literal, Dict, Any, Optional, Union, Unpack, overload, List
 
-from ._resource import ResourceGroup, SubscriptionResourceId, PrincipalId
+from ._resource import ResourceGroup, SubscriptionResourceId, PrincipalId, ResourceId
 from ._roles import RoleAssignment, RoleAssignmentProperties
 from ._identity import ManagedIdentity, UserAssignedIdentities
 from ._servicebus import (
@@ -34,6 +34,19 @@ from ._storage import (
     StorageRoleAssignments,
     Table,
     TableServices
+)
+from ._eventgrid import (
+    EventSubscription,
+    SystemTopics,
+    SystemTopicProperties,
+    EventSubscriptionProperties,
+    EventSubscriptionIdentity,
+    EventSubscriptionFilter,
+    IdentityInfo,
+    DeliveryWithResourceIdentity,
+    ServiceBusTopicEventSubscriptionDestination,
+    ServiceBusTopicEventSubscriptionDestinationProperties,
+    RetryPolicy
 )
 
 
@@ -100,7 +113,7 @@ class CloudMachineDeployment:
         db: Union[bool, Literal['tables']] = 'tables', # Union[bool, Literal['tables', 'cosmos'], Tables, Cosmos]
         telemetry: bool = False,
         vault: bool = False,  # Union[bool, KeyVault]
-        events: bool = False,
+        events: bool = True,
         messaging: Union[bool, ServiceBusNamespace] = True,
     ) -> None:
         ...
@@ -121,8 +134,12 @@ class CloudMachineDeployment:
             )
             self._identity = ManagedIdentity()
             rg.add(self._identity)
-            rg.add(self._define_storage(kwargs))
-            rg.add(self._define_messaging(kwargs))
+            self._storage = self._define_storage(kwargs)
+            rg.add(self._storage)
+            self._messaging = self._define_messaging(kwargs)
+            rg.add(self._messaging)
+            rg.add(self._define_events(kwargs))
+
             self.groups = [rg]
 
     def _define_messaging(self, kwargs: Dict[str,Any]) -> Optional[ServiceBusNamespace]:
@@ -261,6 +278,50 @@ class CloudMachineDeployment:
             return None
         else:
             raise TypeError(f"Unexpected type for 'storage' param: '{storage}'.")
+
+    def _define_events(self, kwargs: Dict[str,Any]) -> Optional[ServiceBusNamespace]:
+        events = kwargs.pop('events', True)
+        if events is True:
+            return SystemTopics(
+                identity=IdentityInfo(
+                    type="UserAssigned",
+                    user_assigned_identities=UserAssignedIdentities((self._identity, {}))
+                ),
+                properties=SystemTopicProperties(
+                    source=ResourceId(self._storage),
+                    topic_type='Microsoft.Storage.StorageAccounts'
+                ),
+                subscriptions=[
+                    EventSubscription(
+                        properties=EventSubscriptionProperties(
+                            delivery_with_resource_identity=DeliveryWithResourceIdentity(
+                                identity=EventSubscriptionIdentity(
+                                    type="UserAssigned",
+                                    user_assigned_identity=ResourceId(self._identity)
+                                ),
+                                destination=ServiceBusTopicEventSubscriptionDestination(
+                                    properties=ServiceBusTopicEventSubscriptionDestinationProperties(
+                                        resource_id=ResourceId(self._messaging.topics[0])
+                                    )
+                                )
+                            ),
+                            event_delivery_schema='EventGridSchema',
+                            filter=EventSubscriptionFilter(
+                                included_event_types=[
+                                    'Microsoft.Storage.BlobCreated',
+                                    'Microsoft.Storage.BlobDeleted',
+                                    'Microsoft.Storage.BlobRenamed',
+                                ],
+                                enable_advanced_filtering_on_arrays=True
+                            ),
+                            retry_policy=RetryPolicy(
+                                max_delivery_attempts=30,
+                                event_time_to_live_in_minutes=1440
+                            )
+                        )
+                    )
+                ]
+            )
 
     def write(self, root_path: str):
         infra_dir = get_empty_directory(root_path, "infra")

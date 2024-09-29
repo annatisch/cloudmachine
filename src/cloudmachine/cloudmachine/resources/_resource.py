@@ -47,6 +47,14 @@ class DefaultLocation(BicepResolver):
         return "location"
 
 
+class ResourceId(BicepResolver):
+    def __init__(self, resource: 'Resource') -> None:
+        self._resource = resource
+
+    def resolve(self) -> str:
+        return f"{self._resource._symbolicname}.id"
+
+
 class CloudMachineName(BicepResolver):
     def resolve(self) -> str:
         return "cloudmachineName"
@@ -58,7 +66,7 @@ class PrincipalId(BicepResolver):
 
     def resolve(self) -> str:
         if self._resource:
-            return f"{self._resource._symbolicname}.identity.principalId"
+            return f"{self._resource._symbolicname}.properties.principalId"
         return "principalId"
 
 
@@ -198,7 +206,11 @@ def _serialize_dataclass(bicep: IO[str], data_val: dataclass, indent: str) -> No
 
 def _serialize_dict(bicep: IO[str], dict_val: Dict[str, Any], indent: str) -> None:
     for key, value in dict_val.items():
-        if isinstance(value, dict) and value:
+        if is_dataclass(value):
+            bicep.write(f"{indent}{key}: {{\n")
+            _serialize_dataclass(bicep, value, indent + '  ')
+            bicep.write(f"{indent}}}\n")
+        elif isinstance(value, dict) and value:
             bicep.write(f"{indent}{key}: {{\n")
             _serialize_dict(bicep, value, indent + '  ')
             bicep.write(f"{indent}}}\n")
@@ -212,7 +224,11 @@ def _serialize_dict(bicep: IO[str], dict_val: Dict[str, Any], indent: str) -> No
 
 def _serialize_list(bicep: IO[str], list_val: List[Any], indent: str) -> None:
     for item in list_val:
-        if isinstance(item, dict):
+        if is_dataclass(item):
+            bicep.write(f"{indent} {{\n")
+            _serialize_dataclass(bicep, item, indent + '  ')
+            bicep.write(f"{indent} }}\n")
+        elif isinstance(item, dict):
             bicep.write(f"{indent} {{\n")
             _serialize_dict(bicep, item, indent + '  ')
             bicep.write(f"{indent} }}\n")
