@@ -6,5 +6,6 @@
 
 import sys
 
+
 def command():
     print(sys.argv)

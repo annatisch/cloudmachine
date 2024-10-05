@@ -269,6 +269,7 @@ class StorageAccount(LocatedResource):
         else:
             output_prefix = ""
 
+        output_prefix = "Storage" + output_prefix
         self._outputs.append(output_prefix + 'Id')
         bicep.write(f"output {output_prefix}Id string = {self._symbolicname}.id\n")
         self._outputs.append(output_prefix + 'Name')

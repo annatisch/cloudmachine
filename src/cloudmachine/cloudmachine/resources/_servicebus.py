@@ -215,7 +215,7 @@ class ServiceBusNamespace(LocatedResource):
             output_prefix = self._fname.title()
         else:
             output_prefix = ""
-
+        output_prefix = "ServiceBus" + output_prefix
         self._outputs.append(output_prefix + 'Id')
         bicep.write(f"output {output_prefix}Id string = {self._symbolicname}.id\n")
         self._outputs.append(output_prefix + 'Name')

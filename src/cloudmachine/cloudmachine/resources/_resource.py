@@ -303,7 +303,7 @@ class ResourceGroup(LocatedResource):
             for resource in self._resources:
                 resource.write(cm_bicep)
                 for output in resource._outputs:
-                    outputs[f"{generate_envvar(resource.__class__.__name__)}_{generate_envvar(output)}"] = f"cloudmachine.outputs.{output}"
+                    outputs[f"{generate_envvar(output)}"] = f"cloudmachine.outputs.{output}"
 
         bicep.write(f"module cloudmachine 'cloudmachine.bicep' = {{\n")
         bicep.write(f"{indent}name: 'cloudmachine'\n")
