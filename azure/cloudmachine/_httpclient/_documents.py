@@ -31,9 +31,6 @@ from typing import (
     TYPE_CHECKING
 )
 
-from openai import RateLimitError, AzureOpenAI
-from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
-
 from azure.core.exceptions import ResourceNotFoundError
 from azure.core.pipeline.transport import HttpTransport
 
@@ -42,6 +39,7 @@ from .._resources._client_settings import ClientSettings
 from ._storage import StorageFile
 
 if TYPE_CHECKING:
+    from .._resources._client_types import *
     from azure.search.documents.models import (
         QueryCaptionResult,
         QueryType,
@@ -135,9 +133,12 @@ class CloudMachineDocumentIndex:
             *,
             search: ClientSettings['SearchIndexClient'],
             documentai: Optional[ClientSettings['DocumentIntelligenceClient']] = None,
-            openai: Optional[ClientSettings[AzureOpenAI]] = None,
+            openai: Optional[ClientSettings['AzureOpenAI']] = None,
             transport: Optional[HttpTransport] = None,
     ):
+        from openai import RateLimitError, AzureOpenAI
+        from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
+
         self._documentai = documentai
         self._search = search
         self._openai = openai

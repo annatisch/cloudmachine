@@ -52,13 +52,13 @@ class SyncClient(Protocol):
 class WithSettings(Protocol):
     __resource_settings__ = Mapping[str, Any]
 
-@runtime_checkable
+
+ClientType = TypeVar("ClientType", bound=SyncClient)
+
 class SyncClientWithSettings(SyncClient, WithSettings):
     ...
 
-
-ClientType = TypeVar("ClientType", bound=SyncClient)
-ClientTypeWithSettings = NewType("ClientTypeWithSettings", (ClientType, WithSettings))
+# ClientTypeWithSettings = NewType("ClientTypeWithSettings", SyncClientWithSettings)
 
 
 

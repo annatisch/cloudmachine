@@ -196,8 +196,6 @@ class _SDKSettings:
         self._global_settings = settings
         self.resource_name = resource
         self.setting_name = setting_name
-        print("creating client settings", self._prefixes, setting_name)
-        print(_build_envs(self._prefixes, ['NAME'], setting_name))
         self.name = StoredPrioritizedSetting(
             'name',
             env_vars=_build_envs(self._prefixes, ['NAME'], setting_name),

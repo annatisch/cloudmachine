@@ -62,8 +62,6 @@ class _CMDefault(str, Enum):
 
 
 CloudmachineDefault = _CMDefault.token
-#ClientTypeWithSettings = NewType("ClientTypeWithSettings", (ClientType, WithSettings))
-NewClientType = TypeVar("NewClientType", ClientType)
 
 def load_dev_environment(name: str) -> Dict[str, str]:
     print("Loading local environment.")

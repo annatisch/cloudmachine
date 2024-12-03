@@ -82,18 +82,18 @@ def shutdown_project(deployment: 'CloudMachineDeployment', label: Optional[str])
 
 def deploy_project(deployment: 'CloudMachineDeployment', label: Optional[str]) -> None:
     project_name = azd_env_name(deployment.name, deployment.host, label)
-    args = ['azd', 'provision', '-e', project_name]
+    # args = ['azd', 'provision', '-e', project_name]
+    # print("Running: ", args)
+    # output = subprocess.run(args)
+    # print("Output: ", output)
+    # if output.returncode == 0:
+    deployment_name = f"py-cloudmachine-{deployment.name}"
+    args = ['azd', 'deploy', deployment_name, '-e', project_name]
     print("Running: ", args)
     output = subprocess.run(args)
     print("Output: ", output)
-    if output.returncode == 0:
-        deployment_name = f"py-cloudmachine-{deployment.name}"
-        args = ['azd', 'deploy', deployment_name, '-e', project_name]
-        print("Running: ", args)
-        output = subprocess.run(args)
-        print("Output: ", output)
-    else:
-        print("Resource provision failed.")
+    #else:
+    #    print("Resource provision failed.")
 
 
 def init_project(
@@ -676,8 +676,11 @@ class CloudMachineDeployment:
     
     def write(self, root_path: str):
         infra_dir = _get_empty_directory(root_path, ".infra")
-        main_bicep = os.path.join(infra_dir, "main.bicep")
+        with open(os.path.join(infra_dir, ".gitignore")) as ignore:
+            ignore.write("# .infra is not intended to be committed\n")
+            ignore.write("*\n")
 
+        main_bicep = os.path.join(infra_dir, "main.bicep")
         with open(main_bicep, 'w') as main:
             main.write("targetScope = 'subscription'\n\n")
             main.write("@minLength(1)\n")
@@ -711,10 +714,6 @@ class CloudMachineDeployment:
             main.write("}\n\n")
             for output in outputs.keys():
                 main.write(f"output AZURE_CLOUDMACHINE_{generate_envvar(output)} string = cloudmachine.outputs.{output}\n")
-            # for resource in self.ai:
-            #     if isinstance(resource, ExistingResource):
-            #         for output, value in resource.write().items():
-            #             main.write(f"output AZURE_CLOUDMACHINE_{generate_envvar(output)} string = '{value}'\n")
             main.write(f"output AZURE_CLOUDMACHINE_RESOURCE_GROUP string = {self._core._symbolicname}.name")
 
         params_json = os.path.join(infra_dir, "main.parameters.json")

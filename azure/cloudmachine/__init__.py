@@ -4,16 +4,15 @@
 # license information.
 # --------------------------------------------------------------------------
 
-#__path__ = __import__("pkgutil").extend_path(__path__, __name__)
-
 from ._client import CloudMachineClient, CloudMachineTableData, DataModel
-from ._resources import resources
+from ._resources import resources, Resources
 from ._httpclient._storage import StorageFile, DeletedFile, CloudMachineStorage
 from ._httpclient._servicebus import CloudMachineServiceBus, Message, LockedMessage
 from ._httpclient._documents import CloudMachineDocumentIndex, Document
 
 __all__ = [
     'resources',
+    'Resources',
     'CloudMachineClient',
     'CloudMachineTableData',
     'DataModel',
