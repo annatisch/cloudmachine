@@ -1,0 +1,4 @@
+pydantic
+Flask
+azure-cloudmachine
+azure-data-tables
