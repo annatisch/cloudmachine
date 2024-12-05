@@ -23,6 +23,7 @@ from ._resource import (
     _SKIP,
     GuidName,
     PrincipalId,
+    ResourceId,
     resolve_value,
     BicepBool,
     BicepInt,
@@ -204,7 +205,10 @@ class ServiceBusNamespace(LocatedResource):
             rule.parent = self
             self._outputs.update(rule.write(bicep))
         for role in self.roles:
-            role.name = GuidName(self, PrincipalId(), role.properties['roleDefinitionId'])
+            principal_id: PrincipalId = role.properties['principalId']
+            if principal_id.resource:
+                principal_id = ResourceId(principal_id.resource)
+            role.name = GuidName(self, principal_id, role.properties['roleDefinitionId'])
             role.scope = self
             self._outputs.update(role.write(bicep))
         for topic in self.topics:

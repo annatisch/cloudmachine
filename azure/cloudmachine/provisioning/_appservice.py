@@ -10,6 +10,7 @@ from functools import partial
 from typing import IO, Any, ClassVar, List, Optional, Dict, Literal, TypedDict
 from dataclasses import field, dataclass
 
+from .diagnostics import DiagnosticSettings
 from ._resource import (
     _SKIP,
     Output,
@@ -21,7 +22,8 @@ from ._resource import (
     resolve_value,
     BicepStr,
     BicepBool,
-    BicepInt
+    BicepInt,
+    ResourceName
 )
 
 
@@ -462,6 +464,7 @@ class AppServiceSite(LocatedResource):
     properties: Optional[SiteProperties] = field(default=_UNSET, metadata={'rest': 'properties'})
     configs: List[AppServiceConfig] = field(default_factory=list, metadata={'rest': _SKIP})
     policies: List[BasicPublishingCredentialsPolicy] = field(default_factory=list, metadata={'rest': _SKIP})
+    diagnostics: Optional[DiagnosticSettings] = field(default=None, metadata={'rest': _SKIP})
     _resource: ClassVar[Literal['Microsoft.Web/sites']] = 'Microsoft.Web/sites'
     _version: ClassVar[str] = '2022-09-01'
     _symbolicname: str = field(default_factory=partial(generate_symbol, "site"), init=False, repr=False)
@@ -474,12 +477,16 @@ class AppServiceSite(LocatedResource):
         for config in self.configs:
             config.parent = self
             self._outputs.update(config.write(bicep))
+        if self.diagnostics:
+            self.diagnostics.name = ResourceName(suffix="-appdiagnostics")
+            self.diagnostics.scope = self
+            self._outputs.update(self.diagnostics.write(bicep))
 
         output_prefix = "AppService"
         self._outputs[output_prefix + "Id"] = Output(f"{self._symbolicname}.id")
         # self._outputs[output_prefix + "PrincipalId"] = Output(f"{self._symbolicname}.identity.principalId")
         self._outputs[output_prefix + "Name"] = Output(f"{self._symbolicname}.name")
-        self._outputs[output_prefix + "Url"] = f"https://${{{self._symbolicname}.properties.defaultHostName}}"
+        self._outputs[output_prefix + "Url"] = Output(f"'https://${{{self._symbolicname}.properties.defaultHostName}}'")
         for key, value in self._outputs.items():
             bicep.write(f"output {key} string = {resolve_value(value)}\n")
         bicep.write("\n")

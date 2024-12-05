@@ -5,6 +5,7 @@
 # --------------------------------------------------------------------------
 
 from typing import ClassVar, Literal, TypedDict
+from typing_extensions import Required
 from dataclasses import field, dataclass
 
 from ._resource import (
@@ -15,10 +16,8 @@ from ._resource import (
 
 
 class RoleAssignmentProperties(TypedDict, total=False):
-    # Required
-    principalId: BicepStr
-    # Required
-    roleDefinitionId: BicepStr
+    principalId: Required[BicepStr]
+    roleDefinitionId: Required[BicepStr]
     condition: BicepStr
     conditionVersion: Literal['2.0']
     delegatedManagedIdentityResourceId: BicepStr

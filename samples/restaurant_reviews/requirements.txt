@@ -1,4 +1,5 @@
 pydantic
 Flask
-azure-cloudmachine
+git+https://github.com/annatisch/cloudmachine.git#egg=azure-cloudmachine
 azure-data-tables
+azure-monitor-opentelemetry

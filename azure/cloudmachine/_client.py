@@ -67,7 +67,8 @@ def load_dev_environment(name: str) -> Dict[str, str]:
     print("Loading local environment.")
     azd_dir = os.path.join(os.getcwd(), ".azure")
     if not os.path.isdir(azd_dir):
-        raise RuntimeError("No '.azure' directory found in current working dir. Please run 'azd init' with the Minimal template.")
+        return {}
+        # raise RuntimeError("No '.azure' directory found in current working dir. Please run 'azd init' with the Minimal template.")
 
     env_name = azd_env_name(name, 'local', None)
     # env_loaded = load_dotenv(os.path.join(azd_dir, env_name, ".env"), override=True)

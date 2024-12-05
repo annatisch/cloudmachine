@@ -11,9 +11,11 @@ from typing import IO, ClassVar, Dict, List, Optional, Literal, TypedDict
 from dataclasses import field, dataclass
 from ._roles import RoleAssignment
 from ._identity import UserAssignedIdentities
+from .diagnostics import DiagnosticSettings
 from ._resource import (
     Output,
     PrincipalId,
+    ResourceId,
     _serialize_resource,
     Resource,
     LocatedResource,
@@ -266,6 +268,7 @@ class StorageAccount(LocatedResource):
     blobs: Optional[BlobServices] = field(default=None, metadata={'rest': _SKIP})
     tables: Optional[TableServices] = field(default=None, metadata={'rest': _SKIP})
     roles: Optional[List[RoleAssignment]] = field(default_factory=list, metadata={'rest': _SKIP})
+    diagnostics: Optional[DiagnosticSettings] = field(default=None, metadata={'rest': _SKIP})
     _resource: ClassVar[Literal['Microsoft.Storage/storageAccounts']] = 'Microsoft.Storage/storageAccounts'
     _version: ClassVar[str] = '2023-01-01'
     _symbolicname: str = field(default_factory=lambda: generate_symbol("storage"), init=False, repr=False)
@@ -279,9 +282,15 @@ class StorageAccount(LocatedResource):
             self.tables.parent = self
             self._outputs.update(self.tables.write(bicep))
         for role in self.roles:
-            role.name = GuidName(self, PrincipalId(), role.properties['roleDefinitionId'])
+            principal_id: PrincipalId = role.properties['principalId']
+            if principal_id.resource:
+                principal_id = ResourceId(principal_id.resource)
+            role.name = GuidName(self, principal_id, role.properties['roleDefinitionId'])
             role.scope = self
             self._outputs.update(role.write(bicep))
+        if self.diagnostics:
+            self.diagnostics.scope = self
+            self._outputs.update(self.diagnostics.write(bicep))
 
         if self._fname:
             output_prefix = self._fname.title()

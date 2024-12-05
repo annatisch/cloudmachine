@@ -81,9 +81,25 @@ class CloudMachine(CloudMachineClient):
                 )
             )
         else:
-            if self.deployment and self.deployment.host == 'local':
+            if self.deployment:
+                #if self.deployment.host == 'local':
                 #os.environ.update(self.deployment.app_settings)
                 app.config.update(load_dev_environment(self.deployment.name))
+                if self.deployment.monitor:
+                    try:
+                        from azure.monitor.opentelemetry import configure_azure_monitor
+                        from azure.identity import ManagedIdentityCredential
+                    except ImportError as e:
+                        raise ImportError(
+                            "Telemetry has been enabled in CloudMachine, "
+                            "but `azure-monitor-opentelemetry not installed.") from e
+                    configure_azure_monitor(
+                        credential=ManagedIdentityCredential()
+                    )
+                    # if 'openai' in self._settings:
+                    #     from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+                    #     # This tracks OpenAI SDK requests:
+                    #     OpenAIInstrumentor().instrument()
 
         # app.before_request(self._create_session)
         # app.teardown_appcontext(self._close_session)
@@ -107,12 +123,10 @@ def cm_infra(cm: CloudMachine) -> None:
     cm.deployment.write(os.getcwd())
 
 def cm_provision_local(cm: CloudMachine) -> None:
-    cm_infra(cm)
     provision_project(cm.deployment, cm.label)
 
 def cm_down(cm: CloudMachine) -> None:
     shutdown_project(cm.deployment, cm.label)
 
 def cm_provision_remote(cm: CloudMachine) -> None:
-    cm_infra(cm)
     deploy_project(cm.deployment, cm.label)

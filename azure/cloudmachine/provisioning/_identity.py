@@ -12,7 +12,12 @@ from dataclasses import field, dataclass
 from ._resource import (
     LocatedResource,
     generate_symbol,
-    BicepStr
+    BicepStr,
+    Output,
+    Dict,
+    IO,
+    _serialize_resource,
+    resolve_value,
 )
 
 class UserIdentityProperties(TypedDict, total=False):
@@ -40,3 +45,11 @@ class ManagedIdentity(LocatedResource):
     _resource: ClassVar[Literal['Microsoft.ManagedIdentity/userAssignedIdentities']] = 'Microsoft.ManagedIdentity/userAssignedIdentities'
     _version: ClassVar[str] = '2023-01-31'
     _symbolicname: str = field(default_factory=lambda: generate_symbol("ma"), init=False, repr=False)
+
+    def write(self, bicep: IO[str]) -> Dict[str, str]:
+        _serialize_resource(bicep, self)
+        self._outputs["AzureClientId"] = Output(f"{self._symbolicname}.properties.clientId", needs_prefix=False)
+        for key, value in self._outputs.items():
+            bicep.write(f"output {key} string = {resolve_value(value)}\n")
+        bicep.write("\n")
+        return self._outputs

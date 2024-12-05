@@ -11,7 +11,7 @@ import os
 import shutil
 import copy
 import subprocess
-from typing import Dict, Literal, Optional, List, Union
+from typing import Dict, Literal, Optional, List, Union, Mapping
 
 from .._version import VERSION
 from ..events import cloudmachine_events
@@ -19,6 +19,7 @@ from .._resources import resources
 from .._resources._client_settings import ClientSettings
 from ._resource import (
     _UNSET,
+    Output,
     CloudMachineId,
     ResourceGroup,
     ResourceName,
@@ -28,6 +29,7 @@ from ._resource import (
     _serialize_resource,
     generate_envvar
 )
+from .diagnostics import DiagnosticSettings
 from ._roles import RoleAssignment, RoleAssignmentProperties
 from ._identity import ManagedIdentity, UserAssignedIdentities
 from .servicebus import (
@@ -54,6 +56,12 @@ from ._appservice import (
     AppServicePlan,
     AppServiceSite,
     BasicPublishingCredentialsPolicy,
+)
+from .monitoring import (
+    ApplicationInsights,
+    ApplicationInsightProperties,
+    LogAnalyticsWorkspace,
+    WorkspaceProperties
 )
 from ._openai import CognitiveServices, AIRoleAssignments, AiDeployment
 from ._search import SearchServices, SearchRoleAssignments
@@ -82,18 +90,11 @@ def shutdown_project(deployment: 'CloudMachineDeployment', label: Optional[str])
 
 def deploy_project(deployment: 'CloudMachineDeployment', label: Optional[str]) -> None:
     project_name = azd_env_name(deployment.name, deployment.host, label)
-    # args = ['azd', 'provision', '-e', project_name]
-    # print("Running: ", args)
-    # output = subprocess.run(args)
-    # print("Output: ", output)
-    # if output.returncode == 0:
     deployment_name = f"py-cloudmachine-{deployment.name}"
     args = ['azd', 'deploy', deployment_name, '-e', project_name]
     print("Running: ", args)
     output = subprocess.run(args)
     print("Output: ", output)
-    #else:
-    #    print("Resource provision failed.")
 
 
 def init_project(
@@ -155,11 +156,12 @@ DEFAULT_PARAMS = {
 
 def _get_empty_directory(root_path: str, name: str) -> str:
     new_dir = os.path.join(root_path, name)
-    try:
-        shutil.rmtree(new_dir)
-    except FileNotFoundError:
-        pass
-    os.makedirs(new_dir)
+    # try:
+    #     shutil.rmtree(new_dir)
+    # except FileNotFoundError:
+    #     pass
+    if not os.path.isdir:
+        os.makedirs(new_dir)
 
     return new_dir
 
@@ -176,6 +178,7 @@ class CloudMachineDeployment:
     documentai: Optional[ClientSettings]
     search: Optional[ClientSettings]
     app_settings: Dict[str, str]
+    monitor: Optional[LogAnalyticsWorkspace]
 
     def __init__(
         self,
@@ -191,6 +194,7 @@ class CloudMachineDeployment:
         search: Union[bool, ClientSettings] = False,
         monitoring: bool = False,
         vault: bool = False,
+        tags: Optional[Mapping[str, str]] = None,
 
     ) -> None:
         if not name or not (name.isalnum() and name[0].isalpha() and len(name) <= 25):
@@ -198,13 +202,15 @@ class CloudMachineDeployment:
         self.name = name.lower()
         self.location = location
         self.app_settings = {}
+        self._tags = tags or {}
 
         self._params = copy.deepcopy(DEFAULT_PARAMS)
         self._core = ResourceGroup(
             friendly_name=self.name,
-            tags={"abc": "def"},
+            tags=self._tags,
         )
         self.identity = ManagedIdentity()
+        self.monitor = self._define_monitor(monitoring)
         self._core.add(self.identity)
         self.storage = None
         self.data = None
@@ -281,6 +287,7 @@ class CloudMachineDeployment:
                 'SCM_DO_BUILD_DURING_DEPLOYMENT': 'true',
                 'ENABLE_ORYX_BUILD': 'true',
                 'PYTHON_ENABLE_GUNICORN_MULTIWORKERS': 'true',
+                'AZURE_CLIENT_ID': self.identity
             })
             service_plan = AppServicePlan(
                 kind='linux',
@@ -339,9 +346,75 @@ class CloudMachineDeployment:
                         )
                     ],
                 )
+            if self.monitor:
+                site.diagnostics = DiagnosticSettings(
+                    properties={
+                        'workspaceId': ResourceId(self.monitor),
+                        'logs': [
+                            {
+                                'category': 'AppServiceHTTPLogs',
+                                'enabled': True
+                            },
+                            {
+                                'category': 'AppServiceConsoleLogs',
+                                'enabled': True
+                            },
+                            {
+                                'category': 'AppServiceAppLogs',
+                                'enabled': True
+                            },
+                            {
+                                'category': 'AppServiceAuditLogs',
+                                'enabled': True
+                            },
+                            {
+                                'category': 'AppServiceIPSecAuditLogs',
+                                'enabled': True
+                            },
+                            {
+                                'category': 'AppServicePlatformLogs',
+                                'enabled': True
+                            },
+                        ],
+                        'metrics': [
+                            {
+                                'category': 'AllMetrics',
+                                'enabled': True
+                            }
+                        ]
+                    }
+                )
             service_plan.site = site
             return service_plan
         raise ValueError("Unexpected value for host.")
+
+    def _define_monitor(self, monitoring: bool) -> Union[bool, LogAnalyticsWorkspace]:
+        if not monitoring:
+            return monitoring
+        workspace = LogAnalyticsWorkspace(
+            properties={
+                'retentionInDays': 30,
+                'features': {
+                    'searchVersion': 1,
+                    'enableLogAccessUsingOnlyResourcePermissions': True
+                },
+                'sku': {
+                    'name': 'PerGB2018'
+                }
+            }
+        )
+        self._core.add(workspace)
+        app_insights = ApplicationInsights(
+            kind='web',
+            properties={
+                'Application_Type': 'web',
+                'publicNetworkAccessForIngestion': 'Enabled',
+                'publicNetworkAccessForQuery': 'Enabled',
+                'WorkspaceResourceId': ResourceId(workspace)
+            }
+        )
+        self._core.add(app_insights)
+        return workspace
 
     def _define_messaging(self) -> ServiceBusNamespace:
         return ServiceBusNamespace(
@@ -364,7 +437,7 @@ class CloudMachineDeployment:
                     properties={
                         'roleDefinitionId': SubscriptionResourceId(
                             'Microsoft.Authorization/roleDefinitions',
-                            ServiceBusRoleAssignments.DATA_SENDER
+                            ServiceBusRoleAssignments.DATA_OWNER
                         ),
                         'principalId': PrincipalId(self.identity),
                         'principalType': 'ServicePrincipal'
@@ -455,8 +528,28 @@ class CloudMachineDeployment:
                         'Microsoft.Authorization/roleDefinitions',
                         StorageRoleAssignments.BLOB_DATA_CONTRIBUTOR
                     ),
+                    'principalId': PrincipalId(self.identity),
+                    'principalType': 'ServicePrincipal'
+                }
+            ),
+            RoleAssignment(
+                properties={
+                    'roleDefinitionId': SubscriptionResourceId(
+                        'Microsoft.Authorization/roleDefinitions',
+                        StorageRoleAssignments.BLOB_DATA_CONTRIBUTOR
+                    ),
                     'principalId': PrincipalId(),
                     'principalType': 'User'
+                }
+            ),
+            RoleAssignment(
+                properties={
+                    'roleDefinitionId': SubscriptionResourceId(
+                        'Microsoft.Authorization/roleDefinitions',
+                        StorageRoleAssignments.TABLE_DATA_CONTRIBUTOR
+                    ),
+                    'principalId': PrincipalId(self.identity),
+                    'principalType': 'ServicePrincipal'
                 }
             ),
             RoleAssignment(
@@ -477,8 +570,8 @@ class CloudMachineDeployment:
             tables = storage.tables if storage.tables is not None else tables
             if storage.properties is not _UNSET:
                 properties.update(storage.properties)
-            identity = storage.identity if storage.identity is not _UNSET else identity
-            roles = storage.roles if storage.roles else roles
+            if storage.identity or storage.roles:
+                raise ValueError("Cannot overwrite identity and role values.")
         return StorageAccount(
             kind='StorageV2',
             sku=sku,
@@ -548,6 +641,16 @@ class CloudMachineDeployment:
                             'Microsoft.Authorization/roleDefinitions',
                             AIRoleAssignments.OPENAI_CONTRIBUTOR
                         ),
+                        'principalId': PrincipalId(self.identity),
+                        'principalType': 'ServicePrincipal'
+                    }
+                ),
+                RoleAssignment(
+                    properties={
+                        'roleDefinitionId': SubscriptionResourceId(
+                            'Microsoft.Authorization/roleDefinitions',
+                            AIRoleAssignments.OPENAI_CONTRIBUTOR
+                        ),
                         'principalId': PrincipalId(),
                         'principalType': 'User'
                     }
@@ -558,8 +661,18 @@ class CloudMachineDeployment:
                             'Microsoft.Authorization/roleDefinitions',
                             AIRoleAssignments.OPENAI_USER
                         ),
-                        'principalId': PrincipalId(),
+                        'principalId': PrincipalId(self.identity),
                         'principalType': 'ServicePrincipal'
+                    }
+                ),
+                RoleAssignment(
+                    properties={
+                        'roleDefinitionId': SubscriptionResourceId(
+                            'Microsoft.Authorization/roleDefinitions',
+                            AIRoleAssignments.OPENAI_USER
+                        ),
+                        'principalId': PrincipalId(),
+                        'principalType': 'User'
                     }
                 )
             ],
@@ -618,6 +731,16 @@ class CloudMachineDeployment:
                         'principalId': PrincipalId(),
                         'principalType': 'User'
                     }
+                ),
+                RoleAssignment(
+                    properties={
+                        'roleDefinitionId': SubscriptionResourceId(
+                            'Microsoft.Authorization/roleDefinitions',
+                            AIRoleAssignments.COGNITIVE_SERVICES_USER
+                        ),
+                        'principalId': PrincipalId(self.identity),
+                        'principalType': 'ServicePrincipal'
+                    }
                 )
             ],
             deployments=[
@@ -647,8 +770,28 @@ class CloudMachineDeployment:
                             'Microsoft.Authorization/roleDefinitions',
                             SearchRoleAssignments.SERVICE_CONTRIBUTOR
                         ),
+                        'principalId': PrincipalId(self.identity),
+                        'principalType': 'ServicePrincipal'
+                    }
+                ),
+                RoleAssignment(
+                    properties={
+                        'roleDefinitionId': SubscriptionResourceId(
+                            'Microsoft.Authorization/roleDefinitions',
+                            SearchRoleAssignments.SERVICE_CONTRIBUTOR
+                        ),
                         'principalId': PrincipalId(),
                         'principalType': 'User'
+                    }
+                ),
+                RoleAssignment(
+                    properties={
+                        'roleDefinitionId': SubscriptionResourceId(
+                            'Microsoft.Authorization/roleDefinitions',
+                            SearchRoleAssignments.INDEX_DATA_CONTRIBUTOR
+                        ),
+                        'principalId': PrincipalId(self.identity),
+                        'principalType': 'ServicePrincipal'
                     }
                 ),
                 RoleAssignment(
@@ -667,16 +810,26 @@ class CloudMachineDeployment:
                             'Microsoft.Authorization/roleDefinitions',
                             SearchRoleAssignments.INDEX_DATA_READER
                         ),
+                        'principalId': PrincipalId(self.identity),
+                        'principalType': 'ServicePrincipal'
+                    }
+                ),
+                RoleAssignment(
+                    properties={
+                        'roleDefinitionId': SubscriptionResourceId(
+                            'Microsoft.Authorization/roleDefinitions',
+                            SearchRoleAssignments.INDEX_DATA_READER
+                        ),
                         'principalId': PrincipalId(),
                         'principalType': 'User'
                     }
-                )
+                ),
             ]
         )
     
     def write(self, root_path: str):
         infra_dir = _get_empty_directory(root_path, ".infra")
-        with open(os.path.join(infra_dir, ".gitignore")) as ignore:
+        with open(os.path.join(infra_dir, ".gitignore"), 'w') as ignore:
             ignore.write("# .infra is not intended to be committed\n")
             ignore.write("*\n")
 
@@ -699,7 +852,7 @@ class CloudMachineDeployment:
                 _serialize_resource(main, self._core)
                 outputs = self._core.write(cm_file)
                 if self.host != 'local':
-                    self.app_settings.update({f"AZURE_CLOUDMACHINE_{generate_envvar(k)}": v for k, v in outputs.items()})
+                    self.app_settings.update({generate_envvar(k, v): v for k, v in outputs.items()})
                     outputs.update(self.host.write(cm_file))
 
             main.write("module cloudmachine 'cloudmachine.bicep' = {\n")
@@ -712,8 +865,8 @@ class CloudMachineDeployment:
             main.write("        cloudmachineId: cloudmachineId\n")
             main.write("    }\n")
             main.write("}\n\n")
-            for output in outputs.keys():
-                main.write(f"output AZURE_CLOUDMACHINE_{generate_envvar(output)} string = cloudmachine.outputs.{output}\n")
+            for key, value in outputs.items():
+                main.write(f"output {generate_envvar(key, value)} string = cloudmachine.outputs.{key}\n")
             main.write(f"output AZURE_CLOUDMACHINE_RESOURCE_GROUP string = {self._core._symbolicname}.name")
 
         params_json = os.path.join(infra_dir, "main.parameters.json")

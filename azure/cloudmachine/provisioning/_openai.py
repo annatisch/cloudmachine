@@ -17,6 +17,7 @@ from ._resource import (
     GuidName,
     Output,
     PrincipalId,
+    ResourceId,
     UniqueName,
     _serialize_resource,
     Resource,
@@ -106,7 +107,10 @@ class CognitiveServices(LocatedResource):
             self._outputs.update(deployment.write(bicep))
 
         for role in self.roles:
-            role.name = GuidName(self, PrincipalId(), role.properties['roleDefinitionId'])
+            principal_id: PrincipalId = role.properties['principalId']
+            if principal_id.resource:
+                principal_id = ResourceId(principal_id.resource)
+            role.name = GuidName(self, principal_id, role.properties['roleDefinitionId'])
             role.scope = self
             self._outputs.update(role.write(bicep))
 

@@ -45,8 +45,9 @@ BicepBool = Union[bool, BicepResolver]
 
 
 class Output(BicepResolver):
-    def __init__(self, value: str) -> None:
+    def __init__(self, value: str, needs_prefix: bool = True) -> None:
         self._value = value
+        self.needs_prefix = needs_prefix
 
     def resolve(self) -> str:
         return self._value
@@ -72,11 +73,11 @@ class CloudMachineId(BicepResolver):
 
 class PrincipalId(BicepResolver):
     def __init__(self, resource: Optional['LocatedResource'] = None) -> None:
-        self._resource = resource
+        self.resource = resource
 
     def resolve(self) -> str:
-        if self._resource:
-            return f"{self._resource._symbolicname}.properties.principalId"  # pylint: disable=protected-access
+        if self.resource:
+            return f"{self.resource._symbolicname}.properties.principalId"  # pylint: disable=protected-access
         return "principalId"
 
 
@@ -151,9 +152,10 @@ def generate_symbol(prefix: str, n: int = 5) -> str:
     ).lower()
 
 
-def generate_envvar(identifier):
+def generate_envvar(identifier: str, output: Output) -> str:
     matches = split_camelcase.finditer(identifier)
-    return "_".join([m.group(0).upper() for m in matches])
+    prefix = "AZURE_CLOUDMACHINE_" if output.needs_prefix else ""
+    return prefix + "_".join([m.group(0).upper() for m in matches])
 
 
 def generate_name(n=itertools.count()) -> str:
@@ -287,7 +289,7 @@ class Resource:
     parent: Optional['Resource'] = field(init=False, default=None)
     scope: Optional['Resource'] = field(init=False, default=None)
     dependson: Optional[List['Resource']] = field(default_factory=list)
-    _outputs: Dict[str, Any] = field(default_factory=dict, init=False)
+    _outputs: Dict[str, Output] = field(default_factory=dict, init=False)
 
     def write(self, bicep: IO[str]) -> Dict[str, str]:
         _serialize_resource(bicep, self)
