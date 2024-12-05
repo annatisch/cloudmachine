@@ -9,7 +9,8 @@ from ._deployment import (
     init_project,
     provision_project,
     deploy_project,
-    shutdown_project
+    shutdown_project,
+    load_dev_environment
 )
 
 __all__ = [

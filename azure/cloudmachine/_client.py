@@ -63,23 +63,6 @@ class _CMDefault(str, Enum):
 
 CloudmachineDefault = _CMDefault.token
 
-def load_dev_environment(name: str) -> Dict[str, str]:
-    print("Loading local environment.")
-    azd_dir = os.path.join(os.getcwd(), ".azure")
-    if not os.path.isdir(azd_dir):
-        return {}
-        # raise RuntimeError("No '.azure' directory found in current working dir. Please run 'azd init' with the Minimal template.")
-
-    env_name = azd_env_name(name, 'local', None)
-    # env_loaded = load_dotenv(os.path.join(azd_dir, env_name, ".env"), override=True)
-    # if not env_loaded:
-    #     raise RuntimeError(
-    #         f"No cloudmachine infrastructure loaded for env: '{env_name}'.\n"
-    #         " Please run 'flask cm provision' to provision cloudmachine resources."
-    #     )
-    return dotenv_values(os.path.join(azd_dir, env_name, ".env"))
-
-
 
 class DataModel(Protocol):
     def __init__(self, **kwargs) -> None:

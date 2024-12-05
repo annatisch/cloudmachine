@@ -17,7 +17,7 @@ from ._resource import (
     PrincipalId,
     ResourceName,
     _serialize_resource,
-    Resource,
+    ResourceId,
     LocatedResource,
     generate_symbol,
     _UNSET,
@@ -29,10 +29,8 @@ from ._resource import (
     BicepStr
 )
 
-# class StorageRoleAssignments(Enum):
-#     BLOB_DATA_CONTRIBUTOR = "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
-#     BLOB_DATA_READER = "2a2b9908-6ea1-4ae2-8e65-a410df84e7d1"
-#     TABLE_DATA_CONTRIBUTOR = "0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3"
+class MonitoringRoleAssignments(Enum):
+    METRICS_PUBLISHER = '3913510d-42f4-4e42-8a64-420c390055eb'
 
 
 PrincipalType = Literal['User', 'Group', 'ServicePrincipal', 'Unknown', 'DirectoryRoleTemplate', 'ForeignGroup', 'Application', 'MSI', 'DirectoryObjectOrGroup', 'Everyone']
@@ -104,12 +102,20 @@ class ApplicationInsights(LocatedResource):
     etag: Optional[BicepStr] = field(default=_UNSET, metadata={'rest': 'etag'})
     kind: Optional[BicepStr] = field(default=_UNSET, metadata={'rest': 'kind'})
     properties: Optional[WorkspaceProperties] = field(default=_UNSET, metadata={'rest': 'properties'})
+    roles: Optional[List[RoleAssignment]] = field(default_factory=list, metadata={'rest': _SKIP})
     _resource: ClassVar[Literal['Microsoft.Insights/components']] = 'Microsoft.Insights/components'
     _version: ClassVar[str] = '2020-02-02'
     _symbolicname: str = field(default_factory=lambda: generate_symbol("appinsights"), init=False, repr=False)
 
     def write(self, bicep: IO[str]) -> Dict[str, str]:
         _serialize_resource(bicep, self)
+        for role in self.roles:
+            principal_id: PrincipalId = role.properties['principalId']
+            if principal_id.resource:
+                principal_id = ResourceId(principal_id.resource)
+            role.name = GuidName(self, principal_id, role.properties['roleDefinitionId'])
+            role.scope = self
+            self._outputs.update(role.write(bicep))
         output_prefix = "Applicationinsights"
         self._outputs[output_prefix + "ConnectionString"] = Output(
             f"{self._symbolicname}.properties.ConnectionString",

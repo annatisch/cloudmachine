@@ -78,7 +78,7 @@ setup(
     install_requires=[
         "python-dotenv>=1.0.0",
         "azure-identity",
-        "azure-core",
+        "azure-core>=1.31.0",
         "typing-extensions>=4.5",
         "blinker",
         "click",

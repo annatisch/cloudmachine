@@ -11,7 +11,10 @@ import os
 import shutil
 import copy
 import subprocess
+from urllib.parse import quote
 from typing import Dict, Literal, Optional, List, Union, Mapping
+
+from dotenv import dotenv_values
 
 from .._version import VERSION
 from ..events import cloudmachine_events
@@ -59,9 +62,8 @@ from ._appservice import (
 )
 from .monitoring import (
     ApplicationInsights,
-    ApplicationInsightProperties,
+    MonitoringRoleAssignments,
     LogAnalyticsWorkspace,
-    WorkspaceProperties
 )
 from ._openai import CognitiveServices, AIRoleAssignments, AiDeployment
 from ._search import SearchServices, SearchRoleAssignments
@@ -70,6 +72,19 @@ from ._search import SearchServices, SearchRoleAssignments
 def azd_env_name(name: str, host: str, label: Optional[str]) -> str:
     suffix = 'local' if host == 'local' else label
     return f'cloudmachine-{name}' + (f'-{suffix}' if suffix else '')
+
+
+def load_dev_environment(deployment: 'CloudMachineDeployment', label: Optional[str]) -> Dict[str, str]:
+    print("Loading local environment.")
+    azd_dir = os.path.join(os.getcwd(), ".azure")
+    if not os.path.isdir(azd_dir):
+        return {}
+    env_name = azd_env_name(
+        deployment.name,
+        deployment.host,
+        label=label
+    )
+    return dotenv_values(os.path.join(azd_dir, env_name, ".env"))
 
 
 def provision_project(deployment: 'CloudMachineDeployment', label: Optional[str]) -> None:
@@ -90,8 +105,8 @@ def shutdown_project(deployment: 'CloudMachineDeployment', label: Optional[str])
 
 def deploy_project(deployment: 'CloudMachineDeployment', label: Optional[str]) -> None:
     project_name = azd_env_name(deployment.name, deployment.host, label)
-    deployment_name = f"py-cloudmachine-{deployment.name}"
-    args = ['azd', 'deploy', deployment_name, '-e', project_name]
+    deployment_name = f'py-cloudmachine-{deployment.name}'
+    args = ['azd', 'deploy', quote(deployment_name), '-e', project_name]
     print("Running: ", args)
     output = subprocess.run(args)
     print("Output: ", output)
@@ -392,6 +407,10 @@ class CloudMachineDeployment:
         if not monitoring:
             return monitoring
         workspace = LogAnalyticsWorkspace(
+            identity={
+                'type': 'UserAssigned',
+                'userAssignedIdentities': UserAssignedIdentities((self.identity, {}))
+            },
             properties={
                 'retentionInDays': 30,
                 'features': {
@@ -400,7 +419,9 @@ class CloudMachineDeployment:
                 },
                 'sku': {
                     'name': 'PerGB2018'
-                }
+                },
+                'publicNetworkAccessForIngestion': 'Enabled',
+                'publicNetworkAccessForQuery': 'Enabled',
             }
         )
         self._core.add(workspace)
@@ -411,7 +432,29 @@ class CloudMachineDeployment:
                 'publicNetworkAccessForIngestion': 'Enabled',
                 'publicNetworkAccessForQuery': 'Enabled',
                 'WorkspaceResourceId': ResourceId(workspace)
-            }
+            },
+            roles=[
+                RoleAssignment(
+                    properties={
+                        'roleDefinitionId': SubscriptionResourceId(
+                            'Microsoft.Authorization/roleDefinitions',
+                            MonitoringRoleAssignments.METRICS_PUBLISHER
+                        ),
+                        'principalId': PrincipalId(),
+                        'principalType': 'User'
+                    }
+                ),
+                RoleAssignment(
+                    properties={
+                        'roleDefinitionId': SubscriptionResourceId(
+                            'Microsoft.Authorization/roleDefinitions',
+                            MonitoringRoleAssignments.METRICS_PUBLISHER
+                        ),
+                        'principalId': PrincipalId(self.identity),
+                        'principalType': 'ServicePrincipal'
+                    }
+                )
+            ],
         )
         self._core.add(app_insights)
         return workspace

@@ -13,17 +13,15 @@ from flask import g, current_app, Flask
 
 from ._version import VERSION
 
-from ..._client import (
-    CloudMachineClient,
-    load_dev_environment,
-)
+from ..._client import CloudMachineClient
 from ..._resources._client_settings import ClientSettings
 from ...provisioning import (
     CloudMachineDeployment,
     init_project,
     provision_project,
     shutdown_project,
-    deploy_project
+    deploy_project,
+    load_dev_environment,
 )
 
 __version__ = VERSION
@@ -82,19 +80,20 @@ class CloudMachine(CloudMachineClient):
             )
         else:
             if self.deployment:
-                #if self.deployment.host == 'local':
-                #os.environ.update(self.deployment.app_settings)
-                app.config.update(load_dev_environment(self.deployment.name))
+                dev_env = load_dev_environment(self.deployment, self.label)
+                app.config.update(dev_env)
                 if self.deployment.monitor:
                     try:
                         from azure.monitor.opentelemetry import configure_azure_monitor
-                        from azure.identity import ManagedIdentityCredential
+                        from azure.identity import DefaultAzureCredential
                     except ImportError as e:
                         raise ImportError(
                             "Telemetry has been enabled in CloudMachine, "
                             "but `azure-monitor-opentelemetry not installed.") from e
+                    conn_str = app.config.get('APPLICATIONINSIGHTS_CONNECTION_STRING')
                     configure_azure_monitor(
-                        credential=ManagedIdentityCredential()
+                        connection_string=conn_str or os.environ['APPLICATIONINSIGHTS_CONNECTION_STRING'],
+                        credential=DefaultAzureCredential()
                     )
                     # if 'openai' in self._settings:
                     #     from opentelemetry.instrumentation.openai import OpenAIInstrumentor
