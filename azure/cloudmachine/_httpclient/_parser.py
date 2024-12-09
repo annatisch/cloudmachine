@@ -2,10 +2,11 @@ import html
 import json
 import logging
 import re
-from typing import IO, Generator, Tuple, Union, NamedTuple
+from typing import IO, Generator, Tuple, Union, NamedTuple, TYPE_CHECKING
 
-from azure.ai.documentintelligence import DocumentIntelligenceClient
-from azure.ai.documentintelligence.models import DocumentTable
+if TYPE_CHECKING:
+    from azure.ai.documentintelligence import DocumentIntelligenceClient
+    from azure.ai.documentintelligence.models import DocumentTable
 
 from pypdf import PdfReader
 
@@ -13,7 +14,7 @@ from pypdf import PdfReader
 logger = logging.getLogger("ingester")
 
 
-def _table_to_html(table: DocumentTable):
+def _table_to_html(table: 'DocumentTable'):
     table_html = "<table>"
     rows = [
         sorted([cell for cell in table.cells if cell.row_index == i], key=lambda cell: cell.column_index)
@@ -88,7 +89,7 @@ class DocumentAnalysisParser:
 
     def __init__(
         self, 
-        client: DocumentIntelligenceClient,
+        client: 'DocumentIntelligenceClient',
         model_id="prebuilt-layout"
     ):
         self.model_id = model_id

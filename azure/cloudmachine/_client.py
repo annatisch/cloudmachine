@@ -498,22 +498,21 @@ class CloudMachineClient:
                 credential=credential
             )
         if service == "openai" and sub_resource:
+            if 'max_retries' not in client_options:
+                from openai import DEFAULT_MAX_RETRIES
+                client_options['max_retries'] = DEFAULT_MAX_RETRIES
+
             if sub_resource == "embeddings" and 'azure_deployment' not in client_options:
-                new_client = new_settings.client(
-                    client_options={'azure_deployment': new_settings.get('embeddings_deployment')}
-                ).embeddings
+                client_options['azure_deployment'] = new_settings.get('embeddings_deployment')
             elif sub_resource == "chat" and 'azure_deployment' not in client_options:
-                new_client = new_settings.client(
-                    client_options={'azure_deployment': new_settings.get('chat_deployment')}
-                ).chat
+                client_options['azure_deployment'] = new_settings.get('chat_deployment')
             else:
                 raise ValueError(f"Unsupported openai resource: {sub_resource}")
+            new_client = getattr(new_settings.client(client_options=client_options), sub_resource)
         else:
             new_client = new_settings.client()
         self._clients[client_key] = (new_client, new_settings)
         new_client.__resource_settings__ = new_settings.to_dict()
-        if with_settings:
-            return (new_client, new_settings)
         return new_client
 
     @property

@@ -136,7 +136,7 @@ class CloudMachineDocumentIndex:
             openai: Optional[ClientSettings['AzureOpenAI']] = None,
             transport: Optional[HttpTransport] = None,
     ):
-        from openai import RateLimitError, AzureOpenAI
+        from openai import RateLimitError, AzureOpenAI, DEFAULT_MAX_RETRIES
         from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
 
         self._documentai = documentai
@@ -148,7 +148,7 @@ class CloudMachineDocumentIndex:
         self._supports_vectorization = False
         try:
             self._embeddings = self._openai.client(
-                client_options={'azure_deployment': self.embeddings_deployment}
+                client_options={'azure_deployment': self.embeddings_deployment, 'max_retries': DEFAULT_MAX_RETRIES}
             )
             self.embeddings_model
         except RuntimeError as e:
@@ -705,7 +705,7 @@ class CloudMachineDocumentIndex:
             embedding = embedding_result.data[0].embedding
 
         if embedding:
-            from azure.search.documents.models import VectorizedQuery
+            from azure.search.documents.models import VectorizedQuery, QueryType
             search_vectors.append(VectorizedQuery(vector=embedding, k_nearest_neighbors=50, fields="embedding"))
         if semantic_search:
             if not self.semantic_search:

@@ -110,10 +110,9 @@ def _convert_cls_from_setting(value: Union[PrioritizedSetting[Any, Type[SyncClie
         module, _, obj = value.rpartition('.')
         try:
             loaded_module = import_module(module)
-            return getattr(module, obj)
-        except (ImportError, AttributeError):
-            pass
-        raise ImportError(f"Unable to load '{obj}' from '{module}'")
+            return getattr(loaded_module, obj)
+        except (ImportError, AttributeError) as e:
+            raise ImportError(f"Unable to load '{obj}' from '{module}'") from e
     return value
 
 
