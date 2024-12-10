@@ -34,12 +34,14 @@ from azure.cloudmachine.events import FILE_UPLOADED, FILE_DELETED
 
 deployment = CloudMachineDeployment(
     name="searchopenaidemo",
-    host="local",
+    host="appservice",
+    monitoring=True,
     location="westus2",
     events=True,
     messaging=True,
     search=True,
-    documentai=True
+    documentai=True,
+    tags={'DoNotDelete': True}
 )
 
 openai = resources.get('openai').by_name('shared')
@@ -77,10 +79,16 @@ def list_uploaded():
 @FILE_UPLOADED.connect
 def uploaded(cm: CloudMachine, event: StorageFile[None]):
     print("Uploaded", event)
-    cm.document_index.add_file(
-        file=cm.storage.download(event.filename),
-        url=cm.storage.get_url(file=event, expiry=timedelta(days=1))
-    )
+    input = cm.storage.download(event.filename)
+    url = cm.storage.get_url(file=event, expiry=timedelta(days=1))
+    print("Got inputs for indexing")
+    try:
+        cm.document_index.add_file(
+            file=input,
+            url=url
+        )
+    except Exception as e:
+        print(e)
     print("Finished indexing", event.filename)
 
 
@@ -153,13 +161,13 @@ def assets(path):
     return send_from_directory(Path(__file__).resolve().parent / "static" / "assets", path)
 
 
-def create_app():
-    app = Flask(__name__)
-    cm.init_app(app)
-    app.register_blueprint(bp)
+app = Flask(__name__)
+cm.init_app(app)
+app.register_blueprint(bp)
 
-    logging.basicConfig(level=logging.WARNING)
-    default_level = "INFO"
-    app.logger.setLevel(os.getenv("APP_LOG_LEVEL", default_level))
+logging.basicConfig(level=logging.WARNING)
+default_level = "INFO"
+app.logger.setLevel(os.getenv("APP_LOG_LEVEL", default_level))
 
-    return app
+if __name__ == '__main__':
+    app.run()
