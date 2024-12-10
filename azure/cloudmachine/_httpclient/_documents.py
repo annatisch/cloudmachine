@@ -33,6 +33,29 @@ from typing import (
 
 from azure.core.exceptions import ResourceNotFoundError
 from azure.core.pipeline.transport import HttpTransport
+#TODO: Optional import, "search" is not a requried dependency.
+from azure.search.documents.models import (
+    QueryCaptionResult,
+    QueryType,
+    VectorizedQuery,
+    VectorQuery,
+)
+from azure.search.documents.indexes.models import (
+    HnswAlgorithmConfiguration,
+    HnswParameters,
+    SearchableField,
+    SearchField,
+    SearchFieldDataType,
+    SearchIndex,
+    SemanticConfiguration,
+    SemanticField,
+    SemanticPrioritizedFields,
+    SemanticSearch,
+    SimpleField,
+    VectorSearch,
+    VectorSearchProfile,
+    VectorSearchVectorizer,
+)
 
 from .._resources._resource_map import *
 from .._resources._client_settings import ClientSettings
@@ -40,28 +63,7 @@ from ._storage import StorageFile
 
 if TYPE_CHECKING:
     from .._resources._client_types import *
-    from azure.search.documents.models import (
-        QueryCaptionResult,
-        QueryType,
-        VectorizedQuery,
-        VectorQuery,
-    )
-    from azure.search.documents.indexes.models import (
-        HnswAlgorithmConfiguration,
-        HnswParameters,
-        SearchableField,
-        SearchField,
-        SearchFieldDataType,
-        SearchIndex,
-        SemanticConfiguration,
-        SemanticField,
-        SemanticPrioritizedFields,
-        SemanticSearch,
-        SimpleField,
-        VectorSearch,
-        VectorSearchProfile,
-        VectorSearchVectorizer,
-    )
+
 
 
 @dataclass
