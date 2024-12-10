@@ -21,6 +21,7 @@ from ...provisioning import (
     provision_project,
     shutdown_project,
     deploy_project,
+    monitor_project,
     load_dev_environment,
 )
 
@@ -64,9 +65,10 @@ class CloudMachine(CloudMachineClient):
 
         if 'cm' in sys.argv:
             cmd_infra = functools.partial(cm_infra, self)
-            cmd_provision = functools.partial(cm_provision_local, self)
-            cmd_deploy = functools.partial(cm_provision_remote, self)
+            cmd_provision = functools.partial(cm_provision, self)
+            cmd_deploy = functools.partial(cm_deploy, self)
             cmd_down = functools.partial(cm_down, self)
+            cmd_monitor = functools.partial(cm_monitor, self)
             app.cli.add_command(
                 click.Group(
                     'cm',
@@ -74,7 +76,8 @@ class CloudMachine(CloudMachineClient):
                         click.Command('infra', callback=cmd_infra,),
                         click.Command('provision', callback=cmd_provision),
                         click.Command('deploy', callback=cmd_deploy),
-                        click.Command('down', callback=cmd_down)
+                        click.Command('down', callback=cmd_down),
+                        click.Command('monitor', callback=cmd_monitor)
                     ]
                 )
             )
@@ -93,7 +96,7 @@ class CloudMachine(CloudMachineClient):
                     conn_str = app.config.get('APPLICATIONINSIGHTS_CONNECTION_STRING')
                     configure_azure_monitor(
                         connection_string=conn_str or os.environ['APPLICATIONINSIGHTS_CONNECTION_STRING'],
-                        credential=DefaultAzureCredential()
+                        #credential=DefaultAzureCredential()
                     )
                     # if 'openai' in self._settings:
                     #     from opentelemetry.instrumentation.openai import OpenAIInstrumentor
@@ -119,13 +122,18 @@ def cm_infra(cm: CloudMachine) -> None:
         cm.label,
         metadata={'cloudmachine-flask': VERSION}
     )
+    # TODO: How to add additional env vars....
+    # cm.deployment.app_settings.update(cm._settings['openai'].to_config())
     cm.deployment.write(os.getcwd())
 
-def cm_provision_local(cm: CloudMachine) -> None:
+def cm_provision(cm: CloudMachine) -> None:
     provision_project(cm.deployment, cm.label)
 
 def cm_down(cm: CloudMachine) -> None:
     shutdown_project(cm.deployment, cm.label)
 
-def cm_provision_remote(cm: CloudMachine) -> None:
+def cm_deploy(cm: CloudMachine) -> None:
     deploy_project(cm.deployment, cm.label)
+
+def cm_monitor(cm: CloudMachine) -> None:
+    monitor_project(cm.deployment, cm.label)

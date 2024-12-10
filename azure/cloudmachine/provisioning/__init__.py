@@ -10,6 +10,7 @@ from ._deployment import (
     provision_project,
     deploy_project,
     shutdown_project,
+    monitor_project,
     load_dev_environment
 )
 

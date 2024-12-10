@@ -78,13 +78,18 @@ def load_dev_environment(deployment: 'CloudMachineDeployment', label: Optional[s
     print("Loading local environment.")
     azd_dir = os.path.join(os.getcwd(), ".azure")
     if not os.path.isdir(azd_dir):
+        print("No azure env dir", azd_dir)
         return {}
     env_name = azd_env_name(
         deployment.name,
         deployment.host,
         label=label
     )
-    return dotenv_values(os.path.join(azd_dir, env_name, ".env"))
+    values = dotenv_values(os.path.join(azd_dir, env_name, ".env"))
+    os.environ.update(values)
+    print("Loaded env")
+    print(values)
+    return values
 
 
 def provision_project(deployment: 'CloudMachineDeployment', label: Optional[str]) -> None:
@@ -112,6 +117,14 @@ def deploy_project(deployment: 'CloudMachineDeployment', label: Optional[str]) -
     print("Output: ", output)
 
 
+def monitor_project(deployment: 'CloudMachineDeployment', label: Optional[str]) -> None:
+    project_name = azd_env_name(deployment.name, deployment.host, label)
+    args = ['azd', 'monitor', '--overview', '-e', project_name]
+    print("Running: ", args)
+    output = subprocess.run(args)
+    print("Output: ", output)
+
+
 def init_project(
         root_path: str,
         deployment: 'CloudMachineDeployment',
@@ -125,22 +138,24 @@ def init_project(
     # TODO proper yaml parsing
     # Needs to properly set code root
     # Shouldn't overwrite on every run
-    with open(azure_yaml, 'w') as config:
-        config.write("# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json\n\n")
-        config.write(f"name: {deployment.name}\n")
-        config.write("metadata:\n")
-        config.write(f"  cloudmachine: {VERSION}\n")
-        if metadata:
-            for key, value in metadata.items():
-                config.write(f"  {key}: {value}\n")
-        config.write("infra:\n")
-        config.write("  path: .infra\n\n")
-        if isinstance(deployment.host, AppServicePlan):
-            config.write("services:\n")
-            config.write(f"  py-cloudmachine-{deployment.name}:\n")
-            config.write("    project: .\n")
-            config.write("    language: py\n")
-            config.write("    host: appservice\n\n")
+    if not os.path.isfile(azure_yaml):
+        with open(azure_yaml, 'w') as config:
+            config.write("# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json\n\n")
+            config.write(f"name: {deployment.name}\n")
+            config.write("metadata:\n")
+            config.write(f"  cloudmachine: {VERSION}\n")
+            if metadata:
+                for key, value in metadata.items():
+                    config.write(f"  {key}: {value}\n")
+            config.write("infra:\n")
+            config.write("  path: .infra\n\n")
+            if isinstance(deployment.host, AppServicePlan):
+                # TODO: name service according to label
+                config.write("services:\n")
+                config.write(f"  py-cloudmachine-{deployment.name}:\n")
+                config.write("    project: .\n")
+                config.write("    language: py\n")
+                config.write("    host: appservice\n\n")
 
     if not os.path.isdir(azure_dir) or not os.path.isdir(project_dir):
         print(f"Adding environment: {project_name}.")
@@ -407,10 +422,10 @@ class CloudMachineDeployment:
         if not monitoring:
             return monitoring
         workspace = LogAnalyticsWorkspace(
-            identity={
-                'type': 'UserAssigned',
-                'userAssignedIdentities': UserAssignedIdentities((self.identity, {}))
-            },
+            # identity={
+            #     'type': 'UserAssigned',
+            #     'userAssignedIdentities': UserAssignedIdentities((self.identity, {}))
+            # },
             properties={
                 'retentionInDays': 30,
                 'features': {
@@ -434,26 +449,26 @@ class CloudMachineDeployment:
                 'WorkspaceResourceId': ResourceId(workspace)
             },
             roles=[
-                RoleAssignment(
-                    properties={
-                        'roleDefinitionId': SubscriptionResourceId(
-                            'Microsoft.Authorization/roleDefinitions',
-                            MonitoringRoleAssignments.METRICS_PUBLISHER
-                        ),
-                        'principalId': PrincipalId(),
-                        'principalType': 'User'
-                    }
-                ),
-                RoleAssignment(
-                    properties={
-                        'roleDefinitionId': SubscriptionResourceId(
-                            'Microsoft.Authorization/roleDefinitions',
-                            MonitoringRoleAssignments.METRICS_PUBLISHER
-                        ),
-                        'principalId': PrincipalId(self.identity),
-                        'principalType': 'ServicePrincipal'
-                    }
-                )
+                # RoleAssignment(
+                #     properties={
+                #         'roleDefinitionId': SubscriptionResourceId(
+                #             'Microsoft.Authorization/roleDefinitions',
+                #             MonitoringRoleAssignments.METRICS_PUBLISHER
+                #         ),
+                #         'principalId': PrincipalId(),
+                #         'principalType': 'User'
+                #     }
+                # ),
+                # RoleAssignment(
+                #     properties={
+                #         'roleDefinitionId': SubscriptionResourceId(
+                #             'Microsoft.Authorization/roleDefinitions',
+                #             MonitoringRoleAssignments.METRICS_PUBLISHER
+                #         ),
+                #         'principalId': PrincipalId(self.identity),
+                #         'principalType': 'ServicePrincipal'
+                #     }
+                # )
             ],
         )
         self._core.add(app_insights)
