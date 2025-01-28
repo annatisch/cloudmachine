@@ -94,7 +94,6 @@ class BlobContainer(_ClientResource):
         self._settings['container_endpoint'] = self.container_endpoint
 
     def __set_name__(self, owner, name):
-        print("SET NAME", owner, name, self._apps, self._component)
         return super().__set_name__(owner, name)
     def _merge_containers(
             self,
@@ -112,7 +111,6 @@ class BlobContainer(_ClientResource):
                 existing = True
                 role_assignments = container.pop('roleAssignments')
                 container.update(new_container)
-                print("PARAMS", container)
                 self._update_role_assignments(
                     container,
                     role_assignments,
