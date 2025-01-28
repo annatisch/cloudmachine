@@ -17,16 +17,14 @@ from azure.cloudmachine import (
 
 
 class TestInfra(CloudMachineClient):
-    storage: BlobStorage
+    storage: BlobStorage = None
     data: BlobContainer = resource(container_name="images", metadata={"foo":"bar"})
     users: TableStorage = resource(tables=[{'name': 'users'}])
 
 
 # Resource inferred from type hint
 class TestAppA(CloudMachineClient):
-    _blobs_one: BlobStorage = resource("foo")
     images_one: ContainerClient = resource(TestInfra.data)
-    _blobs_two: BlobStorage = resource("bar", role_assignments=[], enable_hierarchical_namespace=False)
     images_two: ContainerClient = resource(TestInfra.data)
     users: TableServiceClient = resource(TestInfra.users)
 

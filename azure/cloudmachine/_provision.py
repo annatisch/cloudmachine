@@ -193,25 +193,27 @@ def _parse_module(
             if field:
                 attrs[name] = field
         else:
-            # First let's check if the component has any required parameters.
-            # This will be fields that are type-annotated, but not in the class __dict__ as they
-            # were not assigned a Resource.
-            required_fields = {
-                k:v for k, v in get_annotations(r.component).items() if k not in r.component.__dict__
-            }
             # Well make a copy of the initial fields so we can carry over the default
             # resource group and identity without modifying it for other components.
             new_fields = list(fields)
-            # For each required field, we will attempt to populate it with a resource from elsewhere
-            # in the component, beased on inferring the resource type from the type hint.
-            # This check is based on matching module, not exact resource, so if the parameter is
-            # for a Blob Container, we will get a match with any Storage Account.
-            for annotation in required_fields.values():
-                try:
+
+            # We'll check if the component has any parameters.
+            # These will be fields that are type-annotated with a valid Resource type, but either not
+            # in the class __dict__ or have a default of None.
+            annotations = get_annotations(r.component)
+            for name, annotation in annotations.items():
+                if annotation.__name__ in INFERRED_RESOURCE and r.component.__dict__.get(name) is None:
+                    # For each parameter field, we will attempt to populate it with a resource from elsewhere
+                    # in the component, beased on inferring the resource type from the type hint.
+                    # This check is based on matching module, not exact resource, so if the parameter is
+                    # for a Blob Container, we will get a match with any Storage Account.
                     inferred_resource = INFERRED_RESOURCE[annotation.__name__]
                     resource_as_parameter = _find_resource(inferred_resource.module, component_fields)
                     if resource_as_parameter:
                         new_fields.append(resource_as_parameter)
+                    elif name in r.component.__dict__:
+                        # Parameter field has a default of None, so it's not required.
+                        continue
                     else:
                         raise ValueError(
                             "Unable to add component {}, missing input resource type: {}".format(
@@ -219,9 +221,6 @@ def _parse_module(
                                 inferred_resource.resource
                             )
                         )
-                except KeyError:
-                    # This field isn't a valid resource type, skipping.
-                    pass
                 
             referenced_fields = _parse_module(
                 resources=resources,

@@ -54,9 +54,8 @@ class UserAssignedIdentity(Resource):
         )
     
     def _merge_params(self, params, *, symbol, **kwargs):
-        outputs = super()._merge_params(params, symbol=symbol, **kwargs)
-        outputs["AZURE_CLIENT_ID"] = Output("outputs.clientId", symbol)
-        return outputs
+        super()._merge_params(params, symbol=symbol, **kwargs)
+        return {"AZURE_CLIENT_ID": Output("outputs.clientId", symbol)}
 
     def _find_identity(self, fields, index = 0):
         index += 1
