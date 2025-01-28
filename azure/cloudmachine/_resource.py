@@ -138,8 +138,9 @@ class Resource:
 
         self._suffix = generate_suffix(5)
         self._component: Optional[Type] = None
-        self._apps: List[str] = []
         self._component_attr: Optional[str] = None
+        self._apps: List[str] = []
+        self._attrs: List[str] = []
         self._inferred_resource: Optional[str] = None
         self._inferred_obj: Optional[Resource] = None
 
@@ -197,6 +198,7 @@ class Resource:
             inferred_resource._component = self._component
             inferred_resource._component_attr = self._component_attr
             inferred_resource._apps = self._apps
+            inferred_resource._attrs = self._attrs
             inferred_resource._suffix = self._suffix
             self._inferred_obj = inferred_resource
             return inferred_resource
@@ -226,6 +228,8 @@ class Resource:
 
     @attr.setter
     def attr(self, value: str) -> None:
+        if value not in self._attrs:
+            self._attrs.append(value)
         if not self._component_attr:
             self._component_attr = value
 
@@ -444,7 +448,7 @@ class Resource:
             managed_identities,
             identity=identity
         )
-        if app_component in self._apps:
+        if app_component in self._apps and attrname in self._attrs:
             outputs.update(resource_outputs)
         resources[rg_name][resource_id] = existing_field or new_field
         return new_field

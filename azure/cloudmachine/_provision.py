@@ -201,8 +201,8 @@ def _parse_module(
             # These will be fields that are type-annotated with a valid Resource type, but either not
             # in the class __dict__ or have a default of None.
             annotations = get_annotations(r.component)
-            for name, annotation in annotations.items():
-                if annotation.__name__ in INFERRED_RESOURCE and r.component.__dict__.get(name) is None:
+            for attr, annotation in annotations.items():
+                if annotation.__name__ in INFERRED_RESOURCE and r.component.__dict__.get(attr) is None:
                     # For each parameter field, we will attempt to populate it with a resource from elsewhere
                     # in the component, beased on inferring the resource type from the type hint.
                     # This check is based on matching module, not exact resource, so if the parameter is
@@ -211,7 +211,7 @@ def _parse_module(
                     resource_as_parameter = _find_resource(inferred_resource.module, component_fields)
                     if resource_as_parameter:
                         new_fields.append(resource_as_parameter)
-                    elif name in r.component.__dict__:
+                    elif attr in r.component.__dict__:
                         # Parameter field has a default of None, so it's not required.
                         continue
                     else:
