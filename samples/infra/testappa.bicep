@@ -13,8 +13,8 @@ var cloudmachineId = uniqueString(subscription().subscriptionId, 'testappa', loc
 
 var resourcegroup_default_name = cloudmachineId
 
-module resources_6x7p9 'br/public:avm/res/resources/resource-group:0.4.0' = {
-  name: '${deployment().name}_resources_6x7p9'
+module resources_mrp3d 'br/public:avm/res/resources/resource-group:0.4.0' = {
+  name: '${deployment().name}_resources_mrp3d'
   params: {
     name: resourcegroup_default_name
     location: location
@@ -22,8 +22,8 @@ module resources_6x7p9 'br/public:avm/res/resources/resource-group:0.4.0' = {
   }
 }
 
-module managedidentity_i1sdu 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.0' = {
-  name: '${deployment().name}_managedidentity_i1sdu'
+module managedidentity_sbf1l 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.0' = {
+  name: '${deployment().name}_managedidentity_sbf1l'
   scope: resourceGroup(resourcegroup_default_name)
   params: {
     name: cloudmachineId
@@ -31,12 +31,12 @@ module managedidentity_i1sdu 'br/public:avm/res/managed-identity/user-assigned-i
     tags: tags
   }
 }
-output AZURE_IDENTITY_ID_I1SDU string = managedidentity_i1sdu.outputs.resourceId
-output AZURE_IDENTITY_NAME_I1SDU string = managedidentity_i1sdu.outputs.name
-output AZURE_CLIENT_ID string = managedidentity_i1sdu.outputs.clientId
+output AZURE_IDENTITY_ID_SBF1L string = managedidentity_sbf1l.outputs.resourceId
+output AZURE_IDENTITY_NAME_SBF1L string = managedidentity_sbf1l.outputs.name
+output AZURE_CLIENT_ID string = managedidentity_sbf1l.outputs.clientId
 
-module storage_i3fcz 'br/public:avm/res/storage/storage-account:0.14.0' = {
-  name: '${deployment().name}_storage_i3fcz'
+module storage_upmgb 'br/public:avm/res/storage/storage-account:0.14.0' = {
+  name: '${deployment().name}_storage_upmgb'
   scope: resourceGroup(resourcegroup_default_name)
   params: {
     accessTier: 'Hot'
@@ -56,13 +56,13 @@ module storage_i3fcz 'br/public:avm/res/storage/storage-account:0.14.0' = {
           }
           roleAssignments: [
             {
-              name: guid('storage_i3fcz', managedidentity_i1sdu.outputs.principalId, 'Storage Blob Data Contributor')
-              principalId: managedidentity_i1sdu.outputs.principalId
+              name: guid('storage_upmgb', managedidentity_sbf1l.outputs.principalId, 'Storage Blob Data Contributor')
+              principalId: managedidentity_sbf1l.outputs.principalId
               principalType: 'ServicePrincipal'
               roleDefinitionIdOrName: 'Storage Blob Data Contributor'
             }
             {
-              name: guid('storage_i3fcz', principalId, 'Storage Blob Data Contributor')
+              name: guid('storage_upmgb', principalId, 'Storage Blob Data Contributor')
               principalId: principalId
               principalType: 'User'
               roleDefinitionIdOrName: 'Storage Blob Data Contributor'
@@ -71,38 +71,60 @@ module storage_i3fcz 'br/public:avm/res/storage/storage-account:0.14.0' = {
         }
       ]
     }
+    tableServices: {
+      tables: [
+        {
+          name: 'users'
+        }
+      ]
+    }
     roleAssignments: [
       {
-        name: guid('storage_i3fcz', managedidentity_i1sdu.outputs.principalId, 'Storage Blob Data Contributor')
-        principalId: managedidentity_i1sdu.outputs.principalId
+        name: guid('storage_upmgb', managedidentity_sbf1l.outputs.principalId, 'Storage Blob Data Contributor')
+        principalId: managedidentity_sbf1l.outputs.principalId
         principalType: 'ServicePrincipal'
         roleDefinitionIdOrName: 'Storage Blob Data Contributor'
       }
       {
-        name: guid('storage_i3fcz', principalId, 'Storage Blob Data Contributor')
+        name: guid('storage_upmgb', principalId, 'Storage Blob Data Contributor')
         principalId: principalId
         principalType: 'User'
         roleDefinitionIdOrName: 'Storage Blob Data Contributor'
       }
+      {
+        name: guid('storage_upmgb', managedidentity_sbf1l.outputs.principalId, 'Storage Table Data Contributor')
+        principalId: managedidentity_sbf1l.outputs.principalId
+        principalType: 'ServicePrincipal'
+        roleDefinitionIdOrName: 'Storage Table Data Contributor'
+      }
+      {
+        name: guid('storage_upmgb', principalId, 'Storage Table Data Contributor')
+        principalId: principalId
+        principalType: 'User'
+        roleDefinitionIdOrName: 'Storage Table Data Contributor'
+      }
     ]
     managedIdentities: {
       userAssignedResourceIds: [
-        managedidentity_i1sdu.outputs.resourceId
+        managedidentity_sbf1l.outputs.resourceId
       ]
     }
   }
 }
-output AZURE_BLOBS_ID__BLOBS_ONE string = storage_i3fcz.outputs.resourceId
-output AZURE_BLOBS_NAME__BLOBS_ONE string = storage_i3fcz.outputs.name
-output AZURE_BLOBS_ENDPOINT__BLOBS_ONE string = storage_i3fcz.outputs.primaryBlobEndpoint
-output AZURE_BLOBS_ID_IMAGES_ONE string = storage_i3fcz.outputs.resourceId
-output AZURE_BLOBS_NAME_IMAGES_ONE string = storage_i3fcz.outputs.name
-output AZURE_BLOBS_ENDPOINT_IMAGES_ONE string = storage_i3fcz.outputs.primaryBlobEndpoint
-output AZURE_BLOBS_CONTAINER_ENDPOINT_IMAGES_ONE string = '${storage_i3fcz.outputs.primaryBlobEndpoint}/images'
+output AZURE_BLOBS_ID__BLOBS_ONE string = storage_upmgb.outputs.resourceId
+output AZURE_BLOBS_NAME__BLOBS_ONE string = storage_upmgb.outputs.name
+output AZURE_BLOBS_ENDPOINT__BLOBS_ONE string = storage_upmgb.outputs.primaryBlobEndpoint
+output AZURE_BLOBS_ID_IMAGES_ONE string = storage_upmgb.outputs.resourceId
+output AZURE_BLOBS_NAME_IMAGES_ONE string = storage_upmgb.outputs.name
+output AZURE_BLOBS_ENDPOINT_IMAGES_ONE string = storage_upmgb.outputs.primaryBlobEndpoint
+output AZURE_BLOBS_CONTAINER_ENDPOINT_IMAGES_ONE string = '${storage_upmgb.outputs.primaryBlobEndpoint}/images'
 output AZURE_BLOBS_CONTAINER_NAME_IMAGES_ONE string = 'images'
+output AZURE_TABLES_ID_IMAGES_ONE string = storage_upmgb.outputs.resourceId
+output AZURE_TABLES_NAME_IMAGES_ONE string = storage_upmgb.outputs.name
+output AZURE_TABLES_ENDPOINT_IMAGES_ONE string = storage_upmgb.outputs.serviceEndpoints.table
 
-module storage_zipbs 'br/public:avm/res/storage/storage-account:0.14.0' = {
-  name: '${deployment().name}_storage_zipbs'
+module storage_o66wz 'br/public:avm/res/storage/storage-account:0.14.0' = {
+  name: '${deployment().name}_storage_o66wz'
   scope: resourceGroup(resourcegroup_default_name)
   params: {
     accessTier: 'Hot'
@@ -122,13 +144,13 @@ module storage_zipbs 'br/public:avm/res/storage/storage-account:0.14.0' = {
           }
           roleAssignments: [
             {
-              name: guid('storage_i3fcz', managedidentity_i1sdu.outputs.principalId, 'Storage Blob Data Contributor')
-              principalId: managedidentity_i1sdu.outputs.principalId
+              name: guid('storage_o66wz', managedidentity_sbf1l.outputs.principalId, 'Storage Blob Data Contributor')
+              principalId: managedidentity_sbf1l.outputs.principalId
               principalType: 'ServicePrincipal'
               roleDefinitionIdOrName: 'Storage Blob Data Contributor'
             }
             {
-              name: guid('storage_i3fcz', principalId, 'Storage Blob Data Contributor')
+              name: guid('storage_o66wz', principalId, 'Storage Blob Data Contributor')
               principalId: principalId
               principalType: 'User'
               roleDefinitionIdOrName: 'Storage Blob Data Contributor'
@@ -137,19 +159,51 @@ module storage_zipbs 'br/public:avm/res/storage/storage-account:0.14.0' = {
         }
       ]
     }
+    tableServices: {
+      tables: [
+        {
+          name: 'users'
+        }
+      ]
+    }
+    roleAssignments: [
+      {
+        name: guid('storage_o66wz', managedidentity_sbf1l.outputs.principalId, 'Storage Table Data Contributor')
+        principalId: managedidentity_sbf1l.outputs.principalId
+        principalType: 'ServicePrincipal'
+        roleDefinitionIdOrName: 'Storage Table Data Contributor'
+      }
+      {
+        name: guid('storage_o66wz', principalId, 'Storage Table Data Contributor')
+        principalId: principalId
+        principalType: 'User'
+        roleDefinitionIdOrName: 'Storage Table Data Contributor'
+      }
+    ]
     managedIdentities: {
       userAssignedResourceIds: [
-        managedidentity_i1sdu.outputs.resourceId
+        managedidentity_sbf1l.outputs.resourceId
       ]
     }
   }
 }
-output AZURE_BLOBS_ID__BLOBS_TWO string = storage_zipbs.outputs.resourceId
-output AZURE_BLOBS_NAME__BLOBS_TWO string = storage_zipbs.outputs.name
-output AZURE_BLOBS_ENDPOINT__BLOBS_TWO string = storage_zipbs.outputs.primaryBlobEndpoint
-output AZURE_BLOBS_ID_IMAGES_TWO string = storage_zipbs.outputs.resourceId
-output AZURE_BLOBS_NAME_IMAGES_TWO string = storage_zipbs.outputs.name
-output AZURE_BLOBS_ENDPOINT_IMAGES_TWO string = storage_zipbs.outputs.primaryBlobEndpoint
-output AZURE_BLOBS_CONTAINER_ENDPOINT_IMAGES_TWO string = '${storage_zipbs.outputs.primaryBlobEndpoint}/images'
+output AZURE_BLOBS_ID__BLOBS_TWO string = storage_o66wz.outputs.resourceId
+output AZURE_BLOBS_NAME__BLOBS_TWO string = storage_o66wz.outputs.name
+output AZURE_BLOBS_ENDPOINT__BLOBS_TWO string = storage_o66wz.outputs.primaryBlobEndpoint
+output AZURE_BLOBS_ID_IMAGES_TWO string = storage_o66wz.outputs.resourceId
+output AZURE_BLOBS_NAME_IMAGES_TWO string = storage_o66wz.outputs.name
+output AZURE_BLOBS_ENDPOINT_IMAGES_TWO string = storage_o66wz.outputs.primaryBlobEndpoint
+output AZURE_BLOBS_CONTAINER_ENDPOINT_IMAGES_TWO string = '${storage_o66wz.outputs.primaryBlobEndpoint}/images'
 output AZURE_BLOBS_CONTAINER_NAME_IMAGES_TWO string = 'images'
+output AZURE_TABLES_ID_IMAGES_TWO string = storage_o66wz.outputs.resourceId
+output AZURE_TABLES_NAME_IMAGES_TWO string = storage_o66wz.outputs.name
+output AZURE_TABLES_ENDPOINT_IMAGES_TWO string = storage_o66wz.outputs.serviceEndpoints.table
+output AZURE_BLOBS_ID_USERS string = storage_o66wz.outputs.resourceId
+output AZURE_BLOBS_NAME_USERS string = storage_o66wz.outputs.name
+output AZURE_BLOBS_ENDPOINT_USERS string = storage_o66wz.outputs.primaryBlobEndpoint
+output AZURE_BLOBS_CONTAINER_ENDPOINT_USERS string = '${storage_o66wz.outputs.primaryBlobEndpoint}/images'
+output AZURE_BLOBS_CONTAINER_NAME_USERS string = 'images'
+output AZURE_TABLES_ID_USERS string = storage_o66wz.outputs.resourceId
+output AZURE_TABLES_NAME_USERS string = storage_o66wz.outputs.name
+output AZURE_TABLES_ENDPOINT_USERS string = storage_o66wz.outputs.serviceEndpoints.table
 

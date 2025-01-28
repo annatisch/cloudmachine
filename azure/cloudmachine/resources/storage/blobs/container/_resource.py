@@ -93,21 +93,42 @@ class BlobContainer(_ClientResource):
         self._settings['container_name'] = self.container_name
         self._settings['container_endpoint'] = self.container_endpoint
 
+    def __set_name__(self, owner, name):
+        print("SET NAME", owner, name, self._apps, self._component)
+        return super().__set_name__(owner, name)
     def _merge_containers(
             self,
             containers: List['ContainerParams'],
             new_container: 'ContainerParams',
-            default_name: Parameter
+            *,
+            symbol: ModuleSymbol,
+            parameters: Dict[str, Parameter],
+            identity: ModuleSymbol,
     ) -> List['ContainerParams']:
-        container_name = new_container.get('name') or default_name
+        container_name = new_container.get('name') or parameters['cloudmachineId']
         existing = False
         for container in containers:
             if container['name'] == container_name:
                 existing = True
+                role_assignments = container.pop('roleAssignments')
                 container.update(new_container)
+                print("PARAMS", container)
+                self._update_role_assignments(
+                    container,
+                    role_assignments,
+                    symbol=symbol,
+                    identity=identity,
+                    user_principal=parameters.get("principalId")
+                )
         if not existing:
             container = dict(self.default_container)
             container.update(new_container)
+            self._update_role_assignments(
+                container,
+                symbol=symbol,
+                identity=identity,
+                user_principal=parameters.get("principalId")
+            )
             containers.append(container)
         return container_name, containers
  
@@ -122,18 +143,14 @@ class BlobContainer(_ClientResource):
             **kwargs
     ) -> Dict[str, Output]:
         new_container = self.properties["blobServices"]["containers"][0]
-        self._update_role_assignments(
-            new_container,
-            symbol=symbol,
-            identity=identity,
-            user_principal=parameters.get("principalId")
-        )
         blob_services = params.pop("blobServices", dict(self.default_services))
         container_name, containers = self._merge_containers(
             blob_services.pop("containers", []),
             new_container,
-            parameters['cloudmachineId']
-            )
+            parameters=parameters,
+            identity=identity,
+            symbol=symbol
+        )
         blob_services["containers"] = containers
         outputs = super()._merge_params(params, symbol=symbol, attrname=attrname)
         params.update(self.properties)

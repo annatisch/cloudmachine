@@ -22,20 +22,14 @@ def _get_component_resources(component: Type[Resource]) -> Dict[str, Resource]:
 
 AppType = TypeVar("AppType")
 def provision(
-        __r: Type[AppType],
-        /,
-        *,
+        *__r: Type[AppType],
         infra_dir: str = "./infra",
-        user_assigned_identity: Optional[UserAssignedIdentity] = None,
-        resource_group: ResourceGroup = None,
         add_user_principal: bool = True,
         location: Optional[str] = None,
 ) -> AppType:
     export(
-        __r,
+        *__r,
         infra_dir=infra_dir,
-        user_assigned_identity=user_assigned_identity,
-        resource_group=resource_group,
         add_user_principal=add_user_principal,
         location=location
     )
@@ -44,24 +38,12 @@ def provision(
 
 
 def export(
-        __r: Type,
-        /,
-        *,
+        *__r: Type,
         infra_dir: str = "./infra",
-        user_assigned_identity: Optional[UserAssignedIdentity] = None,
-        resource_group: ResourceGroup = None,
         add_user_principal: bool = True,
         location: Optional[str] = None,
 ) -> None:
     print("Building bicep...")
-    module_name = __r.__name__.lower()
-    default_resource_group = resource_group or ResourceGroup()
-    default_resource_group.component = __r
-    default_identity = user_assigned_identity or UserAssignedIdentity()
-    default_identity.component = __r
-    default_identity._app = __r
-
-    resources: ResourcesType = defaultdict(dict)
     infra_dir = os.path.abspath(infra_dir)
     parameters: Dict[str, Parameter] = {}
     parameters['location'] = Parameter(
@@ -88,68 +70,86 @@ def export(
             description="Id of the user or app to assign application roles",
             varname="AZURE_PRINCIPAL_ID"
         )
-    tags = Variable('tags', 'object', { 'azd-env-name': parameters['environmentName'] })
-    cloudmachine_id = Variable(
-        'cloudmachineId',
-        'string',
-        UniqueString(Subscription().subscription_id, module_name, parameters["location"]),
-        description="Unique identifier for creating default resource names"
-    )
     try:
         os.makedirs(infra_dir)
     except FileExistsError:
         pass
+    all_outputs = []
     bicep_main = os.path.join(infra_dir, "main.bicep")
     with open(bicep_main, 'w') as main:
         main.write("targetScope = 'subscription'\n\n")
         for parameter in parameters.values():
             main.write(parameter.main_declare())
 
-        symbol = Expression(f"module_{generate_suffix()}")
-        main.write(f"module {symbol.resolve()} '{module_name}.bicep' = {{\n")
-        main.write(f"  name: '${{deployment().name}}_{symbol.resolve()}'\n")
-        main.write("  params: {\n")
-        main.write(serialize_dict(parameters, "    "))
-        main.write("  }\n")
-        main.write("}\n")
-        bicep_module = os.path.join(infra_dir, f"{module_name}.bicep")
-        with open(bicep_module, 'w') as module:
-            module.write("targetScope = 'subscription'\n\n")
-            for parameter in parameters.values():
-                module.write(parameter.module_declare())
-            module.write(tags.main_declare())
-            module.write(cloudmachine_id.main_declare())
-            parameters['tags'] = tags
-            parameters['cloudmachineId'] = cloudmachine_id
+        for app in __r:
+            module_parameters = dict(parameters)
+            module_name = app.__name__.lower()
+            default_resource_group = ResourceGroup()
+            default_resource_group.component = app
+            default_identity = UserAssignedIdentity()
+            default_identity.component = app
+            resources: ResourcesType = defaultdict(dict)
 
-            fields: FieldsType = []
-            default_resource_group.__bicep__(
-                fields,
-                resources,
-                parameters=parameters,
-                app_component=__r
+            tags = Variable('tags', 'object', { 'azd-env-name': module_parameters['environmentName'] })
+            cloudmachine_id = Variable(
+                'cloudmachineId',
+                'string',
+                UniqueString(Subscription().subscription_id, module_name, module_parameters["location"]),
+                description="Unique identifier for creating default resource names"
             )
-            default_identity.__bicep__(
-                fields,
-                resources,
-                parameters=parameters,
-                app_component=__r
-            )
-            _parse_module(
-                resources=resources,
-                parameters=parameters,
-                component=__r,
-                parent_component=__r,
-                component_resources=_get_component_resources(__r),
-                fields=fields,
-            )
-            module_outputs = _write_resources(
-                bicep=module,
-                resources=resources,
-                parameters=parameters
-            )
-        for output in module_outputs:
-            main.write(f"output {output} string = {symbol.resolve()}.outputs.{output}\n")
+            symbol = Expression(f"module_{generate_suffix()}")
+            main.write(f"module {symbol.resolve()} '{module_name}.bicep' = {{\n")
+            main.write(f"  name: '${{deployment().name}}_{symbol.resolve()}'\n")
+            main.write("  params: {\n")
+            main.write(serialize_dict(module_parameters, "    "))
+            main.write("  }\n")
+            main.write("}\n")
+            bicep_module = os.path.join(infra_dir, f"{module_name}.bicep")
+            with open(bicep_module, 'w') as module:
+                module.write("targetScope = 'subscription'\n\n")
+                for parameter in module_parameters.values():
+                    module.write(parameter.module_declare())
+                module.write(tags.main_declare())
+                module.write(cloudmachine_id.main_declare())
+                module_parameters['tags'] = tags
+                module_parameters['cloudmachineId'] = cloudmachine_id
+
+                fields: FieldsType = []
+                default_resource_group.__bicep__(
+                    fields,
+                    resources,
+                    parameters=module_parameters,
+                    app_component=app
+                )
+                default_identity.__bicep__(
+                    fields,
+                    resources,
+                    parameters=module_parameters,
+                    app_component=app
+                )
+                _parse_module(
+                    resources=resources,
+                    parameters=module_parameters,
+                    component=app,
+                    parent_component=app,
+                    component_resources=_get_component_resources(app),
+                    fields=fields,
+                )
+                module_outputs = _write_resources(
+                    bicep=module,
+                    resources=resources,
+                    parameters=module_parameters
+                )
+            for output in module_outputs:
+                if output in all_outputs:
+                    # TODO: This will mostly happen with identity and AZURE_CLIENT_ID, so need
+                    # a solution for this.
+                    main.write("// Error - duplicate output\n")
+                    main.write(f"// output {output} string = {symbol.resolve()}.outputs.{output}\n")
+                else:
+                    all_outputs.append(output)
+                    main.write(f"output {output} string = {symbol.resolve()}.outputs.{output}\n")
+            main.write("\n")
 
     main_parameters = os.path.join(infra_dir, "main.parameters.json")
     params_content = dict(_BICEP_PARAMS)

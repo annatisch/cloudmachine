@@ -138,9 +138,8 @@ class Resource:
 
         self._suffix = generate_suffix(5)
         self._component: Optional[Type] = None
-        self._app: Optional[Type] = None
+        self._apps: List[str] = []
         self._component_attr: Optional[str] = None
-        self._appattr: Optional[str] = None
         self._inferred_resource: Optional[str] = None
         self._inferred_obj: Optional[Resource] = None
 
@@ -174,10 +173,7 @@ class Resource:
         )
 
     def __set_name__(self, owner: Type, name: str):
-        self._appattr = name
-        self._app = owner
-        if self._component_attr is None:
-            self._component_attr = name
+        self.attr = name
         if self._component is None:
             if not self.resource:
                 from .resources import INFERRED_RESOURCE
@@ -186,7 +182,7 @@ class Resource:
                 except KeyError:
                     raise RuntimeError(f"Resource '{name}' is missing type hint or resource identifier.") from None
                 self._inferred_resource = INFERRED_RESOURCE[annotation.__name__].identifier
-            self._component = owner
+        self.component = owner
 
     def __get__(self, *args):
         if self._inferred_obj:
@@ -200,8 +196,7 @@ class Resource:
             )
             inferred_resource._component = self._component
             inferred_resource._component_attr = self._component_attr
-            inferred_resource._app = self._app
-            inferred_resource._appattr = self._appattr
+            inferred_resource._apps = self._apps
             inferred_resource._suffix = self._suffix
             self._inferred_obj = inferred_resource
             return inferred_resource
@@ -218,15 +213,21 @@ class Resource:
     
     @component.setter
     def component(self, value: Type) -> None:
-        if self._component:
-            raise ValueError("Resource already declared within a CloudMachine component.")
-        self._component = value
+        if value not in self._apps:
+            self._apps.append(value)
+        if not self._component:
+            self._component = value
 
     @property
     def attr(self) -> str:
         if not self._component_attr:
             raise ValueError("Resource not declared within a CloudMachine component.")
         return self._component_attr
+
+    @attr.setter
+    def attr(self, value: str) -> None:
+        if not self._component_attr:
+            self._component_attr = value
 
     def __copy(self, **kwargs) -> Self:
         # TODO: Allow overwriting without mutating
@@ -328,8 +329,8 @@ class Resource:
     ) -> None:
         if updated_params:
             role_assignments = params.pop("roleAssignments", [])
-            role_assignments.extend(updated_params)
-            params['roleAssignments'] = role_assignments
+            updated_params.extend(role_assignments)
+            params['roleAssignments'] = updated_params
         if 'roleAssignments' in params:
             updated_roles = {}
             for role in params['roleAssignments']:
@@ -443,7 +444,7 @@ class Resource:
             managed_identities,
             identity=identity
         )
-        if app_component == self._app:
+        if app_component in self._apps:
             outputs.update(resource_outputs)
         resources[rg_name][resource_id] = existing_field or new_field
         return new_field

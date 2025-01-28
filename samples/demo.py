@@ -19,6 +19,7 @@ from azure.cloudmachine import (
 class TestInfra(CloudMachineClient):
     storage: BlobStorage
     data: BlobContainer = resource(container_name="images", metadata={"foo":"bar"})
+    users: TableStorage = resource(tables=[{'name': 'users'}])
 
 
 # Resource inferred from type hint
@@ -27,8 +28,7 @@ class TestAppA(CloudMachineClient):
     images_one: ContainerClient = resource(TestInfra.data)
     _blobs_two: BlobStorage = resource("bar", role_assignments=[], enable_hierarchical_namespace=False)
     images_two: ContainerClient = resource(TestInfra.data)
-
-export(TestAppA)
+    users: TableServiceClient = resource(TestInfra.users)
 
 # Explicit resource declaration
 class TestAppB(CloudMachineClient):
@@ -37,7 +37,7 @@ class TestAppB(CloudMachineClient):
     _blobs_four = resource("storage:blobs", "bar", role_assignments=[], enable_hierarchical_namespace=False)
     images_four = resource(TestInfra.data)
 
-export(TestAppB)
+export(TestAppA, TestAppB)
 
 # This doesn't work yet because env vars aren't populated.
 # app = provision(TestAppB)
