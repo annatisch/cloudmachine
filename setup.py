@@ -80,28 +80,10 @@ setup(
         "azure-identity",
         "azure-core>=1.31.0",
         "typing-extensions>=4.5",
-        "blinker",
-        "click",
-        "flask"
     ],
     python_requires=">=3.8",
     project_urls={
         "Bug Reports": "https://github.com/Azure/azure-sdk-for-python/issues",
         "Source": "https://github.com/Azure/azure-sdk-for-python",
     },
-    extras_require={
-    #     "flask": [
-    #         "cloudmachine-flask>=0.0.1a1",
-    #     ],
-    #     "quart": [
-    #         "cloudmachine-quart>=0.0.1a1",
-    #     ],
-    #     # django
-    #     # fastapi
-    },
-    # entry_points={
-    #     'console_scripts': [
-    #         "cloudmachine = cloudmachine._command:command"
-    #     ],
-    # },
 )
