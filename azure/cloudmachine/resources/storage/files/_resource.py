@@ -117,7 +117,7 @@ class FileShareStorage(_ClientResource):
         ) -> Dict[str, Output]:
         blob_services = params.pop("fileServices", dict(self.default_services))
         blob_services.update(self.properties["fileServices"])
-        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname)
+        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
         params['fileServices'] = blob_services
         suffix = attrname or self._suffix
         outputs[f"AZURE_FILES_ENDPOINT_{suffix.upper()}"] = Output("outputs.serviceEndpoints.queue", symbol)

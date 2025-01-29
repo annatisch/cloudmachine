@@ -99,7 +99,6 @@ class StorageAccount(Resource):
             storage_params['tags'] = kwargs.pop('tags')
 
         super().__init__(
-            name=storage_name,
             properties=storage_params,
             service_prefix=["storage"],
             **kwargs

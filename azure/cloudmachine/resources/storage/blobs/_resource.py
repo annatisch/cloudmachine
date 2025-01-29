@@ -154,7 +154,7 @@ class BlobStorage(_ClientResource):
         ) -> Dict[str, Output]:
         blob_services = params.pop("blobServices", dict(self.default_services))
         blob_services.update(self.properties["blobServices"])
-        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname)
+        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
         params['blobServices'] = blob_services
         suffix = attrname or self._suffix
         outputs[f"AZURE_BLOBS_ENDPOINT_{suffix.upper()}"] = Output("outputs.primaryBlobEndpoint", symbol)

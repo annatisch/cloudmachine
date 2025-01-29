@@ -117,7 +117,7 @@ class TableStorage(_ClientResource):
         ) -> Dict[str, Output]:
         table_services = params.pop("tableServices", dict(self.default_services))
         table_services.update(self.properties["tableServices"])
-        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname)
+        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
         params['tableServices'] = table_services
         suffix = attrname or self._suffix
         outputs[f"AZURE_TABLES_ENDPOINT_{suffix.upper()}"] = Output("outputs.serviceEndpoints.table", symbol)

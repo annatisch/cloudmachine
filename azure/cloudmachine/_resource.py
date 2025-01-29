@@ -73,9 +73,9 @@ AsyncCredentialInputTypes = Union[
     Callable[[], AsyncSupportsTokenInfo],
     Literal['default', 'managedidentity'],
 ]
-FieldType = Tuple[Dict[str, Any], ResourceSymbol, Dict[str, Union[str, Output]], ResourceGroupSymbol]
-FieldsType = List[Tuple[str, Dict[str, Any], ResourceSymbol, Dict[str, Union[str, Output]], ResourceGroupSymbol]]
-ResourcesType = Dict[ResourceGroupSymbol, Dict[Tuple[str, str], FieldType]]
+FieldType = Tuple[str, Dict[str, Any], ResourceSymbol, Dict[str, Union[str, Output]], ResourceGroupSymbol]
+FieldsType = Dict[str, FieldType]
+ResourcesType = Dict[ResourceGroupSymbol, List[FieldType]]
 
 
 def _convert_dict(value: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
@@ -287,16 +287,16 @@ class Resource:
 
     def _find_field(self, resource: str, fields: FieldsType, index: int = 0) -> Optional[FieldType]:
         try:
-            return [tuple(f[1:]) for f in reversed(fields) if f[0].startswith(resource)][index]
+            return [f for f in reversed(list(fields.values())) if f[0].startswith(resource)][index]
         except IndexError:
             return None
 
     def _find_resource_group(self, fields: FieldsType, index: int = 0) -> ResourceGroupSymbol:
-        return self._find_field("br/public:avm/res/resources/resource-group", fields, index)[1]
+        return self._find_field("br/public:avm/res/resources/resource-group", fields, index)[2]
 
     def _find_identity(self, fields: FieldsType, index: int = 0) -> Optional[ModuleSymbol]:
         try:
-            return self._find_field("br/public:avm/res/managed-identity/user-assigned-identity", fields, index)[1]
+            return self._find_field("br/public:avm/res/managed-identity/user-assigned-identity", fields, index)[2]
         except TypeError:
             return None
 
@@ -306,9 +306,9 @@ class Resource:
             rg: ResourceGroupSymbol,
             name: Optional[Union[str, Expression]] = None,
     ) -> Optional[FieldType]:
-        for field in [tuple(f[1:]) for f in reversed(fields) if f[0].startswith(self.module)]:
+        for field in [f for f in reversed(list(fields.values())) if f[0].startswith(self.module)]:
             if name:
-                if field[0]['name'] == name and field[-1] == rg:
+                if field[1]['name'] == name and field[-1] == rg:
                     return field
             else:
                 if field[-1] == rg:
@@ -400,30 +400,27 @@ class Resource:
             parameters: Dict[str, Parameter],
             app_component: Type,
             attrname: Optional[str] = None
-    ) -> Optional[FieldType]:
+    ) -> FieldType:
         reference = self.module or self.resource
         if not reference:
             raise TypeError("Empty Resource object cannot be provisioned.")
         rg_name = self._find_resource_group(fields)
-        new_field = None
         resource_name = self.properties.get('name')
-        existing_field = self._find_resource_match(fields, rg_name, resource_name)
-        if existing_field:
-            resource_name = existing_field[0]['name']
+        field = self._find_resource_match(fields, rg_name, resource_name)
+        if field:
+            resource_name = field[1]['name']
         else:
             resource_name = resource_name or parameters['cloudmachineId']
-
-        resource_id = (reference, resource_name)
-        if existing_field:
-            params, symbol, outputs, _ = existing_field
+        if field:
+            reference, params, symbol, outputs, _ = field
         else:
             params = dict(self.defaults)
             params['name'] = resource_name
             symbol = self._symbol()
             outputs = {}
-            new_field = (params, symbol, outputs, rg_name)
-            fields.append((reference, *new_field))
-        
+            field = (reference, params, symbol, outputs, rg_name)
+            resources[rg_name].append(field)
+
         identity = self._find_identity(fields)
         managed_identities = params.pop("managedIdentities", {})
         role_assignments = params.pop("roleAssignments", [])
@@ -450,8 +447,7 @@ class Resource:
         )
         if app_component in self._apps and attrname in self._attrs:
             outputs.update(resource_outputs)
-        resources[rg_name][resource_id] = existing_field or new_field
-        return new_field
+        return field
 
 
     @overload

@@ -114,7 +114,7 @@ class QueueStorage(_ClientResource):
         ) -> Dict[str, Output]:
         queue_services = params.pop("queueServices", dict(self.default_services))
         queue_services.update(self.properties["queueServices"])
-        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname)
+        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
         params['queueServices'] = queue_services
         suffix = attrname or self._suffix
         outputs[f"AZURE_QUEUES_ENDPOINT_{suffix.upper()}"] = Output("outputs.serviceEndpoints.queue", symbol)

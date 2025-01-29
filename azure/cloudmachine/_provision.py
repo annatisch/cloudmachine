@@ -88,7 +88,7 @@ def export(
             default_resource_group.component = app
             default_identity = UserAssignedIdentity()
             default_identity.component = app
-            resources: ResourcesType = defaultdict(dict)
+            resources: ResourcesType = defaultdict(list)
 
             tags = Variable('tags', 'object', { 'azd-env-name': module_parameters['environmentName'] })
             cloudmachine_id = Variable(
@@ -114,26 +114,28 @@ def export(
                 module_parameters['tags'] = tags
                 module_parameters['cloudmachineId'] = cloudmachine_id
 
-                fields: FieldsType = []
-                default_resource_group.__bicep__(
+                fields: FieldsType = {}
+                rg = default_resource_group.__bicep__(
                     fields,
                     resources,
                     parameters=module_parameters,
                     app_component=app
                 )
-                default_identity.__bicep__(
+                fields['__rg__'] = rg
+                uaid = default_identity.__bicep__(
                     fields,
                     resources,
                     parameters=module_parameters,
                     app_component=app
                 )
+                fields['__uaid__'] = uaid
                 _parse_module(
                     resources=resources,
                     parameters=module_parameters,
-                    component=app,
                     parent_component=app,
+                    component=app,
                     component_resources=_get_component_resources(app),
-                    fields=fields,
+                    component_fields=fields,
                 )
                 module_outputs = _write_resources(
                     bicep=module,
@@ -165,7 +167,7 @@ def _find_resource(
         fields: FieldsType,
 ) -> Optional[FieldType]:
     try:
-        return [f for f in reversed(fields) if f[0].startswith(module)][0]
+        return [f for f in reversed(list(fields.values())) if f[0].startswith(module)][0]
     except IndexError:
         return None
 
@@ -173,29 +175,27 @@ def _parse_module(
         *,
         resources: ResourcesType,
         parameters: Dict[str, Parameter],
-        component: Type,
         parent_component: Type,
+        component: Type,
         component_resources: Dict[str, Resource],
-        fields: FieldsType,
+        component_fields: FieldsType,
         attrname: Optional[str] = None,
-) -> Optional[FieldType]:
-    component_fields = list(fields)
-    attrs = {}
+) -> FieldsType:
+    current_fields = dict(component_fields)
     for name, r in component_resources.items():
         if r.component == component:
             field = r.__bicep__(
-                component_fields,
+                current_fields,
                 resources,
                 parameters=parameters,
                 app_component=parent_component,
                 attrname=attrname or name
             )
-            if field:
-                attrs[name] = field
+            current_fields[name] = field
         else:
             # Well make a copy of the initial fields so we can carry over the default
             # resource group and identity without modifying it for other components.
-            new_fields = list(fields)
+            new_fields = dict(component_fields)
 
             # We'll check if the component has any parameters.
             # These will be fields that are type-annotated with a valid Resource type, but either not
@@ -208,9 +208,9 @@ def _parse_module(
                     # This check is based on matching module, not exact resource, so if the parameter is
                     # for a Blob Container, we will get a match with any Storage Account.
                     inferred_resource = INFERRED_RESOURCE[annotation.__name__]
-                    resource_as_parameter = _find_resource(inferred_resource.module, component_fields)
+                    resource_as_parameter = _find_resource(inferred_resource.module, current_fields)
                     if resource_as_parameter:
-                        new_fields.append(resource_as_parameter)
+                        new_fields[attr] = resource_as_parameter
                     elif attr in r.component.__dict__:
                         # Parameter field has a default of None, so it's not required.
                         continue
@@ -221,20 +221,18 @@ def _parse_module(
                                 inferred_resource.resource
                             )
                         )
-                
             referenced_fields = _parse_module(
                 resources=resources,
                 parameters=parameters,
-                component=r.component,
                 parent_component=parent_component,
+                component=r.component,
                 component_resources=_get_component_resources(r.component),
-                fields=new_fields,
+                component_fields=new_fields,
                 attrname=name,
             )
             if r.attr in referenced_fields:
-                component_fields.append((r.module, *referenced_fields[r.attr]))
-                attrs[name] = referenced_fields[r.attr]
-    return attrs
+                current_fields[name] = referenced_fields[r.attr]
+    return current_fields
 
 
 def _write_resources(
@@ -245,7 +243,7 @@ def _write_resources(
     all_outputs = []
     for rg_name, rg_contents in resources.items():
         bicep.write(rg_name.declare())
-        for (resource, _), (params, symbol, outputs, _) in rg_contents.items():
+        for (resource, params, symbol, outputs, _) in rg_contents:
             if resource.startswith('br/public:'):
                 bicep.write(f"module {symbol.resolve()} '{resource}' = {{\n")
                 bicep.write(f"  name: '${{deployment().name}}_{symbol.resolve()}'\n")

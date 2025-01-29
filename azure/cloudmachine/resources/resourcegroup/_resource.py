@@ -52,8 +52,7 @@ class ResourceGroup(Resource):
             *,
             parameters: Dict[str, Parameter],
             **kwargs
-    ) -> Optional[FieldType]:
-        new_field = None
+    ) -> FieldType:
         rg_name = self.properties.pop('name', parameters['cloudmachineId'])
         var_suffix = rg_name if isinstance(rg_name, str) else "default"
         symbol = ResourceGroupSymbol(
@@ -61,17 +60,19 @@ class ResourceGroup(Resource):
             varname=f"resourcegroup_{var_suffix}_name",
             varvalue=rg_name
         )
-        existing_field = self._find_resource_match(fields, symbol, symbol.varname)
+        field = self._find_resource_match(fields, symbol, symbol.varname)
+        
         # TODO: This probably needs fixing as self.properties shouldn't be mutated....
         self.properties["name"] = symbol.varname
         resource_id = (self.module, symbol)
-        if existing_field:
-            params, symbol, outputs, _ = existing_field
+        if field:
+            reference, params, symbol, outputs, _ = field
         else:
+            reference = self.module
             params = self.defaults.copy()
             outputs = {}
-            new_field = (params, symbol, outputs, symbol)
-            fields.append((self.module, *new_field))
+            field = (reference, params, symbol, outputs, symbol)
+            resources[symbol].append(field)
 
         identity = self._find_identity(fields)
         role_assignments = params.pop("roleAssignments", [])
@@ -84,5 +85,4 @@ class ResourceGroup(Resource):
             identity=identity,
             user_principal=parameters.get("principalId")
         )
-        resources[symbol][resource_id] = existing_field or new_field
-        return resources[symbol][resource_id]
+        return field
