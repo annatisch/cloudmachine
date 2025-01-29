@@ -85,7 +85,7 @@ class BlobContainer(_ClientResource):
             to_str=_convert_to_str,
         )
         self.container_endpoint = StoredPrioritizedSetting(
-            name='container_name',
+            name='container_endpoint',
             env_vars=_build_envs(self._prefixes, ['CONTAINER_ENDPOINT']),
             convert=_convert_str_from_setting,
             to_str=_convert_to_str,
@@ -93,8 +93,6 @@ class BlobContainer(_ClientResource):
         self._settings['container_name'] = self.container_name
         self._settings['container_endpoint'] = self.container_endpoint
 
-    def __set_name__(self, owner, name):
-        return super().__set_name__(owner, name)
     def _merge_containers(
             self,
             containers: List['ContainerParams'],
@@ -205,7 +203,7 @@ class BlobContainer(_ClientResource):
         kwargs.update(self.client_options())
         kwargs.update(options)
         if cls and cls.__name__ != 'ContainerClient':
-            client = cls(self.endpoint(), **kwargs)
+            client = cls(self.container_endpoint(), **kwargs)
         else:
             from azure.storage.blob import ContainerClient
             try:

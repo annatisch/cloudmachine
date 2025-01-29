@@ -7,44 +7,42 @@ from .._resource import _DEFAULT_STORAGE_ACCOUNT
 
 if TYPE_CHECKING:
     from .. import StorageAccountParams
-    from . import TableServiceParams, TableStorageKwargs
-    from azure.data.tables import TableServiceClient
-    from azure.data.tables.aio import TableServiceClient as AsyncTableServiceClient
+    from . import QueueServiceParams, QueueStorageKwargs
+    from azure.storage.queue import QueueServiceClient
 
 
-_DEFAULT_TABLE_STORAGE: 'TableServiceParams' = {
-    'tables': []
+_DEFAULT_QUEUE_STORAGE: 'QueueServiceParams' = {
+    'queues': []
 }
 
 
 ClientType = TypeVar("ClientType")
 
-class TableStorage(_ClientResource):
-    resource: Literal["Microsoft.Storage/storageAccounts/tableServices"] = "Microsoft.Storage/storageAccounts/tableServices"
+class QueueStorage(_ClientResource):
+    resource: Literal["Microsoft.Storage/storageAccounts/queueServices"] = "Microsoft.Storage/storageAccounts/queueServices"
     module: Literal["br/public:avm/res/storage/storage-account:0.14.0"] = "br/public:avm/res/storage/storage-account:0.14.0"
-    identifier: Literal["storage:tables"] = "storage:tables"
+    identifier: Literal["storage:queues"] = "storage:queues"
     defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
-    default_services: 'TableServiceParams' = _DEFAULT_TABLE_STORAGE 
+    default_services: 'QueueServiceParams' = _DEFAULT_QUEUE_STORAGE 
     properties: 'StorageAccountParams'
 
     def __init__(
             self,
-            properties: Optional['TableServiceParams'] = None,
+            properties: Optional['QueueServiceParams'] = None,
             storage_name: Optional[str] = None,
             *,
-            role_assignments=['Storage Table Data Contributor'],
-            **kwargs: Unpack['TableStorageKwargs']
+            role_assignments=['Storage Queue Data Contributor'],
+            **kwargs: Unpack['QueueStorageKwargs']
     ) -> None:
         storage_params: 'StorageAccountParams' = {}
         if storage_name:
             storage_params['name'] = storage_name
-        table_service_params: 'TableServiceParams' = properties or {}
-        if 'tables' in kwargs:
-            table_service_params['tables'] = kwargs.pop('tables')
+        queue_service_params: 'QueueServiceParams' = properties or {}
+        if 'queues' in kwargs:
+            queue_service_params['queues'] = kwargs.pop('queues')
         if 'diagnostic_settings' in kwargs:
-            table_service_params['diagnosticSettings'] = kwargs.pop('diagnostic_settings')
-
-        storage_params['tableServices'] = table_service_params
+            queue_service_params['diagnosticSettings'] = kwargs.pop('diagnostic_settings')
+        storage_params['queueServices'] = queue_service_params
         if 'allow_cross_tenant_replication' in kwargs:
             storage_params['allowCrossTenantReplication'] = kwargs.pop('allow_cross_tenant_replication')
         if 'allowed_copy_scope' in kwargs:
@@ -99,10 +97,9 @@ class TableStorage(_ClientResource):
             storage_params['supportsHttpsTrafficOnly'] = kwargs.pop('supports_https_traffic_only')
         if 'tags' in kwargs:
             storage_params['tags'] = kwargs.pop('tags')
-
         super().__init__(
             properties=storage_params,
-            service_prefix=["tables", "storage"],
+            service_prefix=["queues", "storage"],
             **kwargs
         )
         self._supports_managed_identity = True
@@ -115,12 +112,12 @@ class TableStorage(_ClientResource):
             attrname: Optional[str] = None,
             **kwargs
         ) -> Dict[str, Output]:
-        table_services = params.pop("tableServices", dict(self.default_services))
-        table_services.update(self.properties["tableServices"])
+        queue_services = params.pop("queueServices", dict(self.default_services))
+        queue_services.update(self.properties["queueServices"])
         outputs = super()._merge_params(params, symbol=symbol, attrname=attrname)
-        params['tableServices'] = table_services
+        params['queueServices'] = queue_services
         suffix = attrname or self._suffix
-        outputs[f"AZURE_TABLES_ENDPOINT_{suffix.upper()}"] = Output("outputs.serviceEndpoints.table", symbol)
+        outputs[f"AZURE_QUEUES_ENDPOINT_{suffix.upper()}"] = Output("outputs.serviceEndpoints.queue", symbol)
         return outputs
 
     @overload
@@ -134,7 +131,7 @@ class TableStorage(_ClientResource):
     ) -> ClientType:
         ...
     @overload
-    def __call__(self, *, transport: Any = None, options: Optional[Dict[str, Any]] = None) -> 'TableServiceClient':
+    def __call__(self, *, transport: Any = None, options: Optional[Dict[str, Any]] = None) -> 'QueueServiceClient':
         ...
     @overload
     def __call__(self, cls: Type[Resource], /) -> Self:
@@ -164,11 +161,11 @@ class TableStorage(_ClientResource):
             pass
         kwargs.update(self.client_options())
         kwargs.update(options)
-        if cls and cls.__name__ != 'TableServiceClient':
+        if cls and cls.__name__ != 'QueueServiceClient':
             client = cls(endpoint, **kwargs)
         else:
-            from azure.data.tables import TableServiceClient
-            client = TableServiceClient(
+            from azure.storage.queue import QueueServiceClient
+            client = QueueServiceClient(
                 endpoint,
                 **kwargs
             )

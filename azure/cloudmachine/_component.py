@@ -18,6 +18,9 @@ if TYPE_CHECKING:
         TableStorage,
         BlobStorage,
         BlobContainer,
+        QueueStorage,
+        FileShareStorage,
+        FileShare
     )
     from .resources.managedidentity import UserAssignedIdentityParams, UserAssignedIdentityKwargs
     from .resources.resourcegroup import ResourceGroupParams, ResourceGroupKwargs
@@ -25,6 +28,9 @@ if TYPE_CHECKING:
     from .resources.storage.tables import TableServiceParams, TableStorageKwargs
     from .resources.storage.blobs import BlobServiceParams, BlobStorageKwargs
     from .resources.storage.blobs.container import ContainerParams, ContainerKwargs
+    from .resources.storage.queues import QueueServiceParams, QueueStorageKwargs
+    from .resources.storage.files import FileServiceParams, FileStorageKwargs
+    from .resources.storage.files.share import ShareParams, ShareKwargs
 
 
 @overload
@@ -32,9 +38,6 @@ def resource(
     resource: Literal['resourcegroup'],
     /,
     storage_name: Optional[str] = None,
-    *,
-    default: 'ResourceGroupParams',
-    default_factory: Optional[Callable[[], 'ResourceGroupParams']],
     **kwargs: Unpack['ResourceGroupKwargs']
 ) -> 'ResourceGroup':
     ...
@@ -43,9 +46,6 @@ def resource(
     resource: Literal['userassignedidentity'],
     /,
     storage_name: Optional[str] = None,
-    *,
-    default: 'UserAssignedIdentityParams',
-    default_factory: Optional[Callable[[], 'UserAssignedIdentityParams']],
     **kwargs: Unpack['UserAssignedIdentityKwargs']
 ) -> 'UserAssignedIdentity':
     ...
@@ -54,9 +54,6 @@ def resource(
     resource: Literal['storage'],
     /,
     storage_name: Optional[str] = None,
-    *,
-    default: 'StorageAccountParams',
-    default_factory: Optional[Callable[[], 'StorageAccountParams']],
     **kwargs: Unpack['StorageAccountKwargs']
 ) -> 'StorageAccount':
     ...
@@ -65,20 +62,22 @@ def resource(
     resource: Literal['storage:tables'],
     /,
     storage_name: Optional[str] = None,
-    *,
-    default: 'TableServiceParams',
-    default_factory: Callable[[], 'TableServiceParams'],
     **kwargs: Unpack['TableStorageKwargs']
 ) -> 'TableStorage':
+    ...
+@overload
+def resource(
+    resource: Literal['storage:queues'],
+    /,
+    storage_name: Optional[str] = None,
+    **kwargs: Unpack['QueueStorageKwargs']
+) -> 'QueueStorage':
     ...
 @overload
 def resource(
     resource: Literal['storage:blobs'],
     /,
     storage_name: Optional[str] = None,
-    *,
-    default: 'BlobServiceParams',
-    default_factory: Callable[[], 'BlobServiceParams'],
     **kwargs: Unpack['BlobStorageKwargs']
 ) -> 'BlobStorage':
     ...
@@ -88,11 +87,25 @@ def resource(
     /,
     storage_name: Optional[str] = None,
     container_name: Optional[str] = None,
-    *,
-    default: 'ContainerParams',
-    default_factory: Callable[[], 'ContainerParams'],
     **kwargs: Unpack['ContainerKwargs']
 ) -> 'BlobContainer':
+    ...
+@overload
+def resource(
+    resource: Literal['storage:files'],
+    /,
+    storage_name: Optional[str] = None,
+    **kwargs: Unpack['FileStorageKwargs']
+) -> 'FileShareStorage':
+    ...
+@overload
+def resource(
+    resource: Literal['storage:files:share'],
+    /,
+    storage_name: Optional[str] = None,
+    share_name: Optional[str] = None,
+    **kwargs: Unpack['ShareKwargs']
+) -> 'FileShare':
     ...
 def resource(
         resource: Union[
@@ -105,6 +118,9 @@ def resource(
                 'storage:blobs',
                 'storage:tables',
                 'storage:blobs:container',
+                'storage:queues',
+                'storage:files',
+                'storage:files:share'
             ]
         ] = "",
         *args,
@@ -118,7 +134,6 @@ def resource(
         # TODO: update resource params from kwargs
         # return resource.__copy(**kwargs)
         return resource
-
     if resource == "resourcegroup":
         from .resources.resourcegroup._resource import ResourceGroup
         return ResourceGroup(None, *args, default=default, default_factory=default_factory, **kwargs)
@@ -137,7 +152,15 @@ def resource(
     if resource == "storage:blobs:container":
         from .resources.storage.blobs.container._resource import BlobContainer
         return BlobContainer(None, *args, default=default, default_factory=default_factory, **kwargs)
-
+    if resource == "storage:queues":
+        from .resources.storage.queues._resource import QueueStorage
+        return QueueStorage(None, *args, default=default, default_factory=default_factory, **kwargs)
+    if resource == "storage:files":
+        from .resources.storage.files._resource import FileShareStorage
+        return FileShareStorage(None, *args, default=default, default_factory=default_factory, **kwargs)
+    if resource == "storage:files:share":
+        from .resources.storage.files.share._resource import FileShare
+        return FileShare(None, *args, default=default, default_factory=default_factory, **kwargs)
     if resource.startswith("Microsoft."):
         raise NotImplementedError("Raw resources not supported yet.")
     else:

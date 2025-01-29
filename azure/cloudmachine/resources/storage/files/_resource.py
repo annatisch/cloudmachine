@@ -4,47 +4,47 @@ from ...._bicep.expressions import ModuleSymbol, Output
 from ...._resource import Resource, _ClientResource
 from .._resource import _DEFAULT_STORAGE_ACCOUNT
 
-
 if TYPE_CHECKING:
     from .. import StorageAccountParams
-    from . import TableServiceParams, TableStorageKwargs
-    from azure.data.tables import TableServiceClient
-    from azure.data.tables.aio import TableServiceClient as AsyncTableServiceClient
+    from . import FileServiceParams, FileStorageKwargs
+    from azure.storage.fileshare import ShareServiceClient
 
 
-_DEFAULT_TABLE_STORAGE: 'TableServiceParams' = {
-    'tables': []
+_DEFAULT_FILE_STORAGE: 'FileServiceParams' = {
 }
-
 
 ClientType = TypeVar("ClientType")
 
-class TableStorage(_ClientResource):
-    resource: Literal["Microsoft.Storage/storageAccounts/tableServices"] = "Microsoft.Storage/storageAccounts/tableServices"
+
+class FileShareStorage(_ClientResource):
+    resource: Literal["Microsoft.Storage/storageAccounts/fileServices"] = "Microsoft.Storage/storageAccounts/fileServices"
     module: Literal["br/public:avm/res/storage/storage-account:0.14.0"] = "br/public:avm/res/storage/storage-account:0.14.0"
-    identifier: Literal["storage:tables"] = "storage:tables"
+    identifier: Literal["storage:files"] = "storage:files"
     defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
-    default_services: 'TableServiceParams' = _DEFAULT_TABLE_STORAGE 
+    default_services: 'FileServiceParams' = _DEFAULT_FILE_STORAGE
     properties: 'StorageAccountParams'
 
     def __init__(
             self,
-            properties: Optional['TableServiceParams'] = None,
+            properties: Optional['FileServiceParams'] = None,
             storage_name: Optional[str] = None,
             *,
-            role_assignments=['Storage Table Data Contributor'],
-            **kwargs: Unpack['TableStorageKwargs']
+            role_assignments = ['Storage File Data SMB Share Contributor'],
+            **kwargs: Unpack['FileStorageKwargs']
     ) -> None:
         storage_params: 'StorageAccountParams' = {}
         if storage_name:
             storage_params['name'] = storage_name
-        table_service_params: 'TableServiceParams' = properties or {}
-        if 'tables' in kwargs:
-            table_service_params['tables'] = kwargs.pop('tables')
+        file_service_params: 'FileServiceParams' = properties or {}
+        if 'shares' in kwargs:
+            file_service_params['shares'] = kwargs.pop('shares')
         if 'diagnostic_settings' in kwargs:
-            table_service_params['diagnosticSettings'] = kwargs.pop('diagnostic_settings')
-
-        storage_params['tableServices'] = table_service_params
+            file_service_params['diagnosticSettings'] = kwargs.pop('diagnostic_settings')
+        if 'protocol_settings' in kwargs:
+            file_service_params['protocolSettings'] = kwargs.pop('protocol_settings')
+        if 'share_delete_retention_policy' in kwargs:
+            file_service_params['shareDeleteRetentionPolicy'] = kwargs.pop('share_delete_retention_policy')
+        storage_params['fileServices'] = file_service_params
         if 'allow_cross_tenant_replication' in kwargs:
             storage_params['allowCrossTenantReplication'] = kwargs.pop('allow_cross_tenant_replication')
         if 'allowed_copy_scope' in kwargs:
@@ -102,7 +102,7 @@ class TableStorage(_ClientResource):
 
         super().__init__(
             properties=storage_params,
-            service_prefix=["tables", "storage"],
+            service_prefix=["files", "storage"],
             **kwargs
         )
         self._supports_managed_identity = True
@@ -115,12 +115,12 @@ class TableStorage(_ClientResource):
             attrname: Optional[str] = None,
             **kwargs
         ) -> Dict[str, Output]:
-        table_services = params.pop("tableServices", dict(self.default_services))
-        table_services.update(self.properties["tableServices"])
+        blob_services = params.pop("fileServices", dict(self.default_services))
+        blob_services.update(self.properties["fileServices"])
         outputs = super()._merge_params(params, symbol=symbol, attrname=attrname)
-        params['tableServices'] = table_services
+        params['fileServices'] = blob_services
         suffix = attrname or self._suffix
-        outputs[f"AZURE_TABLES_ENDPOINT_{suffix.upper()}"] = Output("outputs.serviceEndpoints.table", symbol)
+        outputs[f"AZURE_FILES_ENDPOINT_{suffix.upper()}"] = Output("outputs.serviceEndpoints.queue", symbol)
         return outputs
 
     @overload
@@ -134,7 +134,7 @@ class TableStorage(_ClientResource):
     ) -> ClientType:
         ...
     @overload
-    def __call__(self, *, transport: Any = None, options: Optional[Dict[str, Any]] = None) -> 'TableServiceClient':
+    def __call__(self, *, transport: Any = None, options: Optional[Dict[str, Any]] = None) -> 'ShareServiceClient':
         ...
     @overload
     def __call__(self, cls: Type[Resource], /) -> Self:
@@ -164,11 +164,11 @@ class TableStorage(_ClientResource):
             pass
         kwargs.update(self.client_options())
         kwargs.update(options)
-        if cls and cls.__name__ != 'TableServiceClient':
+        if cls and cls.__name__ != 'ShareServiceClient':
             client = cls(endpoint, **kwargs)
         else:
-            from azure.data.tables import TableServiceClient
-            client = TableServiceClient(
+            from azure.storage.fileshare import ShareServiceClient
+            client = ShareServiceClient(
                 endpoint,
                 **kwargs
             )

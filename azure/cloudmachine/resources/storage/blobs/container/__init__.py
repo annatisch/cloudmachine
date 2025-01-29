@@ -36,7 +36,7 @@ class RoleAssignment(TypedDict, total=False):
 
 class ContainerParams(TypedDict, total=False):
     """"""
-    name: Required[str]
+    name: str
     """The name of the storage container to deploy."""
     defaultEncryptionScope: str
     """Default the container to use specified encryption scope for all writes."""

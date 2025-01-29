@@ -359,7 +359,7 @@ class StorageAccountKwargs(TypedDict, total=False):
     """Enable/Disable usage telemetry for module."""
     is_local_user_enabled: bool
     """Enables local users feature, if set to true."""
-    key_rype: Literal['Account', 'Service']
+    key_type: Literal['Account', 'Service']
     """The keyType to use with Queue & Table services."""
     kind: Literal['BlobStorage', 'BlockBlobStorage', 'FileStorage', 'Storage', 'StorageV2']
     """Type of Storage Account to create."""

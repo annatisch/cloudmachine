@@ -3,7 +3,7 @@ from typing_extensions import Required
 
 
 if TYPE_CHECKING:
-    from .table import Table
+    from .queue import Queue
     from .. import (
         ManagedIdentity,
         SecretsExportConfiguration,
@@ -56,18 +56,18 @@ class DiagnosticSetting(TypedDict, total=False):
     """Resource ID of the diagnostic log analytics workspace. For security reasons, it is recommended to set diagnostic settings to send data to either storage account, log analytics workspace or event hub."""
 
 
-class TableServiceParams(TypedDict, total=False):
+class QueueServiceParams(TypedDict, total=False):
     """"""
     diagnosticSettings: List['DiagnosticSetting']
     """The diagnostic settings of the service."""
-    tables: List['Table']
-    """tables to create."""
+    queues: List['Queue']
+    """Queues to create."""
 
 
-class TableStorageKwargs(TypedDict, total=False):
+class QueueStorageKwargs(TypedDict, total=False):
     """"""
-    tables: List['Table']
-    """tables to create."""
+    queues: List['Queue']
+    """Queues to create."""
     allow_cross_tenant_replication: bool
     """Allow or disallow cross AAD tenant object replication."""
     allowed_copy_scope: Literal['', 'AAD', 'PrivateLink']

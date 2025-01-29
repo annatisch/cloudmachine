@@ -173,7 +173,7 @@ class Resource:
             kwargs=kwargs,
         )
 
-    def __set_name__(self, owner: Type, name: str):
+    def __set_name__(self, owner: Type, name: str) -> None:
         self.attr = name
         if self._component is None:
             if not self.resource:
@@ -185,7 +185,7 @@ class Resource:
                 self._inferred_resource = INFERRED_RESOURCE[annotation.__name__].identifier
         self.component = owner
 
-    def __get__(self, *args):
+    def __get__(self, *args) -> Self:
         if self._inferred_obj:
             return self._inferred_obj
         if self._inferred_resource:

@@ -3,7 +3,7 @@ from typing_extensions import Required
 
 
 if TYPE_CHECKING:
-    from .table import Table
+    from .share import Share
     from .. import (
         ManagedIdentity,
         SecretsExportConfiguration,
@@ -56,18 +56,30 @@ class DiagnosticSetting(TypedDict, total=False):
     """Resource ID of the diagnostic log analytics workspace. For security reasons, it is recommended to set diagnostic settings to send data to either storage account, log analytics workspace or event hub."""
 
 
-class TableServiceParams(TypedDict, total=False):
+class FileServiceParams(TypedDict, total=False):
     """"""
     diagnosticSettings: List['DiagnosticSetting']
     """The diagnostic settings of the service."""
-    tables: List['Table']
-    """tables to create."""
+    name: str
+    """The name of the file service."""
+    protocolSettings: Dict[str, object]
+    """Protocol settings for file service."""
+    shareDeleteRetentionPolicy: Dict[str, object]
+    """The service properties for soft delete."""
+    shares: List['Share']
+    """File shares to create."""
 
 
-class TableStorageKwargs(TypedDict, total=False):
+class FileStorageKwargs(TypedDict, total=False):
     """"""
-    tables: List['Table']
-    """tables to create."""
+    diagnostic_settings: List['DiagnosticSetting']
+    """The diagnostic settings of the service."""
+    protocol_settings: Dict[str, object]
+    """Protocol settings for file service."""
+    share_delete_retention_policy: Dict[str, object]
+    """The service properties for soft delete."""
+    shares: List['Share']
+    """File shares to create."""
     allow_cross_tenant_replication: bool
     """Allow or disallow cross AAD tenant object replication."""
     allowed_copy_scope: Literal['', 'AAD', 'PrivateLink']
@@ -82,8 +94,6 @@ class TableStorageKwargs(TypedDict, total=False):
     """The customer managed key definition."""
     default_to_oauth_authentication: bool
     """A boolean flag which indicates whether the default authentication is OAuth or not."""
-    diagnostic_settings: List['DiagnosticSetting']
-    """The diagnostic settings of the service."""
     dns_endpoint_type: Literal['', 'AzureDnsZone', 'Standard']
     """Allows you to specify the type of endpoint. Set this to AzureDNSZone to create a large number of accounts in a single subscription, which creates accounts in an Azure DNS Zone and the endpoint URL will have an alphanumeric DNS Zone identifier."""
     enable_telemetry: bool
