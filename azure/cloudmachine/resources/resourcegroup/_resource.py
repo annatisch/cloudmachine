@@ -13,10 +13,10 @@ _DEFAULT_RESOURCE_GROUP: 'ResourceGroupParams' = {
 
 
 class ResourceGroup(Resource):
-    resource: Literal["Microsoft.Resources/resourceGroups"] = "Microsoft.Resources/resourceGroups"
-    module: Literal["br/public:avm/res/resources/resource-group:0.4.0"] = "br/public:avm/res/resources/resource-group:0.4.0"
     identifier: Literal["resourcegroup"] = "resourcegroup"
+    module: Literal["br/public:avm/res/resources/resource-group"] = "br/public:avm/res/resources/resource-group"
     defaults: 'ResourceGroupParams' = _DEFAULT_RESOURCE_GROUP
+    resource: Literal["Microsoft.Resources/resourceGroups"]
     properties: 'ResourceGroupParams'
 
     def __init__(
@@ -45,6 +45,16 @@ class ResourceGroup(Resource):
             **kwargs
         )
 
+    @property
+    def resource(self) -> str:
+        from . import MODULE_RESOURCE
+        return MODULE_RESOURCE
+
+    @property
+    def version(self) -> str:
+        from . import MODULE_VERSION
+        return MODULE_VERSION
+
     def __bicep__(
             self,
             fields: FieldsType,
@@ -64,14 +74,16 @@ class ResourceGroup(Resource):
         
         # TODO: This probably needs fixing as self.properties shouldn't be mutated....
         self.properties["name"] = symbol.varname
-        resource_id = (self.module, symbol)
         if field:
-            reference, params, symbol, outputs, _ = field
+            reference = field[0]
+            params = field[1]
+            symbol = field[2]
+            outputs = field[3]
         else:
             reference = self.module
             params = self.defaults.copy()
             outputs = {}
-            field = (reference, params, symbol, outputs, symbol)
+            field = (reference, params, symbol, outputs, symbol, self.version)
             resources[symbol].append(field)
 
         identity = self._find_identity(fields)

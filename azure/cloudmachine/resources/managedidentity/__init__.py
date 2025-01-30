@@ -1,6 +1,10 @@
 from typing import TypedDict, Literal, List, Dict, Union
 from typing_extensions import Required
 
+MODULE = "br/public:avm/res/managed-identity/user-assigned-identity"
+MODULE_RESOURCE = "Microsoft.ManagedIdentity/userAssignedIdentities"
+MODULE_VERSION = "0.4.0"
+
 
 class FederatedIdentityCredential(TypedDict, total=False):
     """The federated identity credentials list to indicate which token from the external IdP should be trusted by your application. Federated identity credentials are supported on applications only. A maximum of 20 federated identity credentials can be added per application object."""

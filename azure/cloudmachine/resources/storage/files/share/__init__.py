@@ -1,6 +1,10 @@
 from typing import TYPE_CHECKING, TypedDict, Literal, List, Dict, Union
 from typing_extensions import Required
 
+MODULE = "br/public:avm/res/storage/storage-account"
+MODULE_RESOURCE = "Microsoft.Storage/storageAccounts/fileServices/shares"
+MODULE_VERSION = "0.14.0"
+
 
 class RoleAssignment(TypedDict, total=False):
     """Array of role assignments to create."""

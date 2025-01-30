@@ -13,10 +13,10 @@ _DEFAULT_USER_ASSIGNED_IDENTITY: 'UserAssignedIdentityParams' = {
 
 
 class UserAssignedIdentity(Resource):
-    resource: Literal["Microsoft.ManagedIdentity/userAssignedIdentities"] = "Microsoft.ManagedIdentity/userAssignedIdentities"
-    module: Literal["br/public:avm/res/managed-identity/user-assigned-identity:0.4.0"] = "br/public:avm/res/managed-identity/user-assigned-identity:0.4.0"
     identifier: Literal["userassignedidentity"] = "userassignedidentity"
+    module: Literal["br/public:avm/res/managed-identity/user-assigned-identity"] = "br/public:avm/res/managed-identity/user-assigned-identity"
     defaults: 'UserAssignedIdentityParams' = _DEFAULT_USER_ASSIGNED_IDENTITY
+    resource: Literal["Microsoft.ManagedIdentity/userAssignedIdentities"]
     properties: 'UserAssignedIdentityParams'
 
     def __init__(
@@ -45,6 +45,16 @@ class UserAssignedIdentity(Resource):
             service_prefix=["identity"],
             **kwargs
         )
+
+    @property
+    def resource(self) -> str:
+        from . import MODULE_RESOURCE
+        return MODULE_RESOURCE
+
+    @property
+    def version(self) -> str:
+        from . import MODULE_VERSION
+        return MODULE_VERSION
 
     def _symbol(self) -> ModuleSymbol:
         resource_ref = self.resource.split("/")[0].split(".")[1]

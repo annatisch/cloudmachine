@@ -73,7 +73,7 @@ AsyncCredentialInputTypes = Union[
     Callable[[], AsyncSupportsTokenInfo],
     Literal['default', 'managedidentity'],
 ]
-FieldType = Tuple[str, Dict[str, Any], ResourceSymbol, Dict[str, Union[str, Output]], ResourceGroupSymbol]
+FieldType = Tuple[str, Dict[str, Any], ResourceSymbol, Dict[str, Union[str, Output]], ResourceGroupSymbol, str]
 FieldsType = Dict[str, FieldType]
 ResourcesType = Dict[ResourceGroupSymbol, List[FieldType]]
 
@@ -110,16 +110,21 @@ def _build_envs(services: List[str], attributes: List[str]) -> List[str]:
     return ["_".join(['AZURE'] + list(var)).upper() for var in all_vars]
 
 
+_EMPTY_DEFAULT = {}
+
+
 class Resource:
-    resource: str = ""
-    module: str = ""
     identifier: str = ""
+    module: str = ""
+    defaults: Mapping[str, Any] = _EMPTY_DEFAULT
+    resource: str
+    module: str
+    version: str
     name: PrioritizedSetting[str, str]
     id: PrioritizedSetting[str, str]
     properties: Mapping[str, Any]
     component: Type
     attr: str
-    defaults: Mapping[str, Any]
 
     def __init__(
             self,
@@ -131,6 +136,8 @@ class Resource:
             **kwargs
     ) -> None:
         self.properties = properties
+        self._resource = ""
+        self._version = ""
         self._prefixes = service_prefix
         self._default = default
         self._default_factory = default_factory
@@ -206,6 +213,14 @@ class Resource:
 
     def __set__(self, obj, value):
         raise NotImplementedError()
+
+    @property
+    def resource(self) -> str:
+        return self._resource
+
+    @property
+    def version(self) -> str:
+        return self._version
 
     @property
     def component(self) -> Type:
@@ -287,7 +302,7 @@ class Resource:
 
     def _find_field(self, resource: str, fields: FieldsType, index: int = 0) -> Optional[FieldType]:
         try:
-            return [f for f in reversed(list(fields.values())) if f[0].startswith(resource)][index]
+            return [f for f in reversed(list(fields.values())) if f[0] == resource][index]
         except IndexError:
             return None
 
@@ -306,12 +321,12 @@ class Resource:
             rg: ResourceGroupSymbol,
             name: Optional[Union[str, Expression]] = None,
     ) -> Optional[FieldType]:
-        for field in [f for f in reversed(list(fields.values())) if f[0].startswith(self.module)]:
+        for field in [f for f in reversed(list(fields.values())) if f[0] == self.module]:
             if name:
                 if field[1]['name'] == name and field[-1] == rg:
                     return field
             else:
-                if field[-1] == rg:
+                if field[-2] == rg:
                     return field
         return None
 
@@ -412,13 +427,15 @@ class Resource:
         else:
             resource_name = resource_name or parameters['cloudmachineId']
         if field:
-            reference, params, symbol, outputs, _ = field
+            params = field[1]
+            symbol = field[2]
+            outputs = field[3]
         else:
             params = dict(self.defaults)
             params['name'] = resource_name
             symbol = self._symbol()
             outputs = {}
-            field = (reference, params, symbol, outputs, rg_name)
+            field = (reference, params, symbol, outputs, rg_name, self.version)
             resources[rg_name].append(field)
 
         identity = self._find_identity(fields)

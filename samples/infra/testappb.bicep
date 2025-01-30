@@ -13,8 +13,8 @@ var cloudmachineId = uniqueString(subscription().subscriptionId, 'testappb', loc
 
 var resourcegroup_default_name = cloudmachineId
 
-module resources_2bhum 'br/public:avm/res/resources/resource-group:0.4.0' = {
-  name: '${deployment().name}_resources_2bhum'
+module resources_z7ljt 'br/public:avm/res/resources/resource-group:0.4.0' = {
+  name: '${deployment().name}_resources_z7ljt'
   params: {
     name: resourcegroup_default_name
     location: location
@@ -22,8 +22,8 @@ module resources_2bhum 'br/public:avm/res/resources/resource-group:0.4.0' = {
   }
 }
 
-module managedidentity_xzt1e 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.0' = {
-  name: '${deployment().name}_managedidentity_xzt1e'
+module managedidentity_geloo 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.0' = {
+  name: '${deployment().name}_managedidentity_geloo'
   scope: resourceGroup(resourcegroup_default_name)
   params: {
     name: cloudmachineId
@@ -31,14 +31,14 @@ module managedidentity_xzt1e 'br/public:avm/res/managed-identity/user-assigned-i
     tags: tags
   }
 }
+output AZURE_CLIENT_ID string = managedidentity_geloo.outputs.clientId
 
-module storage_8vh3z 'br/public:avm/res/storage/storage-account:0.14.0' = {
-  name: '${deployment().name}_storage_8vh3z'
+module storage_5zkec 'br/public:avm/res/storage/storage-account:0.14.0' = {
+  name: '${deployment().name}_storage_5zkec'
   scope: resourceGroup(resourcegroup_default_name)
   params: {
     accessTier: 'Hot'
     allowBlobPublicAccess: false
-    enableHierarchicalNamespace: true
     kind: 'StorageV2'
     skuName: 'Standard_LRS'
     name: 'foo'
@@ -53,13 +53,13 @@ module storage_8vh3z 'br/public:avm/res/storage/storage-account:0.14.0' = {
           }
           roleAssignments: [
             {
-              name: guid('storage_8vh3z', managedidentity_xzt1e.outputs.principalId, 'Storage Blob Data Contributor')
-              principalId: managedidentity_xzt1e.outputs.principalId
+              name: guid('storage_5zkec', managedidentity_geloo.outputs.principalId, 'Storage Blob Data Contributor')
+              principalId: managedidentity_geloo.outputs.principalId
               principalType: 'ServicePrincipal'
               roleDefinitionIdOrName: 'Storage Blob Data Contributor'
             }
             {
-              name: guid('storage_8vh3z', principalId, 'Storage Blob Data Contributor')
+              name: guid('storage_5zkec', principalId, 'Storage Blob Data Contributor')
               principalId: principalId
               principalType: 'User'
               roleDefinitionIdOrName: 'Storage Blob Data Contributor'
@@ -77,25 +77,25 @@ module storage_8vh3z 'br/public:avm/res/storage/storage-account:0.14.0' = {
     }
     roleAssignments: [
       {
-        name: guid('storage_8vh3z', managedidentity_xzt1e.outputs.principalId, 'Storage Blob Data Contributor')
-        principalId: managedidentity_xzt1e.outputs.principalId
+        name: guid('storage_5zkec', managedidentity_geloo.outputs.principalId, 'Storage Blob Data Contributor')
+        principalId: managedidentity_geloo.outputs.principalId
         principalType: 'ServicePrincipal'
         roleDefinitionIdOrName: 'Storage Blob Data Contributor'
       }
       {
-        name: guid('storage_8vh3z', principalId, 'Storage Blob Data Contributor')
+        name: guid('storage_5zkec', principalId, 'Storage Blob Data Contributor')
         principalId: principalId
         principalType: 'User'
         roleDefinitionIdOrName: 'Storage Blob Data Contributor'
       }
       {
-        name: guid('storage_8vh3z', managedidentity_xzt1e.outputs.principalId, 'Storage Table Data Contributor')
-        principalId: managedidentity_xzt1e.outputs.principalId
+        name: guid('storage_5zkec', managedidentity_geloo.outputs.principalId, 'Storage Table Data Contributor')
+        principalId: managedidentity_geloo.outputs.principalId
         principalType: 'ServicePrincipal'
         roleDefinitionIdOrName: 'Storage Table Data Contributor'
       }
       {
-        name: guid('storage_8vh3z', principalId, 'Storage Table Data Contributor')
+        name: guid('storage_5zkec', principalId, 'Storage Table Data Contributor')
         principalId: principalId
         principalType: 'User'
         roleDefinitionIdOrName: 'Storage Table Data Contributor'
@@ -103,30 +103,30 @@ module storage_8vh3z 'br/public:avm/res/storage/storage-account:0.14.0' = {
     ]
     managedIdentities: {
       userAssignedResourceIds: [
-        managedidentity_xzt1e.outputs.resourceId
+        managedidentity_geloo.outputs.resourceId
       ]
     }
   }
 }
-output AZURE_BLOBS_ID__BLOBS_THREE string = storage_8vh3z.outputs.resourceId
-output AZURE_BLOBS_NAME__BLOBS_THREE string = storage_8vh3z.outputs.name
-output AZURE_BLOBS_ENDPOINT__BLOBS_THREE string = storage_8vh3z.outputs.primaryBlobEndpoint
-output AZURE_BLOBS_ID_IMAGES_THREE string = storage_8vh3z.outputs.resourceId
-output AZURE_BLOBS_NAME_IMAGES_THREE string = storage_8vh3z.outputs.name
-output AZURE_BLOBS_ENDPOINT_IMAGES_THREE string = storage_8vh3z.outputs.primaryBlobEndpoint
-output AZURE_BLOBS_CONTAINER_ENDPOINT_IMAGES_THREE string = '${storage_8vh3z.outputs.primaryBlobEndpoint}/images'
+output AZURE_BLOBS_ID__BLOBS_THREE string = storage_5zkec.outputs.resourceId
+output AZURE_BLOBS_NAME__BLOBS_THREE string = storage_5zkec.outputs.name
+output AZURE_BLOBS_ENDPOINT__BLOBS_THREE string = storage_5zkec.outputs.primaryBlobEndpoint
+output AZURE_BLOBS_ID_IMAGES_THREE string = storage_5zkec.outputs.resourceId
+output AZURE_BLOBS_NAME_IMAGES_THREE string = storage_5zkec.outputs.name
+output AZURE_BLOBS_ENDPOINT_IMAGES_THREE string = storage_5zkec.outputs.primaryBlobEndpoint
+output AZURE_BLOBS_CONTAINER_ENDPOINT_IMAGES_THREE string = '${storage_5zkec.outputs.primaryBlobEndpoint}/images'
 output AZURE_BLOBS_CONTAINER_NAME_IMAGES_THREE string = 'images'
 
-module storage_a7w96 'br/public:avm/res/storage/storage-account:0.14.0' = {
-  name: '${deployment().name}_storage_a7w96'
+module storage_xshr5 'br/public:avm/res/storage/storage-account:0.14.0' = {
+  name: '${deployment().name}_storage_xshr5'
   scope: resourceGroup(resourcegroup_default_name)
   params: {
     accessTier: 'Hot'
     allowBlobPublicAccess: false
-    enableHierarchicalNamespace: false
     kind: 'StorageV2'
     skuName: 'Standard_LRS'
     name: 'bar'
+    enableHierarchicalNamespace: false
     location: location
     tags: tags
     blobServices: {
@@ -138,13 +138,13 @@ module storage_a7w96 'br/public:avm/res/storage/storage-account:0.14.0' = {
           }
           roleAssignments: [
             {
-              name: guid('storage_a7w96', managedidentity_xzt1e.outputs.principalId, 'Storage Blob Data Contributor')
-              principalId: managedidentity_xzt1e.outputs.principalId
+              name: guid('storage_xshr5', managedidentity_geloo.outputs.principalId, 'Storage Blob Data Contributor')
+              principalId: managedidentity_geloo.outputs.principalId
               principalType: 'ServicePrincipal'
               roleDefinitionIdOrName: 'Storage Blob Data Contributor'
             }
             {
-              name: guid('storage_a7w96', principalId, 'Storage Blob Data Contributor')
+              name: guid('storage_xshr5', principalId, 'Storage Blob Data Contributor')
               principalId: principalId
               principalType: 'User'
               roleDefinitionIdOrName: 'Storage Blob Data Contributor'
@@ -162,13 +162,13 @@ module storage_a7w96 'br/public:avm/res/storage/storage-account:0.14.0' = {
     }
     roleAssignments: [
       {
-        name: guid('storage_a7w96', managedidentity_xzt1e.outputs.principalId, 'Storage Table Data Contributor')
-        principalId: managedidentity_xzt1e.outputs.principalId
+        name: guid('storage_xshr5', managedidentity_geloo.outputs.principalId, 'Storage Table Data Contributor')
+        principalId: managedidentity_geloo.outputs.principalId
         principalType: 'ServicePrincipal'
         roleDefinitionIdOrName: 'Storage Table Data Contributor'
       }
       {
-        name: guid('storage_a7w96', principalId, 'Storage Table Data Contributor')
+        name: guid('storage_xshr5', principalId, 'Storage Table Data Contributor')
         principalId: principalId
         principalType: 'User'
         roleDefinitionIdOrName: 'Storage Table Data Contributor'
@@ -176,17 +176,17 @@ module storage_a7w96 'br/public:avm/res/storage/storage-account:0.14.0' = {
     ]
     managedIdentities: {
       userAssignedResourceIds: [
-        managedidentity_xzt1e.outputs.resourceId
+        managedidentity_geloo.outputs.resourceId
       ]
     }
   }
 }
-output AZURE_BLOBS_ID__BLOBS_FOUR string = storage_a7w96.outputs.resourceId
-output AZURE_BLOBS_NAME__BLOBS_FOUR string = storage_a7w96.outputs.name
-output AZURE_BLOBS_ENDPOINT__BLOBS_FOUR string = storage_a7w96.outputs.primaryBlobEndpoint
-output AZURE_BLOBS_ID_IMAGES_FOUR string = storage_a7w96.outputs.resourceId
-output AZURE_BLOBS_NAME_IMAGES_FOUR string = storage_a7w96.outputs.name
-output AZURE_BLOBS_ENDPOINT_IMAGES_FOUR string = storage_a7w96.outputs.primaryBlobEndpoint
-output AZURE_BLOBS_CONTAINER_ENDPOINT_IMAGES_FOUR string = '${storage_a7w96.outputs.primaryBlobEndpoint}/images'
+output AZURE_BLOBS_ID__BLOBS_FOUR string = storage_xshr5.outputs.resourceId
+output AZURE_BLOBS_NAME__BLOBS_FOUR string = storage_xshr5.outputs.name
+output AZURE_BLOBS_ENDPOINT__BLOBS_FOUR string = storage_xshr5.outputs.primaryBlobEndpoint
+output AZURE_BLOBS_ID_IMAGES_FOUR string = storage_xshr5.outputs.resourceId
+output AZURE_BLOBS_NAME_IMAGES_FOUR string = storage_xshr5.outputs.name
+output AZURE_BLOBS_ENDPOINT_IMAGES_FOUR string = storage_xshr5.outputs.primaryBlobEndpoint
+output AZURE_BLOBS_CONTAINER_ENDPOINT_IMAGES_FOUR string = '${storage_xshr5.outputs.primaryBlobEndpoint}/images'
 output AZURE_BLOBS_CONTAINER_NAME_IMAGES_FOUR string = 'images'
 

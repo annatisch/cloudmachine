@@ -88,6 +88,7 @@ def export(
             default_resource_group.component = app
             default_identity = UserAssignedIdentity()
             default_identity.component = app
+            default_identity.attr = None
             resources: ResourcesType = defaultdict(list)
 
             tags = Variable('tags', 'object', { 'azd-env-name': module_parameters['environmentName'] })
@@ -167,7 +168,7 @@ def _find_resource(
         fields: FieldsType,
 ) -> Optional[FieldType]:
     try:
-        return [f for f in reversed(list(fields.values())) if f[0].startswith(module)][0]
+        return [f for f in reversed(list(fields.values())) if f[0] == module][0]
     except IndexError:
         return None
 
@@ -241,24 +242,35 @@ def _write_resources(
         parameters: Dict[str, Parameter],
 ) -> List[str]:
     all_outputs = []
+    depends = None
     for rg_name, rg_contents in resources.items():
         bicep.write(rg_name.declare())
-        for (resource, params, symbol, outputs, _) in rg_contents:
+        for (resource, params, symbol, outputs, _, version) in rg_contents:
             if resource.startswith('br/public:'):
-                bicep.write(f"module {symbol.resolve()} '{resource}' = {{\n")
+                bicep.write(f"module {symbol.resolve()} '{resource}:{version}' = {{\n")
                 bicep.write(f"  name: '${{deployment().name}}_{symbol.resolve()}'\n")
                 if 'resources/resource-group' not in resource:
                     bicep.write(f"  scope: resourceGroup({rg_name.varname.resolve()})\n")
                 bicep.write("  params: {\n")
                 bicep.write(serialize_dict(params, "    ", **parameters))
                 bicep.write("  }\n")
+                # if depends:
+                #     bicep.write("  dependsOn: [\n")
+                #     bicep.write(serialize_list([depends], "    "))
+                #     bicep.write("  ]\n")
                 bicep.write("}\n")
             elif resource.startswith('Microsoft.'):
-                bicep.write(f"resource {symbol.resolve()} '{resource}' = {{\n")
+                for parent in params['parents']:
+                        bicep.write(f"resource {parent[2]} '{parent[0]}@{parent[5]}' = {{\n")
+                        # TODO: parent params will only have 'name' and optionally 'parent'
+                        bicep.write(serialize_dict(parent[1], "  ", **parameters))
+                        bicep.write("}\n")
+                bicep.write(f"resource {symbol.resolve()} '{resource}@{version}' = {{\n")
                 bicep.write(serialize_dict(params, "  ", **parameters))
                 bicep.write("}\n")
             for varname, output in outputs.items():
                 all_outputs.append(varname)
                 bicep.write(f"output {varname} string = {resolve_value(output)}\n")
             bicep.write("\n")
+            depends = symbol
     return all_outputs

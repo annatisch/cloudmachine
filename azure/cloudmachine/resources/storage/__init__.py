@@ -4,6 +4,10 @@ from typing_extensions import Required
 if TYPE_CHECKING:
     from .blobs import BlobServiceParams
 
+MODULE = "br/public:avm/res/storage/storage-account"
+MODULE_RESOURCE = "Microsoft.Storage/storageAccounts"
+MODULE_VERSION = "0.14.0"
+
 
 class CustomerManagedKey(TypedDict, total=False):
     """The customer managed key definition."""

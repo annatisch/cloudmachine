@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from ... import StorageAccountParams
     from . import ContainerParams, ContainerKwargs
     from azure.storage.blob import ContainerClient
-    from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
+    from azure.storage.filedatalake import FileSystemClient
 
 _DEFAULT_CONTAINER: 'ContainerParams' = {}
 
@@ -26,12 +26,12 @@ ClientType = TypeVar("ClientType")
 
 
 class BlobContainer(_ClientResource):
-    resource: Literal["Microsoft.Storage/storageAccounts/blobServices/containers"] = "Microsoft.Storage/storageAccounts/blobServices/containers"
-    module: Literal["br/public:avm/res/storage/storage-account:0.14.0"] = "br/public:avm/res/storage/storage-account:0.14.0"
     identifier: Literal["storage:blobs:container"] = "storage:blobs:container"
+    module: Literal["br/public:avm/res/storage/storage-account"] = "br/public:avm/res/storage/storage-account"
     defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
     default_services: 'BlobServiceParams' = _DEFAULT_BLOB_STORAGE
     default_container: 'ContainerParams' = _DEFAULT_CONTAINER
+    resource: Literal["Microsoft.Storage/storageAccounts/blobServices/containers"]
     properties: 'StorageAccountParams'
 
     def __init__(
@@ -93,6 +93,16 @@ class BlobContainer(_ClientResource):
         self._settings['container_name'] = self.container_name
         self._settings['container_endpoint'] = self.container_endpoint
 
+    @property
+    def resource(self) -> str:
+        from . import MODULE_RESOURCE
+        return MODULE_RESOURCE
+
+    @property
+    def version(self) -> str:
+        from . import MODULE_VERSION
+        return MODULE_VERSION
+
     def _merge_containers(
             self,
             containers: List['ContainerParams'],
@@ -149,7 +159,6 @@ class BlobContainer(_ClientResource):
         )
         blob_services["containers"] = containers
         outputs = super()._merge_params(params, symbol=symbol, attrname=attrname)
-        params.update(self.properties)
         params["blobServices"] = blob_services
         
         suffix = (attrname or self._suffix).upper()
@@ -203,6 +212,7 @@ class BlobContainer(_ClientResource):
         kwargs.update(self.client_options())
         kwargs.update(options)
         if cls and cls.__name__ != 'ContainerClient':
+            # TODO: Test if this works with BlobServiceClient
             client = cls(self.container_endpoint(), **kwargs)
         else:
             from azure.storage.blob import ContainerClient
@@ -217,5 +227,76 @@ class BlobContainer(_ClientResource):
                     self.container_name(),
                     **kwargs
                 )
+        client.__resource_settings__ = self
+        return client
+
+
+class FileSystem(BlobContainer):
+    identifier: Literal["storage:datalake:filesystem"] = "storage:datalake:filesystem"
+
+    def __init__(
+            self,
+            properties: Optional['ContainerParams'] = None,
+            storage_name: Optional[str] = None,
+            filesystem_name: Optional[str] = None,
+            *,
+            role_assignments = ['Storage Blob Data Contributor'],
+            **kwargs: Unpack['ContainerKwargs']
+    ) -> None:
+        super().__init__(
+            properties=properties,
+            storage_name=storage_name,
+            container_name=filesystem_name,
+            role_assignments=role_assignments,
+            **kwargs
+        )
+
+    @overload
+    def __call__(
+            self,
+            cls: Callable[..., ClientType],
+            /,
+            *,
+            transport: Any = None,
+            options: Optional[Dict[str, Any]] = None,
+    ) -> ClientType:
+        ...
+    @overload
+    def __call__(self, *, transport: Any = None, options: Optional[Dict[str, Any]] = None) -> 'ContainerClient':
+        ...
+    @overload
+    def __call__(self, cls: Type[Resource], /) -> Self:
+        ...
+    def __call__(self, cls=None, /, *, transport=None, options=None):
+        options = options or {}
+        if transport:
+            options['transport'] = transport
+        try:
+            # First we check if it's a Resource type or whether it has 'from_resource' constructor
+            return super()(self, cls, options=options)
+        except TypeError:
+            pass
+        kwargs = {}
+        kwargs['credential'] = self.credential()
+        try:
+            kwargs['api_version'] = self.api_version()
+        except RuntimeError:
+            pass
+        try:
+            kwargs['audience'] = self.audience()
+        except RuntimeError:
+            pass
+        kwargs.update(self.client_options())
+        kwargs.update(options)
+        if cls and cls.__name__ != 'FileSystemClient':
+            # TODO: Test if this works with DataLakeServiceClient
+            client = cls(self.container_endpoint(), **kwargs)
+        else:
+            from azure.storage.blob import FileSystemClient
+            client = FileSystemClient(
+                self.endpoint(),
+                self.container_name(),
+                **kwargs
+            )
         client.__resource_settings__ = self
         return client

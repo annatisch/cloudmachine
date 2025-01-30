@@ -18,9 +18,12 @@ if TYPE_CHECKING:
         TableStorage,
         BlobStorage,
         BlobContainer,
+        DatalakeStorage,
         QueueStorage,
         FileShareStorage,
-        FileShare
+        FileShare,
+        EventSystemTopic,
+        SystemTopicSubscription,
     )
     from .resources.managedidentity import UserAssignedIdentityParams, UserAssignedIdentityKwargs
     from .resources.resourcegroup import ResourceGroupParams, ResourceGroupKwargs
@@ -31,6 +34,8 @@ if TYPE_CHECKING:
     from .resources.storage.queues import QueueServiceParams, QueueStorageKwargs
     from .resources.storage.files import FileServiceParams, FileStorageKwargs
     from .resources.storage.files.share import ShareParams, ShareKwargs
+    from .resources.eventgrid.systemtopic import SystemTopicParams, SystemTopicKwargs
+    from .resources.eventgrid.systemtopic.subscription import SystemTopicSubscriptionParams, SystemTopicSubscriptionKwargs
 
 
 @overload
@@ -92,6 +97,23 @@ def resource(
     ...
 @overload
 def resource(
+    resource: Literal['storage:datalake'],
+    /,
+    storage_name: Optional[str] = None,
+    **kwargs: Unpack['BlobStorageKwargs']
+) -> 'DatalakeStorage':
+    ...
+@overload
+def resource(
+    resource: Literal['storage:datalake:filesystem'],
+    /,
+    storage_name: Optional[str] = None,
+    container_name: Optional[str] = None,
+    **kwargs: Unpack['ContainerKwargs']
+) -> 'DatalakeStorage':
+    ...
+@overload
+def resource(
     resource: Literal['storage:files'],
     /,
     storage_name: Optional[str] = None,
@@ -107,6 +129,23 @@ def resource(
     **kwargs: Unpack['ShareKwargs']
 ) -> 'FileShare':
     ...
+@overload
+def resource(
+    resource: Literal['events:systemtopic'],
+    /,
+    systemtopic_name: Optional[str] = None,
+    **kwargs: Unpack['SystemTopicKwargs']
+) -> 'EventSystemTopic':
+    ...
+@overload
+def resource(
+    resource: Literal['events:systemtopic:subscription'],
+    /,
+    systemtopic_name: Optional[str] = None,
+    subscription_name: Optional[str] = None,
+    **kwargs: Unpack['SystemTopicSubscriptionKwargs']
+) -> 'SystemTopicSubscription':
+    ...
 def resource(
         resource: Union[
             Resource,
@@ -120,7 +159,9 @@ def resource(
                 'storage:blobs:container',
                 'storage:queues',
                 'storage:files',
-                'storage:files:share'
+                'storage:files:share',
+                'events:systemtopic',
+                'events:systemtopic:subscription',
             ]
         ] = "",
         *args,
@@ -152,6 +193,9 @@ def resource(
     if resource == "storage:blobs:container":
         from .resources.storage.blobs.container._resource import BlobContainer
         return BlobContainer(None, *args, default=default, default_factory=default_factory, **kwargs)
+    if resource == "storage:datalake":
+        from .resources.storage.blobs._resource import DatalakeStorage
+        return DatalakeStorage(None, *args, default=default, default_factory=default_factory, **kwargs)
     if resource == "storage:queues":
         from .resources.storage.queues._resource import QueueStorage
         return QueueStorage(None, *args, default=default, default_factory=default_factory, **kwargs)
@@ -161,6 +205,12 @@ def resource(
     if resource == "storage:files:share":
         from .resources.storage.files.share._resource import FileShare
         return FileShare(None, *args, default=default, default_factory=default_factory, **kwargs)
+    if resource == "events:systemtopic":
+        from .resources.eventgrid.systemtopic._resource import EventSystemTopic
+        return EventSystemTopic(None, *args, default=default, default_factory=default_factory, **kwargs)
+    if resource == "events:systemtopic:subscription":
+        from .resources.eventgrid.systemtopic.subscription._resource import SystemTopicSubscription
+        return SystemTopicSubscription(None, *args, default=default, default_factory=default_factory, **kwargs)
     if resource.startswith("Microsoft."):
         raise NotImplementedError("Raw resources not supported yet.")
     else:

@@ -14,6 +14,10 @@ if TYPE_CHECKING:
         SecretsExportConfiguration
     )
 
+MODULE = "br/public:avm/res/storage/storage-account"
+MODULE_RESOURCE = "Microsoft.Storage/storageAccounts/blobServices"
+MODULE_VERSION = "0.14.0"
+
 
 class LogCategoriesAndGroup(TypedDict, total=False):
     """The name of logs that will be streamed. "allLogs" includes all possible logs for the resource. Set to """

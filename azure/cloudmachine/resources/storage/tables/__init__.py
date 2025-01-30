@@ -15,6 +15,10 @@ if TYPE_CHECKING:
         RoleAssignment
     )
 
+MODULE = "br/public:avm/res/storage/storage-account"
+MODULE_RESOURCE = "Microsoft.Storage/storageAccounts/tableServices"
+MODULE_VERSION = "0.14.0"
+
 
 class LogCategoriesAndGroup(TypedDict, total=False):
     """The name of logs that will be streamed. "allLogs" includes all possible logs for the resource. Set to """

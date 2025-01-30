@@ -25,12 +25,12 @@ ClientType = TypeVar("ClientType")
 
 
 class FileShare(_ClientResource):
-    resource: Literal["Microsoft.Storage/storageAccounts/fileServices/shares"] = "Microsoft.Storage/storageAccounts/fileServices/shares"
-    module: Literal["br/public:avm/res/storage/storage-account:0.14.0"] = "br/public:avm/res/storage/storage-account:0.14.0"
     identifier: Literal["storage:files:share"] = "storage:files:share"
+    module: Literal["br/public:avm/res/storage/storage-account"] = "br/public:avm/res/storage/storage-account"
     defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
     default_services: 'FileServiceParams' = _DEFAULT_FILE_STORAGE
     default_share: 'ShareParams' = _DEFAULT_SHARE
+    resource: Literal["Microsoft.Storage/storageAccounts/fileServices/shares"]
     properties: 'StorageAccountParams'
 
     def __init__(
@@ -80,6 +80,16 @@ class FileShare(_ClientResource):
         )
         self._settings['share_name'] = self.share_name
         self._settings['share_endpoint'] = self.share_endpoint
+
+    @property
+    def resource(self) -> str:
+        from . import MODULE_RESOURCE
+        return MODULE_RESOURCE
+
+    @property
+    def version(self) -> str:
+        from . import MODULE_VERSION
+        return MODULE_VERSION
 
     def _merge_shares(
             self,
@@ -137,7 +147,6 @@ class FileShare(_ClientResource):
         )
         file_services["shares"] = shares
         outputs = super()._merge_params(params, symbol=symbol, attrname=attrname)
-        params.update(self.properties)
         params["fileServices"] = file_services
         
         suffix = (attrname or self._suffix).upper()

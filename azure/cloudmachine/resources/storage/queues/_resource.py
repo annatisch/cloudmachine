@@ -19,11 +19,11 @@ _DEFAULT_QUEUE_STORAGE: 'QueueServiceParams' = {
 ClientType = TypeVar("ClientType")
 
 class QueueStorage(_ClientResource):
-    resource: Literal["Microsoft.Storage/storageAccounts/queueServices"] = "Microsoft.Storage/storageAccounts/queueServices"
-    module: Literal["br/public:avm/res/storage/storage-account:0.14.0"] = "br/public:avm/res/storage/storage-account:0.14.0"
     identifier: Literal["storage:queues"] = "storage:queues"
+    module: Literal["br/public:avm/res/storage/storage-account"] = "br/public:avm/res/storage/storage-account"
     defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
     default_services: 'QueueServiceParams' = _DEFAULT_QUEUE_STORAGE 
+    resource: Literal["Microsoft.Storage/storageAccounts/queueServices"]
     properties: 'StorageAccountParams'
 
     def __init__(
@@ -104,6 +104,16 @@ class QueueStorage(_ClientResource):
         )
         self._supports_managed_identity = True
 
+    @property
+    def resource(self) -> str:
+        from . import MODULE_RESOURCE
+        return MODULE_RESOURCE
+
+    @property
+    def version(self) -> str:
+        from . import MODULE_VERSION
+        return MODULE_VERSION
+
     def _merge_params(
             self,
             params: 'StorageAccountParams',
@@ -146,11 +156,8 @@ class QueueStorage(_ClientResource):
         except TypeError:
             pass
         kwargs = {}
-        try:
-            endpoint = self.endpoint()
-            kwargs['credential'] = self.credential()
-        except RuntimeError as e:
-            raise RuntimeError(f"Unable to build client for storage container: {e}.") from e
+        endpoint = self.endpoint()
+        kwargs['credential'] = self.credential()
         try:
             kwargs['api_version'] = self.api_version()
         except RuntimeError:

@@ -3,15 +3,10 @@ from typing_extensions import Required
 
 if TYPE_CHECKING:
     from .immutability_policy import ImmutabilityPolicy
-    from ... import (
-        ManagedIdentity,
-        SecretsExportConfiguration,
-        DiagnosticSetting,
-        CustomerManagedKey,
-        Lock,
-        NetworkAcl,
-        PrivateEndpoint
-    )
+
+MODULE = "br/public:avm/res/storage/storage-account"
+MODULE_RESOURCE = "Microsoft.Storage/storageAccounts/blobServices/containers"
+MODULE_VERSION = "0.14.0"
 
 
 class RoleAssignment(TypedDict, total=False):

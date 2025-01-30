@@ -9,19 +9,18 @@ if TYPE_CHECKING:
 _DEFAULT_STORAGE_ACCOUNT: 'StorageAccountParams' = {
     "accessTier": "Hot",
     "allowBlobPublicAccess": False,
-    "enableHierarchicalNamespace": True,
     "kind": "StorageV2",
     "skuName": "Standard_LRS",
 }
 
 
 class StorageAccount(Resource):
-    resource: Literal["Microsoft.Storage/storageAccounts"] = "Microsoft.Storage/storageAccounts"
-    module: Literal["br/public:avm/res/storage/storage-account:0.14.0"] = "br/public:avm/res/storage/storage-account:0.14.0"
     identifier: Literal["storage"] = "storage"
+    module: Literal["br/public:avm/res/storage/storage-account"] = "br/public:avm/res/storage/storage-account"
     defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
+    resource: Literal["Microsoft.Storage/storageAccounts"]
     properties: 'StorageAccountParams'
-    
+
     def __init__(
             self,
             properties: Optional['StorageAccountParams'] = None,
@@ -104,3 +103,13 @@ class StorageAccount(Resource):
             **kwargs
         )
         self._supports_managed_identity = True
+
+    @property
+    def resource(self) -> str:
+        from . import MODULE_RESOURCE
+        return MODULE_RESOURCE
+
+    @property
+    def version(self) -> str:
+        from . import MODULE_VERSION
+        return MODULE_VERSION

@@ -1,6 +1,10 @@
 from typing import TYPE_CHECKING, TypedDict, Literal, List, Dict, Union
 from typing_extensions import Required
 
+MODULE = "br/public:avm/res/resources/resource-group"
+MODULE_RESOURCE = "Microsoft.Resources/resourceGroups"
+MODULE_VERSION = "0.4.0"
+
 
 class Lock(TypedDict, total=False):
     """The lock settings of the service."""

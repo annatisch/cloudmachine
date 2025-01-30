@@ -17,11 +17,11 @@ ClientType = TypeVar("ClientType")
 
 
 class FileShareStorage(_ClientResource):
-    resource: Literal["Microsoft.Storage/storageAccounts/fileServices"] = "Microsoft.Storage/storageAccounts/fileServices"
-    module: Literal["br/public:avm/res/storage/storage-account:0.14.0"] = "br/public:avm/res/storage/storage-account:0.14.0"
     identifier: Literal["storage:files"] = "storage:files"
+    module: Literal["br/public:avm/res/storage/storage-account"] = "br/public:avm/res/storage/storage-account"
     defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
     default_services: 'FileServiceParams' = _DEFAULT_FILE_STORAGE
+    resource: Literal["Microsoft.Storage/storageAccounts/fileServices"]
     properties: 'StorageAccountParams'
 
     def __init__(
@@ -107,6 +107,16 @@ class FileShareStorage(_ClientResource):
         )
         self._supports_managed_identity = True
 
+    @property
+    def resource(self) -> str:
+        from . import MODULE_RESOURCE
+        return MODULE_RESOURCE
+
+    @property
+    def version(self) -> str:
+        from . import MODULE_VERSION
+        return MODULE_VERSION
+
     def _merge_params(
             self,
             params: 'StorageAccountParams',
@@ -149,11 +159,8 @@ class FileShareStorage(_ClientResource):
         except TypeError:
             pass
         kwargs = {}
-        try:
-            endpoint = self.endpoint()
-            kwargs['credential'] = self.credential()
-        except RuntimeError as e:
-            raise RuntimeError(f"Unable to build client for storage container: {e}.") from e
+        endpoint = self.endpoint()
+        kwargs['credential'] = self.credential()
         try:
             kwargs['api_version'] = self.api_version()
         except RuntimeError:

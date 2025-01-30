@@ -8,21 +8,21 @@ if TYPE_CHECKING:
     from .. import StorageAccountParams
     from . import BlobServiceParams, BlobStorageKwargs
     from azure.storage.blob import BlobServiceClient
-    from azure.storage.blob.aio import BlobServiceClient as AsyncBlobServiceClient
+    from azure.storage.filedatalake import DataLakeServiceClient
 
 
 _DEFAULT_BLOB_STORAGE: 'BlobServiceParams' = {
 }
 
-
 ClientType = TypeVar("ClientType")
  
+ 
 class BlobStorage(_ClientResource):
-    resource: Literal["Microsoft.Storage/storageAccounts/blobServices"] = "Microsoft.Storage/storageAccounts/blobServices"
-    module: Literal["br/public:avm/res/storage/storage-account:0.14.0"] = "br/public:avm/res/storage/storage-account:0.14.0"
     identifier: Literal["storage:blobs"] = "storage:blobs"
+    module: Literal["br/public:avm/res/storage/storage-account"] = "br/public:avm/res/storage/storage-account"
     defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
     default_services: 'BlobServiceParams' = _DEFAULT_BLOB_STORAGE
+    resource: Literal["Microsoft.Storage/storageAccounts/blobServices"]
     properties: 'StorageAccountParams'
 
     def __init__(
@@ -144,6 +144,16 @@ class BlobStorage(_ClientResource):
         )
         self._supports_managed_identity = True
 
+    @property
+    def resource(self) -> str:
+        from . import MODULE_RESOURCE
+        return MODULE_RESOURCE
+
+    @property
+    def version(self) -> str:
+        from . import MODULE_VERSION
+        return MODULE_VERSION
+
     def _merge_params(
             self,
             params: 'StorageAccountParams',
@@ -190,7 +200,7 @@ class BlobStorage(_ClientResource):
             endpoint = self.endpoint()
             kwargs['credential'] = self.credential()
         except RuntimeError as e:
-            raise RuntimeError(f"Unable to build client for storage container: {e}.") from e
+            raise RuntimeError(f"Unable to build client for blob storage: {e}.") from e
         try:
             kwargs['api_version'] = self.api_version()
         except RuntimeError:
@@ -206,6 +216,75 @@ class BlobStorage(_ClientResource):
         else:
             from azure.storage.blob import BlobServiceClient
             client = BlobServiceClient(
+                endpoint,
+                **kwargs
+            )
+        client.__resource_settings__ = self
+        return client
+
+
+class DatalakeStorage(_ClientResource):
+    identifier: Literal["storage:datalake"] = "storage:datalake"
+
+    def __init__(
+            self,
+            properties: Optional['BlobServiceParams'] = None,
+            storage_name: Optional[str] = None,
+            *,
+            role_assignments = ['Storage Blob Data Contributor'],
+            **kwargs: Unpack['BlobStorageKwargs']
+    ) -> None:
+        super().__init__(
+            properties=properties,
+            storage_name=storage_name,
+            enable_hierarchical_namespace=True,
+            role_assignments=role_assignments,
+            **kwargs
+        )
+
+    @overload
+    def __call__(
+            self,
+            cls: Callable[..., ClientType],
+            /,
+            *,
+            transport: Any = None,
+            options: Optional[Dict[str, Any]] = None,
+    ) -> ClientType:
+        ...
+    @overload
+    def __call__(self, *, transport: Any = None, options: Optional[Dict[str, Any]] = None) -> 'DataLakeServiceClient':
+        ...
+    @overload
+    def __call__(self, cls: Type[Resource], /) -> Self:
+        ...
+    def __call__(self, cls=None, /, *, transport=None, options=None):
+        options = options or {}
+        if transport:
+            options['transport'] = transport
+        try:
+            # First we check if it's a Resource type or whether it has 'from_resource' constructor
+            return super()(self, cls, options=options)
+        except TypeError:
+            pass
+        kwargs = {}
+        endpoint = self.endpoint()
+        kwargs['credential'] = self.credential()
+        try:
+            kwargs['api_version'] = self.api_version()
+        except RuntimeError:
+            pass
+        try:
+            kwargs['audience'] = self.audience()
+        except RuntimeError:
+            pass
+        kwargs.update(self.client_options())
+        kwargs.update(options)
+        if cls and cls.__name__ != 'DataLakeServiceClient':
+            client = cls(endpoint, **kwargs)
+        else:
+            from azure.storage.filedatalake import DataLakeServiceClient
+            client = DataLakeServiceClient(
                 endpoint,
                 **kwargs
             )
