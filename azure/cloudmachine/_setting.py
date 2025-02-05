@@ -46,7 +46,6 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         system_hook: Optional[Callable[[], ValidInputType]] = None,
         default: Union[ValidInputType, _Unset] = _unset,
         convert: Optional[Callable[[Union[ValidInputType, str]], ValueType]] = None,
-        async_convert: Optional[Callable[[Union[ValidInputType, str]], Awaitable[ValueType]]] = None,
         resource_outputs: Optional[Dict[str, str]] = None,
     ):
         super().__init__(
@@ -58,7 +57,6 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         )
         self.suffix = suffix
         self._tostr = to_str or str
-        self._async_convert = async_convert
         self._env_vars = env_vars or []
         self._resource_outputs = resource_outputs or {}
         self.config_stores = []
@@ -66,18 +64,7 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         if self._env_var in self._resource_outputs or [e for e in self._env_vars if e in self._resource_outputs]:
             self._is_output = True
 
-    @overload
-    def __call__(self, value: Optional[ValidInputType] = None, *, with_async: Literal[False] = False) -> ValueType:
-        ...
-    @overload
-    def __call__(self, value: Optional[ValidInputType] = None, *, with_async: Literal[True]) -> Awaitable[ValueType]:
-        ...
-    def __call__(
-            self,
-            value: Optional[ValidInputType] = None,
-            *,
-            with_async: bool = False
-    ) -> Union[ValueType, Awaitable[ValueType]]:
+    def __call__(self, value: Optional[ValidInputType] = None) -> ValueType:
         """Return the setting value according to the standard precedence.
 
         :param value: value
@@ -87,10 +74,6 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         :raises: RuntimeError if no value can be determined
         """
         settingvalue = self._raw_value(value)
-        if with_async:
-            if self._async_convert:
-                return self._async_convert(settingvalue)
-            return self._noop_async_convert(settingvalue)
         return self._convert(settingvalue)
 
     def _raw_value(self, value: Optional[ValidInputType] = None) -> ValidInputType:
@@ -133,9 +116,6 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         if self._is_output:
             message += f"\nYou may need to run the 'provision' command to populate resource settings."
         raise RuntimeError(message)
-
-    async def _noop_async_convert(self, value: Any) -> Any:
-        return self._convert(value)
 
     def set_value(self, value: Union[PrioritizedSetting[ValidInputType, ValueType], ValidInputType]) -> None:
         """Specify a value for this setting programmatically.

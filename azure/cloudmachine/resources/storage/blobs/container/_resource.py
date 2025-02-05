@@ -1,16 +1,18 @@
-from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Self, Unpack, overload, Optional, Any, Type, TypeVar
 
-from ....._bicep.expressions import ModuleSymbol, Output, Parameter
+import inspect
+from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, Union, Unpack, overload, Optional, Any, Type, TypeVar
+
+from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
+
+from ....._bicep.expressions import ModuleSymbol, Output, Parameter, ResourceSymbol, Expression
 from ....._setting import StoredPrioritizedSetting
 from ....._resource import (
     Resource,
     _ClientResource,
-    _convert_str_from_setting,
     _build_envs,
-    _convert_to_str
 )
 from ..._resource import _DEFAULT_STORAGE_ACCOUNT
-from .._resource import _DEFAULT_BLOB_STORAGE
+from .._resource import _DEFAULT_BLOB_STORAGE, BlobStorage
 
 
 if TYPE_CHECKING:
@@ -28,9 +30,9 @@ ClientType = TypeVar("ClientType")
 class BlobContainer(_ClientResource):
     identifier: Literal["storage:blobs:container"] = "storage:blobs:container"
     module: Literal["br/public:avm/res/storage/storage-account"] = "br/public:avm/res/storage/storage-account"
-    defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
-    default_services: 'BlobServiceParams' = _DEFAULT_BLOB_STORAGE
-    default_container: 'ContainerParams' = _DEFAULT_CONTAINER
+    DEFAULTS: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
+    DEFAULT_SERVICES: 'BlobServiceParams' = _DEFAULT_BLOB_STORAGE
+    DEFAULT_CONTAINER: 'ContainerParams' = _DEFAULT_CONTAINER
     resource: Literal["Microsoft.Storage/storageAccounts/blobServices/containers"]
     properties: 'StorageAccountParams'
 
@@ -81,14 +83,11 @@ class BlobContainer(_ClientResource):
         self.container_name = StoredPrioritizedSetting(
             name='container_name',
             env_vars=_build_envs(self._prefixes, ['CONTAINER_NAME']),
-            convert=_convert_str_from_setting,
-            to_str=_convert_to_str,
         )
         self.container_endpoint = StoredPrioritizedSetting(
             name='container_endpoint',
             env_vars=_build_envs(self._prefixes, ['CONTAINER_ENDPOINT']),
-            convert=_convert_str_from_setting,
-            to_str=_convert_to_str,
+            system_hook=self._build_container_endpoint
         )
         self._settings['container_name'] = self.container_name
         self._settings['container_endpoint'] = self.container_endpoint
@@ -103,6 +102,54 @@ class BlobContainer(_ClientResource):
         from . import MODULE_VERSION
         return MODULE_VERSION
 
+    @property
+    def tag(self) -> str:
+        from . import MODULE_TAG
+        return MODULE_TAG
+
+    @overload
+    def reference(cls, resource_id: str, /) -> Self:
+        ...
+    @overload
+    def reference(
+            cls,
+            *,
+            account_name: str,
+            container_name: str,
+            resource_group: Optional[Union[str, ResourceGroup]] = None,
+            subscription: Optional[str] = None,
+    ) -> Self:
+        ...
+    @classmethod
+    def reference(
+            cls,
+            resource_id: Optional[str] = None,
+            *,
+            account_name: Optional[str] = None,
+            container_name: Optional[str] = None,
+            resource_group: Optional[str] = None,
+            subscription: Optional[str] = None
+    ) -> Self:
+        if resource_id:
+            return super().reference(resource_id)
+        from . import MODULE_RESOURCE, MODULE_VERSION
+        resource = f"{MODULE_RESOURCE}@{MODULE_VERSION}"
+
+        parent = BlobStorage.reference(
+            name=account_name,
+            resource_group=resource_group,
+            subscription=subscription
+        )
+        existing = super().reference(resource=resource, name=container_name, parent=parent)
+        existing.container_name.set_value(container_name)
+        return existing
+
+    def _build_endpoint(self) -> str:
+        return f"https://{self.name()}.blob.core.windows.net/"
+
+    def _build_container_endpoint(self) -> str:
+        return f"https://{self.name()}.blob.core.windows.net/{self.container_name()}"
+
     def _merge_containers(
             self,
             containers: List['ContainerParams'],
@@ -112,7 +159,7 @@ class BlobContainer(_ClientResource):
             parameters: Dict[str, Parameter],
             identity: ModuleSymbol,
     ) -> List['ContainerParams']:
-        container_name = new_container.get('name') or parameters['cloudmachineId']
+        container_name = new_container.get('name') or parameters['defaultName']
         existing = False
         for container in containers:
             if container['name'] == container_name:
@@ -127,7 +174,8 @@ class BlobContainer(_ClientResource):
                     user_principal=parameters.get("principalId")
                 )
         if not existing:
-            container = dict(self.default_container)
+            container = dict(self.DEFAULT_CONTAINER)
+            container['name'] = container_name
             container.update(new_container)
             self._update_role_assignments(
                 container,
@@ -137,7 +185,37 @@ class BlobContainer(_ClientResource):
             )
             containers.append(container)
         return container_name, containers
- 
+
+    def _outputs(
+            self,
+            *,
+            symbol: ResourceSymbol,
+            name: Union[str, Expression],
+            parent: Optional[ResourceSymbol] = None,
+            **kwargs
+        ) -> Dict[str, Union[Output, str]]:
+        suffix = self._get_suffix()
+        if isinstance(name, str):
+            url_suffix = name
+        else:
+            url_suffix = name.format()
+        if parent:
+            outputs = {}
+            outputs[f"AZURE_BLOBS_CONTAINER_ENDPOINT{suffix}"] = Output(
+                "properties.primaryEndpoints.blob",
+                symbol
+            ).format(suffix=f"{url_suffix}")
+            outputs[f"AZURE_BLOBS_CONTAINER_NAME{suffix}"] = name
+        else:
+            outputs = super()._outputs(symbol=symbol, **kwargs)
+            outputs[f"AZURE_BLOBS_ENDPOINT{suffix}"] = Output("outputs.serviceEndpoints.blob", symbol)
+            outputs[f"AZURE_BLOBS_CONTAINER_ENDPOINT{suffix}"] = Output(
+                "outputs.serviceEndpoints.blob",
+                symbol
+            ).format(suffix=f"{url_suffix}")
+            outputs[f"AZURE_BLOBS_CONTAINER_NAME{suffix}"] = name
+        return outputs
+
     def _merge_params(
             self,
             params: 'StorageAccountParams',
@@ -147,9 +225,9 @@ class BlobContainer(_ClientResource):
             identity: ModuleSymbol,
             attrname: Optional[str] = None,
             **kwargs
-    ) -> Dict[str, Output]:
+    ) -> Dict[str, Any]:
         new_container = self.properties["blobServices"]["containers"][0]
-        blob_services = params.pop("blobServices", dict(self.default_services))
+        blob_services = params.pop("blobServices", dict(self.DEFAULT_SERVICES))
         container_name, containers = self._merge_containers(
             blob_services.pop("containers", []),
             new_container,
@@ -158,21 +236,10 @@ class BlobContainer(_ClientResource):
             symbol=symbol
         )
         blob_services["containers"] = containers
-        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname)
+        output_config = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
+        output_config['name'] = container_name
         params["blobServices"] = blob_services
-        
-        suffix = (attrname or self._suffix).upper()
-        if isinstance(container_name, str):
-            container_suffix = container_name
-        else:
-            container_suffix = container_name.format()
-        outputs[f"AZURE_BLOBS_ENDPOINT_{suffix}"] = Output("outputs.primaryBlobEndpoint", symbol)
-        outputs[f"AZURE_BLOBS_CONTAINER_ENDPOINT_{suffix}"] = Output(
-            "outputs.primaryBlobEndpoint",
-            symbol
-        ).format(suffix=f"/{container_suffix}")
-        outputs[f"AZURE_BLOBS_CONTAINER_NAME_{suffix}"] = container_name
-        return outputs
+        return output_config
 
     @overload
     def __call__(
@@ -182,25 +249,25 @@ class BlobContainer(_ClientResource):
             *,
             transport: Any = None,
             options: Optional[Dict[str, Any]] = None,
+            config_store: Optional[Mapping[str, Any]] = None,
+            env_name: Optional[str] = None,
     ) -> ClientType:
         ...
     @overload
-    def __call__(self, *, transport: Any = None, options: Optional[Dict[str, Any]] = None) -> 'ContainerClient':
+    def __call__(self, *, config_store: Optional[Mapping[str, Any]] = None, env_name: Optional[str] = None) -> Self:
         ...
-    @overload
-    def __call__(self, cls: Type[Resource], /) -> Self:
-        ...
-    def __call__(self, cls=None, /, *, transport=None, options=None):
+    def __call__(self, cls=None, /, *, transport=None, options=None, config_store=None, env_name=None):
         options = options or {}
         if transport:
             options['transport'] = transport
         try:
             # First we check if it's a Resource type or whether it has 'from_resource' constructor
-            return super()(self, cls, options=options)
+            return Resource.__call__(self, cls, options=options, config_store=config_store, env_name=env_name)
         except TypeError:
             pass
         kwargs = {}
-        kwargs['credential'] = self.credential()
+        is_async = inspect.iscoroutinefunction(getattr(cls, 'close'))
+        kwargs['credential'] = self._build_credential(is_async)
         try:
             kwargs['api_version'] = self.api_version()
         except RuntimeError:
@@ -211,22 +278,13 @@ class BlobContainer(_ClientResource):
             pass
         kwargs.update(self.client_options())
         kwargs.update(options)
-        if cls and cls.__name__ != 'ContainerClient':
-            # TODO: Test if this works with BlobServiceClient
-            client = cls(self.container_endpoint(), **kwargs)
+        if hasattr(cls, 'from_container_url'):
+            endpoint = self.container_endpoint()
+            client = cls.from_container_url(endpoint, **kwargs)
         else:
-            from azure.storage.blob import ContainerClient
-            try:
-                client = ContainerClient.from_container_url(
-                    container_url=self.container_endpoint(),
-                    **kwargs
-                )
-            except RuntimeError:
-                client = ContainerClient(
-                    self.endpoint(),
-                    self.container_name(),
-                    **kwargs
-                )
+            endpoint = self.endpoint()
+            kwargs['container_name'] = self.container_name()
+            client = cls(endpoint, **kwargs)
         client.__resource_settings__ = self
         return client
 
@@ -251,52 +309,5 @@ class FileSystem(BlobContainer):
             **kwargs
         )
 
-    @overload
-    def __call__(
-            self,
-            cls: Callable[..., ClientType],
-            /,
-            *,
-            transport: Any = None,
-            options: Optional[Dict[str, Any]] = None,
-    ) -> ClientType:
-        ...
-    @overload
-    def __call__(self, *, transport: Any = None, options: Optional[Dict[str, Any]] = None) -> 'ContainerClient':
-        ...
-    @overload
-    def __call__(self, cls: Type[Resource], /) -> Self:
-        ...
-    def __call__(self, cls=None, /, *, transport=None, options=None):
-        options = options or {}
-        if transport:
-            options['transport'] = transport
-        try:
-            # First we check if it's a Resource type or whether it has 'from_resource' constructor
-            return super()(self, cls, options=options)
-        except TypeError:
-            pass
-        kwargs = {}
-        kwargs['credential'] = self.credential()
-        try:
-            kwargs['api_version'] = self.api_version()
-        except RuntimeError:
-            pass
-        try:
-            kwargs['audience'] = self.audience()
-        except RuntimeError:
-            pass
-        kwargs.update(self.client_options())
-        kwargs.update(options)
-        if cls and cls.__name__ != 'FileSystemClient':
-            # TODO: Test if this works with DataLakeServiceClient
-            client = cls(self.container_endpoint(), **kwargs)
-        else:
-            from azure.storage.blob import FileSystemClient
-            client = FileSystemClient(
-                self.endpoint(),
-                self.container_name(),
-                **kwargs
-            )
-        client.__resource_settings__ = self
-        return client
+    def _build_endpoint(self) -> str:
+        raise NotImplementedError()

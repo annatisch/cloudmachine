@@ -16,6 +16,9 @@ class Expression:
             return self._value == value._value
         return False
 
+    def __repr__(self) -> str:
+        return resolve_value(self._value)
+
     def __hash__(self):
         return hash(self._value)
 
@@ -52,6 +55,9 @@ class Subscription(Expression):
             return self._sub == value._sub
         return False
 
+    def __repr__(self) -> str:
+        return f"subscription({self._sub})"
+
     def __hash__(self):
         return hash(self._sub)
 
@@ -75,6 +81,9 @@ class Output(Expression):
         self.symbol = symbol
         self._path = path
         self._to_str = resolve_to_str
+
+    def __repr__(self) -> str:
+        return f"Output({self.symbol}, {self._path})"
 
     def __eq__(self, value):
         if isinstance(value, Output):
@@ -107,7 +116,7 @@ class ResourceSymbol(Expression):
         self._principal_id_output = principal_id 
 
     def __repr__(self) -> str:
-        return f"Symbol({self._value})"
+        return f"resource({self._value})"
 
     def __eq__(self, value: Any) -> bool:
         if isinstance(value, ResourceSymbol):
@@ -139,35 +148,28 @@ class ModuleSymbol(ResourceSymbol):
     def __init__(self, value: str, *, name: str = "outputs.name", id: str = "outputs.resourceId", principal_id = None):
         super().__init__(value, name=name, id=id, principal_id=principal_id)
 
+    def __repr__(self) -> str:
+        return f"module({self._value})"
+
 class ResourceGroupSymbol(ModuleSymbol):
-    def __init__(self, symbol: str, *, varname: str, varvalue: str):
-        super().__init__(symbol)
-        self._varname = varname
-        self._varvalue = varvalue
+    def __init__(self, symbol: str, *, name: str, existing: bool = False):
+        if existing:
+            super().__init__(symbol, name="name", id="id")
+        else:
+            super().__init__(symbol)
+        self._name = name
 
     def __repr__(self) -> str:
-        return f"ResourceGroup({self._varname})"
+        return f"resourceGroup({resolve_value(self._name)})"
 
     def __eq__(self, value: Any) -> bool:
         if isinstance(value, ResourceGroupSymbol):
-            return self._varname == value._varname
+            return self._name == value._name
         return False
 
     def __hash__(self):
-        return hash(self._varname)
+        return hash(self._name)
 
-    # def resolve(self) -> str:
-    #     return self._varname
-    @property
-    def varname(self) -> Expression:
-        return Expression(self._varname)
-
-    def declare(self) -> str:
-        declaration = ""
-        declaration += f"var {self._varname} = "
-        declaration += serialize(self._varvalue)
-        declaration += "\n\n"
-        return declaration
 
 class Variable(Expression):
     def __init__(
@@ -184,7 +186,7 @@ class Variable(Expression):
         self._description = description
 
     def __repr__(self) -> str:
-        return f"Variable({self._name})"
+        return f"var({self._name})"
 
     def __str__(self) -> str:
         return self._name
@@ -242,7 +244,7 @@ class Parameter(Expression):
         self._min_length = min_length
 
     def __repr__(self) -> str:
-        return f"Parameter({self._name})"
+        return f"parameter({self._name})"
 
     def __eq__(self, value):
         if isinstance(value, Parameter):
@@ -303,6 +305,9 @@ class Guid(Expression):
     def __init__(self, basestr: Union[Expression, str], *args: Union[Expression, str]) -> None:
         self._args = [basestr] + list(args)
 
+    def __repr__(self):
+        return "guid(...)"
+
     def __eq__(self, value):
         if isinstance(value, Guid):
             return self._args == value._args
@@ -319,6 +324,9 @@ class Guid(Expression):
 class UniqueString(Expression):
     def __init__(self, basestr: Union[Expression, str], *args: Union[Expression, str]) -> None:
         self._args = [basestr] + list(args)
+
+    def __repr__(self):
+        return "uniqueString(...)"
 
     def __eq__(self, value):
         if isinstance(value, UniqueString):

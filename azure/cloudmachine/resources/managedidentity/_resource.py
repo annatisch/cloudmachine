@@ -1,6 +1,8 @@
-from typing import TYPE_CHECKING, Literal, Unpack, overload, Optional, Any
+from typing import TYPE_CHECKING, Literal, Self, Union, Unpack, overload, Optional, Any
 
-from ..._bicep.expressions import ModuleSymbol, Output
+from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
+
+from ..._bicep.expressions import ModuleSymbol, Output, ResourceSymbol
 from ..._bicep.utils import generate_name, generate_suffix
 from ..._resource import Resource
 
@@ -15,7 +17,7 @@ _DEFAULT_USER_ASSIGNED_IDENTITY: 'UserAssignedIdentityParams' = {
 class UserAssignedIdentity(Resource):
     identifier: Literal["userassignedidentity"] = "userassignedidentity"
     module: Literal["br/public:avm/res/managed-identity/user-assigned-identity"] = "br/public:avm/res/managed-identity/user-assigned-identity"
-    defaults: 'UserAssignedIdentityParams' = _DEFAULT_USER_ASSIGNED_IDENTITY
+    DEFAULTS: 'UserAssignedIdentityParams' = _DEFAULT_USER_ASSIGNED_IDENTITY
     resource: Literal["Microsoft.ManagedIdentity/userAssignedIdentities"]
     properties: 'UserAssignedIdentityParams'
 
@@ -56,17 +58,59 @@ class UserAssignedIdentity(Resource):
         from . import MODULE_VERSION
         return MODULE_VERSION
 
+    @property
+    def tag(self) -> str:
+        from . import MODULE_TAG
+        return MODULE_TAG
+
+    @overload
+    def reference(cls, resource_id: str, /) -> Self:
+        ...
+    @overload
+    def reference(
+            cls,
+            *,
+            name: str,
+            resource_group: Optional[Union[str, ResourceGroup]] = None,
+            subscription: Optional[str] = None,
+    ) -> Self:
+        ...
+    @classmethod
+    def reference(
+            cls,
+            resource_id: Optional[str] = None,
+            *,
+            name: Optional[str] = None,
+            resource_group: Optional[Union[str, ResourceGroup]] = None,
+            subscription: Optional[str] = None,
+    ) -> Self:
+        if resource_id:
+            return super().reference(resource_id)
+        from . import MODULE_RESOURCE, MODULE_VERSION
+        resource = f"{MODULE_RESOURCE}@{MODULE_VERSION}"
+        return super().reference(
+            resource=resource,
+            name=name,
+            resource_group=resource_group,
+            subscription=subscription
+        )
+
     def _symbol(self) -> ModuleSymbol:
         resource_ref = self.resource.split("/")[0].split(".")[1]
+        if self._existing:
+            return ResourceSymbol(
+                f"{resource_ref.lower()}_{self._suffix}",
+                principal_id="properties.principalId"
+            )
         return ModuleSymbol(
             f"{resource_ref.lower()}_{self._suffix}",
             principal_id="outputs.principalId"
         )
-    
-    def _merge_params(self, params, *, symbol, **kwargs):
-        super()._merge_params(params, symbol=symbol, **kwargs)
-        return {"AZURE_CLIENT_ID": Output("outputs.clientId", symbol)}
 
-    def _find_identity(self, fields, index = 0):
-        index += 1
-        return super()._find_identity(fields, index)
+    def _outputs(self, symbol, **kwargs):
+        if self._existing:
+            return {"AZURE_CLIENT_ID": Output("properties.clientId", symbol)}
+        return {"AZURE_CLIENT_ID": Output("outputs.clientId", symbol)}
+    
+    def _find_identity(self, fields, parameters, index = 0):
+        return None

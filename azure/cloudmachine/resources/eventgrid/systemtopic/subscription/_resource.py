@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Self, Unpack, overload, Optional, Any, Type
+from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Self, Union, Unpack, overload, Optional, Any, Type
+
+from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
 
 from ....._bicep.expressions import ModuleSymbol, Output, Parameter
 from ....._setting import StoredPrioritizedSetting
@@ -6,11 +8,9 @@ from ....._resource import (
     Resource,
     FieldsType,
     FieldType,
-    _convert_str_from_setting,
     _build_envs,
-    _convert_to_str
 )
-from .._resource import _DEFAULT_SYSTEM_TOPIC, _SUPPORTED_SYSTEM_TOPICS
+from .._resource import _DEFAULT_SYSTEM_TOPIC, _SUPPORTED_SYSTEM_TOPICS, EventSystemTopic
 
 if TYPE_CHECKING:
     from .. import SystemTopicParams
@@ -36,8 +36,8 @@ _SUPPORTED_DEADLETTER_DESTINATIONS = {
 class SystemTopicSubscription(Resource):
     identifier: Literal["events:systemtopic:subscription"] = "events:systemtopic:subscription"
     module: Literal["br/public:avm/res/event-grid/system-topic"] = "br/public:avm/res/event-grid/system-topic"
-    defaults: 'SystemTopicParams' = _DEFAULT_SYSTEM_TOPIC
-    default_subscription: 'SystemTopicSubscriptionParams' = _DEFAULT_SUBSCRIPTION
+    DEFAULTS: 'SystemTopicParams' = _DEFAULT_SYSTEM_TOPIC
+    DEFAULT_SUBSCRIPTION: 'SystemTopicSubscriptionParams' = _DEFAULT_SUBSCRIPTION
     resource: Literal["Microsoft.EventGrid/systemTopics/eventSubscriptions"]
     properties: 'SystemTopicParams'
 
@@ -82,8 +82,6 @@ class SystemTopicSubscription(Resource):
         self.subscription_name = StoredPrioritizedSetting(
             name='subscription_name',
             env_vars=_build_envs(self._prefixes, ['SUBSCRIPTION_NAME']),
-            convert=_convert_str_from_setting,
-            to_str=_convert_to_str,
         )
         self._settings['subscription_name'] = self.subscription_name
 
@@ -97,11 +95,53 @@ class SystemTopicSubscription(Resource):
         from . import MODULE_VERSION
         return MODULE_VERSION
 
+    @property
+    def tag(self) -> str:
+        from . import MODULE_TAG
+        return MODULE_TAG
+
+    @overload
+    def reference(cls, resource_id: str, /) -> Self:
+        ...
+    @overload
+    def reference(
+            cls,
+            *,
+            systemtopic_name: str,
+            subscription_name: str,
+            resource_group: Optional[Union[str, ResourceGroup]] = None,
+            subscription: Optional[str] = None,
+    ) -> Self:
+        ...
+    @classmethod
+    def reference(
+            cls,
+            resource_id: Optional[str] = None,
+            *,
+            systemtopic_name: Optional[str] = None,
+            subscription_name: Optional[str] = None,
+            resource_group: Optional[str] = None,
+            subscription: Optional[str] = None
+    ) -> Self:
+        if resource_id:
+            return super().reference(resource_id)
+        from . import MODULE_RESOURCE, MODULE_VERSION
+        resource = f"{MODULE_RESOURCE}@{MODULE_VERSION}"
+
+        parent = EventSystemTopic.reference(
+            name=systemtopic_name,
+            resource_group=resource_group,
+            subscription=subscription
+        )
+        existing = super().reference(resource=resource, name=subscription_name, parent=parent)
+        existing.subscription_name.set_value(subscription_name)
+        return existing
+
     def _queue_destination(self, field: FieldType, parameters: Dict[str, Parameter]):
         destination = {}
         queues = field[1]['queueServices'].get('queues', [])
         if not queues:
-            queues.append({'name': parameters['cloudmachineId']})
+            queues.append({'name': parameters['defaultName']})
         destination['endpointType'] = _SUPPORTED_SUBSCRIPTION_DESTINATIONS[field[0]]
         destination['properties'] = {
             'queueName': queues[0]['name'],
@@ -119,7 +159,7 @@ class SystemTopicSubscription(Resource):
             identity: Optional[ModuleSymbol],
             parameters: Dict[str, Parameter],
     ) -> List['SystemTopicSubscriptionParams']:
-        subscription_name = new_subscription.get('name') or parameters['cloudmachineId']
+        subscription_name = new_subscription.get('name') or parameters['defaultName']
         existing = False
         for subscription in subscriptions:
             if subscription['name'] == subscription_name:
@@ -127,7 +167,8 @@ class SystemTopicSubscription(Resource):
                 subscription.update(new_subscription)
                 break
         if not existing:
-            subscription = dict(self.default_subscription)
+            subscription = dict(self.DEFAULT_SUBSCRIPTION)
+            subscription['name'] = subscription_name
             subscription.update(new_subscription)
             subscriptions.append(subscription)
 
@@ -149,8 +190,7 @@ class SystemTopicSubscription(Resource):
                             },
                             'destination': destination
                         }
-                    else:
-                        subscription['destination'] = destination
+                    subscription['destination'] = destination
                     break
             if not destination:
                 raise ValueError(
@@ -159,8 +199,9 @@ class SystemTopicSubscription(Resource):
         elif isinstance(subscription['destination'], str):
             # TODO: Not sure if we should automation transfer "destination" to "destinationWithIdentity"
             try:
-                field = fields[subscription['destination']]
-                field[1]['queueServices']
+                destination_attr = subscription.pop("destination")
+                field = fields[f"{self.component.__name__}.{destination_attr}"]
+                field.params['queueServices']
                 destination = self._queue_destination(field, parameters)
                 if identity:
                     subscription['deliveryWithResourceIdentity'] = {
@@ -193,7 +234,7 @@ class SystemTopicSubscription(Resource):
             attrname: Optional[str] = None,
             parameters: Dict[str, Parameter],
             **kwargs
-    ) -> Dict[str, Output]:
+    ) -> Dict[str, Any]:
         new_subscription = self.properties['eventSubscriptions'][0]
         subscriptions = self._merge_subscriptions(
             params.pop('eventSubscriptions', []),
@@ -203,11 +244,11 @@ class SystemTopicSubscription(Resource):
             parameters=parameters
 
         )
-        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
+        output_config = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
         source = params.pop('source', None)
         if isinstance(source, str) and not source.startswith("/subscriptions/"):
             try:
-                field = fields[source]
+                field = fields[f"{self.component.__name__}.{source}"]
                 source = field[2].id
                 if 'topicType' not in params:
                     params['topicType'] = _SUPPORTED_SYSTEM_TOPICS[field[0]]
@@ -224,7 +265,7 @@ class SystemTopicSubscription(Resource):
                 raise ValueError("No resources found in component the can be sources for the system topic.")
         params['source'] = source
         params['eventSubscriptions'] = subscriptions
-        return outputs
+        return output_config
 
     def _update_managed_identities(
             self,

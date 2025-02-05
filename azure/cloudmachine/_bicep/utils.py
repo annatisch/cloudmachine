@@ -27,6 +27,9 @@ def resolve_key(key: Any) -> str:
             return key
         return f"'{key}'"
 
+def clean_name(name: str) -> str:
+    return ''.join(c for c in name if c.isalnum())
+
 
 def generate_suffix(length: int = 5, /) -> str:
     return ''.join(

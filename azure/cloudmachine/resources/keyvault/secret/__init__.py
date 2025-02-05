@@ -1,25 +1,12 @@
 from typing import TYPE_CHECKING, TypedDict, Literal, List, Dict, Union
 from typing_extensions import Required
 
-MODULE = "br/public:avm/res/resources/resource-group"
-MODULE_RESOURCE = "Microsoft.Resources/resourceGroups"
-MODULE_VERSION = "2021-04-01"
-MODULE_TAG = "0.4.0"
-
-
-class Lock(TypedDict, total=False):
-    """The lock settings of the service."""
-    kind: Literal['CanNotDelete', 'None', 'ReadOnly']
-    """Specify the type of lock."""
-    name: str
-    """Specify the name of lock."""
-
 
 class RoleAssignment(TypedDict, total=False):
     """Array of role assignments to create."""
     principalId: Required[str]
     """The principal ID of the principal (user/group/identity) to assign the role to."""
-    roleDefinitionIdOrName: Required[str]
+    roleDefinitionIdOrName: Required[Union[str, Literal['Contributor', 'Key Vault Administrator', 'Key Vault Contributor', 'Key Vault Reader', 'Key Vault Secrets Officer', 'Key Vault Secrets User', 'Owner', 'Reader', 'Role Based Access Control Administrator', 'User Access Administrator']]]
     """The role to assign. You can provide either the display name of the role definition, the role definition GUID, or its fully qualified ID in the following format: '/providers/Microsoft.Authorization/roleDefinitions/c2f4ef07-c644-48eb-af81-4b1b4947fb11'."""
     condition: str
     """The conditions on the role assignment. This limits the resources it can be assigned to. e.g.: @Resource[Microsoft.Storage/storageAccounts/blobServices/containers:ContainerName] StringEqualsIgnoreCase "foo_storage_container"."""
@@ -35,31 +22,23 @@ class RoleAssignment(TypedDict, total=False):
     """The principal type of the assigned principal ID."""
 
 
-class ResourceGroupParams(TypedDict, total=False):
+class SecretParams(TypedDict, total=False):
     """"""
     name: str
-    """The name of the Resource Group."""
-    enableTelemetry: bool
-    """Enable/Disable usage telemetry for module."""
-    location: str
-    """Location of the Resource Group. It uses the deployment's location when not provided."""
-    lock: 'Lock'
-    """The lock settings of the service."""
+    """The name of the secret."""
+    value: str
+    """The value of the secret. NOTE: "value" will never be returned from the service, as APIs using this model are is intended for internal use in ARM deployments. Users should use the data-plane REST service for interaction with vault secrets."""
+    attributesEnabled: bool
+    """Determines whether the object is enabled."""
+    attributesExp: int
+    """Expiry date in seconds since 1970-01-01T00:00:00Z. For security reasons, it is recommended to set an expiration date whenever possible."""
+    attributesNbf: int
+    """Not before date in seconds since 1970-01-01T00:00:00Z."""
+    contentType: str
+    """The content type of the secret."""
     roleAssignments: List['RoleAssignment']
     """Array of role assignments to create."""
     tags: Dict[str, object]
-    """Tags of the storage account resource."""
+    """Resource tags."""
 
 
-class ResourceGroupKwargs(TypedDict, total=False):
-    """"""
-    enable_telemetry: bool
-    """Enable/Disable usage telemetry for module."""
-    location: str
-    """Location of the Resource Group. It uses the deployment's location when not provided."""
-    lock: 'Lock'
-    """The lock settings of the service."""
-    role_assignments: List['RoleAssignment']
-    """Array of role assignments to create."""
-    tags: Dict[str, object]
-    """Tags of the storage account resource."""

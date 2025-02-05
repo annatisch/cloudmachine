@@ -17,7 +17,8 @@ if TYPE_CHECKING:
 
 MODULE = "br/public:avm/res/storage/storage-account"
 MODULE_RESOURCE = "Microsoft.Storage/storageAccounts/queueServices"
-MODULE_VERSION = "0.14.0"
+MODULE_VERSION = "2023-04-01"
+MODULE_TAG = "0.14.0"
 
 
 class LogCategoriesAndGroup(TypedDict, total=False):

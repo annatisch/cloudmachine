@@ -1,17 +1,17 @@
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Self, Unpack, overload, Optional, Any, Type, TypeVar
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Self, Union, Unpack, overload, Optional, Any, Type, TypeVar
 
-from ...._bicep.expressions import ModuleSymbol, Output
+from ....resources.resourcegroup._resource import ResourceGroup
+from ...._bicep.expressions import ModuleSymbol, Output, ResourceGroupSymbol, ResourceSymbol
 from ...._resource import Resource, _ClientResource
-from .._resource import _DEFAULT_STORAGE_ACCOUNT
+from .._resource import _DEFAULT_STORAGE_ACCOUNT, StorageAccount
 
 if TYPE_CHECKING:
     from .. import StorageAccountParams
     from . import BlobServiceParams, BlobStorageKwargs
-    from azure.storage.blob import BlobServiceClient
-    from azure.storage.filedatalake import DataLakeServiceClient
 
 
 _DEFAULT_BLOB_STORAGE: 'BlobServiceParams' = {
+    'containers': []
 }
 
 ClientType = TypeVar("ClientType")
@@ -20,14 +20,15 @@ ClientType = TypeVar("ClientType")
 class BlobStorage(_ClientResource):
     identifier: Literal["storage:blobs"] = "storage:blobs"
     module: Literal["br/public:avm/res/storage/storage-account"] = "br/public:avm/res/storage/storage-account"
-    defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
-    default_services: 'BlobServiceParams' = _DEFAULT_BLOB_STORAGE
+    DEFAULTS: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
+    DEFAULT_SERVICES: 'BlobServiceParams' = _DEFAULT_BLOB_STORAGE
     resource: Literal["Microsoft.Storage/storageAccounts/blobServices"]
     properties: 'StorageAccountParams'
 
     def __init__(
             self,
             properties: Optional['BlobServiceParams'] = None,
+            /,
             storage_name: Optional[str] = None,
             *,
             role_assignments = ['Storage Blob Data Contributor'],
@@ -146,13 +147,76 @@ class BlobStorage(_ClientResource):
 
     @property
     def resource(self) -> str:
+        if self._resource:
+            return self._resource
         from . import MODULE_RESOURCE
         return MODULE_RESOURCE
 
     @property
     def version(self) -> str:
+        if self._version:
+            return self._version
         from . import MODULE_VERSION
         return MODULE_VERSION
+
+    @property
+    def tag(self) -> str:
+        from . import MODULE_TAG
+        return MODULE_TAG
+
+    @overload
+    def reference(cls, resource_id: str, /) -> Self:
+        ...
+    @overload
+    def reference(
+        cls,
+        *,
+        name: str,
+        resource_group: Optional[Union[str, ResourceGroup]] = None,
+        subscription: Optional[str] = None,
+    ) -> Self:
+        ...
+    @classmethod
+    def reference(
+            cls,
+            resource_id: Optional[str] = None,
+            *,
+            name: Optional[str] = None,
+            resource_group: Optional[str] = None,
+            subscription: Optional[str] = None
+    ) -> Self:
+        if resource_id:
+            return super().reference(resource_id)
+        from . import MODULE_RESOURCE, MODULE_VERSION
+        resource = f"{MODULE_RESOURCE}@{MODULE_VERSION}"
+
+        parent = StorageAccount.reference(
+            name=name,
+            resource_group=resource_group,
+            subscription=subscription
+        )
+        existing = super().reference(resource=resource, name='default', parent=parent)
+        return existing
+
+    def _build_endpoint(self) -> str:
+        return f"https://{self.name()}.blob.core.windows.net/"
+
+    def _outputs(
+            self,
+             *,
+             symbol: ResourceSymbol,
+             attrname: Optional[str],
+             resource_group: ResourceGroupSymbol,
+             parent: Optional[ResourceSymbol] = None,
+             **kwargs
+    ) -> Dict[str, Output]:
+        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group)
+        suffix = self._get_suffix()
+        if parent:
+            outputs[f"AZURE_BLOBS_ENDPOINT{suffix}"] = Output("properties.primaryEndpoints.blob", parent)
+        else:
+            outputs[f"AZURE_BLOBS_ENDPOINT{suffix}"] = Output("outputs.serviceEndpoints.blob", symbol)
+        return outputs
 
     def _merge_params(
             self,
@@ -161,69 +225,15 @@ class BlobStorage(_ClientResource):
             symbol: ModuleSymbol,
             attrname: Optional[str] = None,
             **kwargs
-        ) -> Dict[str, Output]:
-        blob_services = params.pop("blobServices", dict(self.default_services))
+        ) -> Dict[str, Any]:
+        blob_services = params.pop("blobServices", dict(self.DEFAULT_SERVICES))
         blob_services.update(self.properties["blobServices"])
-        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
+        output_config = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
         params['blobServices'] = blob_services
-        suffix = attrname or self._suffix
-        outputs[f"AZURE_BLOBS_ENDPOINT_{suffix.upper()}"] = Output("outputs.primaryBlobEndpoint", symbol)
-        return outputs
-
-    @overload
-    def __call__(
-            self,
-            cls: Callable[..., ClientType],
-            /,
-            *,
-            transport: Any = None,
-            options: Optional[Dict[str, Any]] = None,
-    ) -> ClientType:
-        ...
-    @overload
-    def __call__(self, *, transport: Any = None, options: Optional[Dict[str, Any]] = None) -> 'BlobServiceClient':
-        ...
-    @overload
-    def __call__(self, cls: Type[Resource], /) -> Self:
-        ...
-    def __call__(self, cls=None, /, *, transport=None, options=None):
-        options = options or {}
-        if transport:
-            options['transport'] = transport
-        try:
-            # First we check if it's a Resource type or whether it has 'from_resource' constructor
-            return super()(self, cls, options=options)
-        except TypeError:
-            pass
-        kwargs = {}
-        try:
-            endpoint = self.endpoint()
-            kwargs['credential'] = self.credential()
-        except RuntimeError as e:
-            raise RuntimeError(f"Unable to build client for blob storage: {e}.") from e
-        try:
-            kwargs['api_version'] = self.api_version()
-        except RuntimeError:
-            pass
-        try:
-            kwargs['audience'] = self.audience()
-        except RuntimeError:
-            pass
-        kwargs.update(self.client_options())
-        kwargs.update(options)
-        if cls and cls.__name__ != 'BlobServiceClient':
-            client = cls(endpoint, **kwargs)
-        else:
-            from azure.storage.blob import BlobServiceClient
-            client = BlobServiceClient(
-                endpoint,
-                **kwargs
-            )
-        client.__resource_settings__ = self
-        return client
+        return output_config
 
 
-class DatalakeStorage(_ClientResource):
+class DatalakeStorage(BlobStorage):
     identifier: Literal["storage:datalake"] = "storage:datalake"
 
     def __init__(
@@ -242,51 +252,5 @@ class DatalakeStorage(_ClientResource):
             **kwargs
         )
 
-    @overload
-    def __call__(
-            self,
-            cls: Callable[..., ClientType],
-            /,
-            *,
-            transport: Any = None,
-            options: Optional[Dict[str, Any]] = None,
-    ) -> ClientType:
-        ...
-    @overload
-    def __call__(self, *, transport: Any = None, options: Optional[Dict[str, Any]] = None) -> 'DataLakeServiceClient':
-        ...
-    @overload
-    def __call__(self, cls: Type[Resource], /) -> Self:
-        ...
-    def __call__(self, cls=None, /, *, transport=None, options=None):
-        options = options or {}
-        if transport:
-            options['transport'] = transport
-        try:
-            # First we check if it's a Resource type or whether it has 'from_resource' constructor
-            return super()(self, cls, options=options)
-        except TypeError:
-            pass
-        kwargs = {}
-        endpoint = self.endpoint()
-        kwargs['credential'] = self.credential()
-        try:
-            kwargs['api_version'] = self.api_version()
-        except RuntimeError:
-            pass
-        try:
-            kwargs['audience'] = self.audience()
-        except RuntimeError:
-            pass
-        kwargs.update(self.client_options())
-        kwargs.update(options)
-        if cls and cls.__name__ != 'DataLakeServiceClient':
-            client = cls(endpoint, **kwargs)
-        else:
-            from azure.storage.filedatalake import DataLakeServiceClient
-            client = DataLakeServiceClient(
-                endpoint,
-                **kwargs
-            )
-        client.__resource_settings__ = self
-        return client
+    def _build_endpoint(self) -> str:
+        raise NotImplementedError()

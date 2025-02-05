@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Unpack, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Self, Union, Unpack, Optional, overload
+
+from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
 
 from ...._bicep.expressions import ModuleSymbol, Output, Parameter
 from ...._resource import Resource, FieldsType
@@ -45,7 +47,7 @@ _SUPPORTED_SYSTEM_TOPICS: Dict[str, str] = {
 class EventSystemTopic(Resource):
     identifier: Literal["events:systemtopic"] = "events:systemtopic"
     module: Literal["br/public:avm/res/event-grid/system-topic"] = "br/public:avm/res/event-grid/system-topic"
-    defaults: 'SystemTopicParams' = _DEFAULT_SYSTEM_TOPIC
+    DEFAULTS: 'SystemTopicParams' = _DEFAULT_SYSTEM_TOPIC
     resource: Literal["Microsoft.EventGrid/systemTopics"] = "Microsoft.EventGrid/systemTopics"
     properties: 'SystemTopicParams'
 
@@ -91,6 +93,43 @@ class EventSystemTopic(Resource):
         from . import MODULE_VERSION
         return MODULE_VERSION
 
+    @property
+    def tag(self) -> str:
+        from . import MODULE_TAG
+        return MODULE_TAG
+
+    @overload
+    def reference(cls, resource_id: str, /) -> Self:
+        ...
+    @overload
+    def reference(
+            cls,
+            *,
+            name: str,
+            resource_group: Optional[Union[str, ResourceGroup]] = None,
+            subscription: Optional[str] = None,
+    ) -> Self:
+        ...
+    @classmethod
+    def reference(
+            cls,
+            resource_id: Optional[str] = None,
+            *,
+            name: Optional[str] = None,
+            resource_group: Optional[Union[str, ResourceGroup]] = None,
+            subscription: Optional[str] = None,
+    ) -> Self:
+        if resource_id:
+            return super().reference(resource_id)
+        from . import MODULE_RESOURCE, MODULE_VERSION
+        resource = f"{MODULE_RESOURCE}@{MODULE_VERSION}"
+        return super().reference(
+            resource=resource,
+            name=name,
+            resource_group=resource_group,
+            subscription=subscription
+        )
+
     def _merge_params(
             self,
             params: 'SystemTopicParams',
@@ -99,12 +138,12 @@ class EventSystemTopic(Resource):
             fields: FieldsType,
             attrname: Optional[str] = None,
             **kwargs
-    ) -> Dict[str, Output]:
-        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
+    ) -> Dict[str, Any]:
+        output_config = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
         source = params.pop('source', None)
         if isinstance(source, str) and not source.startswith("/subscriptions/"):
             try:
-                field = fields[source]
+                field = fields[f"{self.component.__name__}.{source}"]
                 source = field[2].id
                 if 'topicType' not in params:
                     params['topicType'] = _SUPPORTED_SYSTEM_TOPICS[field[0]]
@@ -120,7 +159,7 @@ class EventSystemTopic(Resource):
             if not source:
                 raise ValueError("No resources found in component the can be sources for the system topic.")
         params['source'] = source
-        return outputs
+        return output_config
 
     def _update_managed_identities(
             self,

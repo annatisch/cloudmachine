@@ -1,13 +1,19 @@
 from inspect import get_annotations
-from typing import IO, Any, Callable, Iterable, List, Literal, Optional, Type, Dict, Tuple, TYPE_CHECKING, TypeVar, Union
+import inspect
+from typing import IO, Any, Callable, Iterable, List, Literal, Optional, Type, Dict, Tuple, TYPE_CHECKING, TypeVar, Union, Unpack, overload
 import os
 import json
+import subprocess
 from collections import defaultdict
 
+from dotenv import dotenv_values
+
+from ._version import VERSION
+from ._component import CloudMachine
 from ._bicep.utils import generate_name, resolve_value, serialize_dict, generate_suffix, serialize_list
 from ._bicep.expressions import Expression, ModuleSymbol, Output, Parameter, ResourceGroupSymbol, Subscription, UniqueString, Variable
-from ._resource import Resource, ResourcesType, FieldType, FieldsType
-from .resources import UserAssignedIdentity, ResourceGroup, INFERRED_RESOURCE
+from ._resource import Resource, FieldsType, _load_dev_environment
+from .resources import UserAssignedIdentity, ResourceGroup
 
 _BICEP_PARAMS = {
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
@@ -15,36 +21,156 @@ _BICEP_PARAMS = {
     "parameters": {}
 }
 
+def _provision_project(name: str, label: Optional[str] = None) -> None:
+    project_name = name + (f"-{label}" if label else "")
+    args = ['azd', 'provision', '-e', project_name]
+    print("Running: ", args)
+    output = subprocess.run(args)
+    print(output)
+    return output.returncode
+
+def _init_project(
+        *,
+        root_path: str,
+        name: str,
+        infra_dir: str,
+        main_bicep: str,
+        location: Optional[str] = None,
+        label: Optional[str] = None,
+        metadata: Optional[Dict[str, str]] = None
+) -> None:
+    azure_dir = os.path.join(root_path, ".azure")
+    azure_yaml = os.path.join(root_path, "azure.yaml")
+    project_name = name + (f"-{label}" if label else "")
+    project_dir = os.path.join(azure_dir, project_name)
+    # TODO proper yaml parsing
+    # Needs to properly set code root
+    # Shouldn't overwrite on every run
+    if not os.path.isfile(azure_yaml):
+        with open(azure_yaml, 'w') as config:
+            config.write("# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json\n\n")
+            config.write(f"name: {project_name}\n")
+            config.write("metadata:\n")
+            config.write(f"  cloudmachine: {VERSION}\n")
+            if metadata:
+                for key, value in metadata.items():
+                    config.write(f"  {key}: {value}\n")
+            config.write("infra:\n")
+            config.write(f"  path: {infra_dir}\n")
+            config.write(f"  module: {main_bicep}\n")
+
+    returncode = 0
+    if not os.path.isdir(azure_dir) or not os.path.isdir(project_dir):
+        print(f"Adding environment: {project_name}.")
+        output = subprocess.run(['azd', 'env', 'new', project_name])
+        print(output)
+        returncode = output.returncode
+    if location:
+        output = subprocess.run(['azd', 'env', 'set', 'AZURE_LOCATION', location, '-e', project_name])
+        print(output)
+        returncode = output.returncode
+    print("Finished environment setup.")
+    return returncode
+
 
 def _get_component_resources(component: Type[Resource]) -> Dict[str, Resource]:
     return {k: getattr(component, k) for k, v in component.__dict__.items() if isinstance(v, Resource)}
 
+def _get_filename() -> str:
+    frame = inspect.stack()[2]
+    return os.path.splitext(os.path.basename(frame[0].f_code.co_filename))[0]
+    # module = inspect.getmodule(frame[0])
+    # filename = module.__file__
 
 AppType = TypeVar("AppType")
+ResourceType = TypeVar("ResourceType")
+@overload
 def provision(
-        *__r: Type[AppType],
-        infra_dir: str = "./infra",
+        __r: Type[AppType],
+        infra_dir: str = "infra",
+        main_bicep: str = "main",
+        output_dir: str = ".",
         add_user_principal: bool = True,
         location: Optional[str] = None,
+        name: Optional[str] = None,
 ) -> AppType:
+    ...
+@overload
+def provision(
+        __r: ResourceType,
+        infra_dir: str = "infra",
+        main_bicep: str = "main",
+        output_dir: str = ".",
+        add_user_principal: bool = True,
+        location: Optional[str] = None,
+        name: Optional[str] = None,
+) -> ResourceType:
+    ...
+@overload
+def provision(
+        *__r: Union[ResourceType, Type[AppType]],
+        infra_dir: str = "infra",
+        main_bicep: str = "main",
+        output_dir: str = ".",
+        add_user_principal: bool = True,
+        location: Optional[str] = None,
+        name: Optional[str] = None,
+) -> Tuple[Union[ResourceType, AppType]]:
+    ...
+def provision(
+        *__r,
+        infra_dir: str = "infra",
+        main_bicep: str = "main",
+        output_dir: str = ".",
+        add_user_principal: bool = True,
+        location: Optional[str] = None,
+        name: Optional[str] = None,
+):
+    deployment_name = name or _get_filename()
+    working_dir = os.path.abspath(output_dir)
     export(
         *__r,
         infra_dir=infra_dir,
+        main_bicep=main_bicep,
+        output_dir=output_dir,
         add_user_principal=add_user_principal,
+        location=location,
+        name=deployment_name,
+    )
+    returncode = _init_project(
+        root_path=working_dir,
+        name=deployment_name,
+        infra_dir=infra_dir,
+        main_bicep=main_bicep,
         location=location
     )
+    if returncode != 0:
+        raise RuntimeError()
+    returncode = _provision_project(deployment_name)
+    if returncode != 0:
+        raise RuntimeError()
     # TODO: Run azd provision command.
-    return __r()
+    config = _load_dev_environment(deployment_name)
+    if len(__r) == 1:
+        return __r[0](env_name=deployment_name)
+    return (r(env_name=deployment_name) for r in __r)
 
 
 def export(
-        *__r: Type,
-        infra_dir: str = "./infra",
+        *__r: Union[Resource, Type[AppType]],
+        infra_dir: str = "infra",
+        main_bicep: str = "main",
+        output_dir: str = ".",
         add_user_principal: bool = True,
         location: Optional[str] = None,
+        name: Optional[str] = None,
 ) -> None:
+    if not __r:
+        return
+    deployment = list(__r)
     print("Building bicep...")
-    infra_dir = os.path.abspath(infra_dir)
+    working_dir = os.path.abspath(output_dir)
+    infra_dir = os.path.join(working_dir, infra_dir)
     parameters: Dict[str, Parameter] = {}
     parameters['location'] = Parameter(
         'location',
@@ -69,92 +195,48 @@ def export(
             'string',
             description="Id of the user or app to assign application roles",
             varname="AZURE_PRINCIPAL_ID"
+            ,
         )
+    parameters['tags'] = Variable('tags', 'object', { 'azd-env-name': parameters['environmentName'] })
+    deployment_name = name or _get_filename()
+    parameters['defaultName'] = Variable(
+        'defaultName',
+        'string',
+        UniqueString(Subscription().subscription_id,  deployment_name, parameters['location'])
+    )
     try:
         os.makedirs(infra_dir)
     except FileExistsError:
         pass
-    all_outputs = []
-    bicep_main = os.path.join(infra_dir, "main.bicep")
+    bicep_main = os.path.join(infra_dir, f"{main_bicep}.bicep")
     with open(bicep_main, 'w') as main:
         main.write("targetScope = 'subscription'\n\n")
         for parameter in parameters.values():
             main.write(parameter.main_declare())
 
-        for app in __r:
-            module_parameters = dict(parameters)
-            module_name = app.__name__.lower()
-            default_resource_group = ResourceGroup()
-            default_resource_group.component = app
-            default_identity = UserAssignedIdentity()
-            default_identity.component = app
-            default_identity.attr = None
-            resources: ResourcesType = defaultdict(list)
-
-            tags = Variable('tags', 'object', { 'azd-env-name': module_parameters['environmentName'] })
-            cloudmachine_id = Variable(
-                'cloudmachineId',
-                'string',
-                UniqueString(Subscription().subscription_id, module_name, module_parameters["location"]),
-                description="Unique identifier for creating default resource names"
-            )
-            symbol = Expression(f"module_{generate_suffix()}")
-            main.write(f"module {symbol.resolve()} '{module_name}.bicep' = {{\n")
-            main.write(f"  name: '${{deployment().name}}_{symbol.resolve()}'\n")
-            main.write("  params: {\n")
-            main.write(serialize_dict(module_parameters, "    "))
-            main.write("  }\n")
-            main.write("}\n")
-            bicep_module = os.path.join(infra_dir, f"{module_name}.bicep")
-            with open(bicep_module, 'w') as module:
-                module.write("targetScope = 'subscription'\n\n")
-                for parameter in module_parameters.values():
-                    module.write(parameter.module_declare())
-                module.write(tags.main_declare())
-                module.write(cloudmachine_id.main_declare())
-                module_parameters['tags'] = tags
-                module_parameters['cloudmachineId'] = cloudmachine_id
-
-                fields: FieldsType = {}
-                rg = default_resource_group.__bicep__(
-                    fields,
-                    resources,
-                    parameters=module_parameters,
-                    app_component=app
+        fields: FieldsType = {}
+        for resource in deployment:
+            if isinstance(resource, Resource):
+                resource.__bicep__(
+                    fields=fields,
+                    parameters=parameters
                 )
-                fields['__rg__'] = rg
-                uaid = default_identity.__bicep__(
-                    fields,
-                    resources,
-                    parameters=module_parameters,
-                    app_component=app
-                )
-                fields['__uaid__'] = uaid
+            elif issubclass(resource, CloudMachine):
                 _parse_module(
-                    resources=resources,
-                    parameters=module_parameters,
-                    parent_component=app,
-                    component=app,
-                    component_resources=_get_component_resources(app),
+                    parameters=parameters,
+                    parent_component=resource,
+                    component=resource,
+                    component_resources=_get_component_resources(resource),
                     component_fields=fields,
                 )
-                module_outputs = _write_resources(
-                    bicep=module,
-                    resources=resources,
-                    parameters=module_parameters
-                )
-            for output in module_outputs:
-                if output in all_outputs:
-                    # TODO: This will mostly happen with identity and AZURE_CLIENT_ID, so need
-                    # a solution for this.
-                    main.write("// Error - duplicate output\n")
-                    main.write(f"// output {output} string = {symbol.resolve()}.outputs.{output}\n")
-                else:
-                    all_outputs.append(output)
-                    main.write(f"output {output} string = {symbol.resolve()}.outputs.{output}\n")
-            main.write("\n")
+        _write_resources(
+            bicep=main,
+            fields=fields,
+            parameters=parameters
+        )
+        main.write("\n")
 
-    main_parameters = os.path.join(infra_dir, "main.parameters.json")
+    main_parameters = os.path.join(infra_dir, f"{main_bicep}.parameters.json")
     params_content = dict(_BICEP_PARAMS)
     for parameter in parameters.values():
         if isinstance(parameter, Parameter):
@@ -163,18 +245,8 @@ def export(
         json.dump(params_content, params_json, indent=4)
 
 
-def _find_resource(
-        module: str,
-        fields: FieldsType,
-) -> Optional[FieldType]:
-    try:
-        return [f for f in reversed(list(fields.values())) if f[0] == module][0]
-    except IndexError:
-        return None
-
 def _parse_module(
         *,
-        resources: ResourcesType,
         parameters: Dict[str, Parameter],
         parent_component: Type,
         component: Type,
@@ -182,95 +254,62 @@ def _parse_module(
         component_fields: FieldsType,
         attrname: Optional[str] = None,
 ) -> FieldsType:
-    current_fields = dict(component_fields)
     for name, r in component_resources.items():
         if r.component == component:
-            field = r.__bicep__(
-                current_fields,
-                resources,
+            r.__bicep__(
+                component_fields,
                 parameters=parameters,
                 app_component=parent_component,
                 attrname=attrname or name
             )
-            current_fields[name] = field
         else:
-            # Well make a copy of the initial fields so we can carry over the default
-            # resource group and identity without modifying it for other components.
-            new_fields = dict(component_fields)
-
-            # We'll check if the component has any parameters.
-            # These will be fields that are type-annotated with a valid Resource type, but either not
-            # in the class __dict__ or have a default of None.
-            annotations = get_annotations(r.component)
-            for attr, annotation in annotations.items():
-                if annotation.__name__ in INFERRED_RESOURCE and r.component.__dict__.get(attr) is None:
-                    # For each parameter field, we will attempt to populate it with a resource from elsewhere
-                    # in the component, beased on inferring the resource type from the type hint.
-                    # This check is based on matching module, not exact resource, so if the parameter is
-                    # for a Blob Container, we will get a match with any Storage Account.
-                    inferred_resource = INFERRED_RESOURCE[annotation.__name__]
-                    resource_as_parameter = _find_resource(inferred_resource.module, current_fields)
-                    if resource_as_parameter:
-                        new_fields[attr] = resource_as_parameter
-                    elif attr in r.component.__dict__:
-                        # Parameter field has a default of None, so it's not required.
-                        continue
-                    else:
-                        raise ValueError(
-                            "Unable to add component {}, missing input resource type: {}".format(
-                                r.component.__name__,
-                                inferred_resource.resource
-                            )
-                        )
-            referenced_fields = _parse_module(
-                resources=resources,
+            _parse_module(
                 parameters=parameters,
                 parent_component=parent_component,
                 component=r.component,
                 component_resources=_get_component_resources(r.component),
-                component_fields=new_fields,
+                component_fields=component_fields,
                 attrname=name,
             )
-            if r.attr in referenced_fields:
-                current_fields[name] = referenced_fields[r.attr]
-    return current_fields
 
 
 def _write_resources(
         bicep: IO[str],
-        resources: ResourcesType,
+        fields: FieldsType,
         parameters: Dict[str, Parameter],
-) -> List[str]:
+) -> None:
     all_outputs = []
     depends = None
-    for rg_name, rg_contents in resources.items():
-        bicep.write(rg_name.declare())
-        for (resource, params, symbol, outputs, _, version) in rg_contents:
-            if resource.startswith('br/public:'):
-                bicep.write(f"module {symbol.resolve()} '{resource}:{version}' = {{\n")
-                bicep.write(f"  name: '${{deployment().name}}_{symbol.resolve()}'\n")
-                if 'resources/resource-group' not in resource:
-                    bicep.write(f"  scope: resourceGroup({rg_name.varname.resolve()})\n")
-                bicep.write("  params: {\n")
-                bicep.write(serialize_dict(params, "    ", **parameters))
-                bicep.write("  }\n")
-                # if depends:
-                #     bicep.write("  dependsOn: [\n")
-                #     bicep.write(serialize_list([depends], "    "))
-                #     bicep.write("  ]\n")
-                bicep.write("}\n")
-            elif resource.startswith('Microsoft.'):
-                for parent in params['parents']:
-                        bicep.write(f"resource {parent[2]} '{parent[0]}@{parent[5]}' = {{\n")
-                        # TODO: parent params will only have 'name' and optionally 'parent'
-                        bicep.write(serialize_dict(parent[1], "  ", **parameters))
-                        bicep.write("}\n")
-                bicep.write(f"resource {symbol.resolve()} '{resource}@{version}' = {{\n")
-                bicep.write(serialize_dict(params, "  ", **parameters))
-                bicep.write("}\n")
-            for varname, output in outputs.items():
-                all_outputs.append(varname)
-                bicep.write(f"output {varname} string = {resolve_value(output)}\n")
-            bicep.write("\n")
+    for key, (resource, params, symbol, outputs, resource_group, version) in fields.items():
+        if resource.startswith('br/public:'):
+            bicep.write(f"module {symbol.resolve()} '{resource}:{version}' = {{\n")
+            bicep.write(f"  name: '${{deployment().name}}_{symbol.resolve()}'\n")
+            if 'resources/resource-group' not in resource:
+                bicep.write(f"  scope: {resource_group}\n")
+            bicep.write("  params: {\n")
+            bicep.write(serialize_dict(params, "    ", **parameters))
+            bicep.write("  }\n")
+            if depends:
+                bicep.write("  dependsOn: [\n")
+                bicep.write(serialize_list([depends], "    "))
+                bicep.write("  ]\n")
+            bicep.write("}\n")
             depends = symbol
-    return all_outputs
+        elif resource == "Microsoft.Resources/resourceGroups":
+            bicep.write(f"resource {symbol.resolve()} '{resource}@{version}' existing = {{\n")
+            bicep.write(f"  name: {resolve_value(params['name'], **parameters)}\n")
+            if 'scope' in params:
+                bicep.write(f"  scope: subscription('{params['scope']}')\n")
+            bicep.write("}\n")
+        elif resource.startswith('Microsoft.'):
+            bicep.write(f"resource {symbol.resolve()} '{resource}@{version}' existing = {{\n")
+            bicep.write(f"  name: {resolve_value(params['name'], **parameters)}\n")
+            if 'parent' in params:
+                bicep.write(f"  parent: {resolve_value(params['parent'])}\n")
+            else:
+                bicep.write(f"  scope: {resource_group}\n")
+            bicep.write("}\n")
+        for varname, output in outputs.items():
+            all_outputs.append(varname)
+            bicep.write(f"output {varname} string = {resolve_value(output)}\n")
+        bicep.write("\n")

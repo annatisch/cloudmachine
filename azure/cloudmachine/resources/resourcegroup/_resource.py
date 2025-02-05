@@ -1,8 +1,18 @@
-from typing import TYPE_CHECKING, Dict, List, Literal, Tuple, Type, Union, Unpack, Optional, Any
+from typing import TYPE_CHECKING, Dict, List, Literal, Self, Tuple, Type, Union, Unpack, Optional, Any, overload
 
-from ..._bicep.expressions import Expression, Output, Parameter, ModuleSymbol, ResourceGroupSymbol, ResourceSymbol, Variable
+from ..._bicep.expressions import (
+    Expression,
+    Output,
+    Parameter,
+    ModuleSymbol,
+    ResourceGroupSymbol,
+    ResourceSymbol,
+    Variable,
+    UniqueString,
+    Subscription,
+)
 from ..._bicep.utils import generate_name, generate_suffix
-from ..._resource import Resource, FieldsType, FieldType, ResourcesType
+from ..._resource import Resource, FieldsType, FieldType
 
 if TYPE_CHECKING:
     from . import ResourceGroupParams, ResourceGroupKwargs
@@ -15,13 +25,14 @@ _DEFAULT_RESOURCE_GROUP: 'ResourceGroupParams' = {
 class ResourceGroup(Resource):
     identifier: Literal["resourcegroup"] = "resourcegroup"
     module: Literal["br/public:avm/res/resources/resource-group"] = "br/public:avm/res/resources/resource-group"
-    defaults: 'ResourceGroupParams' = _DEFAULT_RESOURCE_GROUP
+    DEFAULTS: 'ResourceGroupParams' = _DEFAULT_RESOURCE_GROUP
     resource: Literal["Microsoft.Resources/resourceGroups"]
     properties: 'ResourceGroupParams'
 
     def __init__(
             self,
             properties: Optional['ResourceGroupParams'] = None,
+            /,
             resource_group_name: Optional[str] = None,
             **kwargs: Unpack['ResourceGroupKwargs']
     ) -> None:
@@ -45,6 +56,36 @@ class ResourceGroup(Resource):
             **kwargs
         )
 
+    @overload
+    def reference(cls, resource_id: str, /) -> Self:
+        ...
+    @overload
+    def reference(
+            cls,
+            *,
+            name: str,
+            subscription: Optional[str] = None,
+    ) -> Self:
+        ...
+    @classmethod
+    def reference(
+            cls,
+            resource_id: Optional[str] = None,
+            *,
+            name: Optional[str] = None,
+            subscription: Optional[str] = None,
+    ) -> Self:
+        if resource_id:
+            return super().reference(resource_id)
+        from . import MODULE_RESOURCE, MODULE_VERSION
+        resource = f"{MODULE_RESOURCE}@{MODULE_VERSION}"
+        existing = super().reference(
+            resource=resource,
+            name=name,
+            subscription=subscription
+        )
+        return existing
+
     @property
     def resource(self) -> str:
         from . import MODULE_RESOURCE
@@ -55,25 +96,48 @@ class ResourceGroup(Resource):
         from . import MODULE_VERSION
         return MODULE_VERSION
 
+    @property
+    def tag(self) -> str:
+        from . import MODULE_TAG
+        return MODULE_TAG
+
     def __bicep__(
             self,
             fields: FieldsType,
-            resources: ResourcesType,
             *,
             parameters: Dict[str, Parameter],
+            attrname: Optional[str] = None,
             **kwargs
     ) -> FieldType:
-        rg_name = self.properties.pop('name', parameters['cloudmachineId'])
-        var_suffix = rg_name if isinstance(rg_name, str) else "default"
+        field_id = self._component.__name__ if self._component else '__main__'
+        if self._existing:
+            rg_name = self._reference['name']
+            base_symbol = self._symbol()
+            symbol = ResourceGroupSymbol(
+                symbol=base_symbol._value,
+                name=base_symbol.name,
+                existing=True
+            )
+            field = FieldType(
+                self.resource,
+                {'name': rg_name},
+                symbol,
+                {},
+                symbol,
+                self.version
+            )
+            fields[f"{field_id}.{attrname if attrname else symbol.resolve()}"] = field
+            return symbol
+        try:
+            rg_name = self.properties['name']
+        except KeyError:
+            rg_name = parameters['defaultName']
+
         symbol = ResourceGroupSymbol(
             symbol=self._symbol()._value,
-            varname=f"resourcegroup_{var_suffix}_name",
-            varvalue=rg_name
+            name=rg_name,
         )
-        field = self._find_resource_match(fields, symbol, symbol.varname)
-        
-        # TODO: This probably needs fixing as self.properties shouldn't be mutated....
-        self.properties["name"] = symbol.varname
+        field = self._find_resource_match(fields, symbol, rg_name)
         if field:
             reference = field[0]
             params = field[1]
@@ -81,20 +145,12 @@ class ResourceGroup(Resource):
             outputs = field[3]
         else:
             reference = self.module
-            params = self.defaults.copy()
+            params = self.DEFAULTS.copy()
+            params['name'] = rg_name
             outputs = {}
-            field = (reference, params, symbol, outputs, symbol, self.version)
-            resources[symbol].append(field)
+            field = FieldType(reference, params, symbol, outputs, symbol, self.tag or self.version)
 
-        identity = self._find_identity(fields)
-        role_assignments = params.pop("roleAssignments", [])
-        self._merge_params(params, symbol=symbol)
+        self._merge_params(params, symbol=symbol, resource_group=symbol)
         self._substitute_globals(params, parameters)
-        self._update_role_assignments(
-            params,
-            role_assignments,
-            symbol=symbol,
-            identity=identity,
-            user_principal=parameters.get("principalId")
-        )
-        return field
+        fields[f"{field_id}.{attrname if attrname else symbol.resolve()}"] = field
+        return symbol

@@ -3,7 +3,8 @@ from typing_extensions import Required
 
 MODULE = "br/public:avm/res/managed-identity/user-assigned-identity"
 MODULE_RESOURCE = "Microsoft.ManagedIdentity/userAssignedIdentities"
-MODULE_VERSION = "0.4.0"
+MODULE_VERSION = "2023-01-31"
+MODULE_TAG = "0.4.0"
 
 
 class FederatedIdentityCredential(TypedDict, total=False):

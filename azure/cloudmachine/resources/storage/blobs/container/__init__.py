@@ -6,7 +6,8 @@ if TYPE_CHECKING:
 
 MODULE = "br/public:avm/res/storage/storage-account"
 MODULE_RESOURCE = "Microsoft.Storage/storageAccounts/blobServices/containers"
-MODULE_VERSION = "0.14.0"
+MODULE_VERSION = "2022-09-01"
+MODULE_TAG = "0.14.0"
 
 
 class RoleAssignment(TypedDict, total=False):

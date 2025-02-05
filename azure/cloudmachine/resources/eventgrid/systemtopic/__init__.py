@@ -6,7 +6,8 @@ if TYPE_CHECKING:
 
 MODULE = "br/public:avm/res/event-grid/system-topic"
 MODULE_RESOURCE = "Microsoft.EventGrid/systemTopics"
-MODULE_VERSION = "0.4.0"
+MODULE_VERSION = "2023-12-15-preview"
+MODULE_TAG = "0.4.0"
 
 
 class LogCategoriesAndGroup(TypedDict, total=False):

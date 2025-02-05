@@ -1,8 +1,10 @@
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Self, Unpack, overload, Optional, Any, Type, TypeVar
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Self, Union, Unpack, overload, Optional, Any, Type, TypeVar
 
-from ...._bicep.expressions import ModuleSymbol, Output
+from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
+
+from ...._bicep.expressions import ModuleSymbol, Output, ResourceGroupSymbol, ResourceSymbol
 from ...._resource import Resource, _ClientResource
-from .._resource import _DEFAULT_STORAGE_ACCOUNT
+from .._resource import _DEFAULT_STORAGE_ACCOUNT, StorageAccount
 
 
 if TYPE_CHECKING:
@@ -22,8 +24,8 @@ ClientType = TypeVar("ClientType")
 class TableStorage(_ClientResource):
     identifier: Literal["storage:tables"] = "storage:tables"
     module: Literal["br/public:avm/res/storage/storage-account"] = "br/public:avm/res/storage/storage-account"
-    defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
-    default_services: 'TableServiceParams' = _DEFAULT_TABLE_STORAGE 
+    DEFAULTS: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
+    DEFAULT_SERVICES: 'TableServiceParams' = _DEFAULT_TABLE_STORAGE 
     resource: Literal["Microsoft.Storage/storageAccounts/tableServices"]
     properties: 'StorageAccountParams'
 
@@ -117,6 +119,65 @@ class TableStorage(_ClientResource):
         from . import MODULE_VERSION
         return MODULE_VERSION
 
+    @property
+    def tag(self) -> str:
+        from . import MODULE_TAG
+        return MODULE_TAG
+
+    @overload
+    def reference(cls, resource_id: str, /) -> Self:
+        ...
+    @overload
+    def reference(
+        cls,
+        *,
+        account_name: str,
+        resource_group: Optional[Union[str, ResourceGroup]] = None,
+        subscription: Optional[str] = None,
+    ) -> Self:
+        ...
+    @classmethod
+    def reference(
+            cls,
+            resource_id: Optional[str] = None,
+            *,
+            account_name: Optional[str] = None,
+            resource_group: Optional[str] = None,
+            subscription: Optional[str] = None
+    ) -> Self:
+        if resource_id:
+            return super().reference(resource_id)
+        from . import MODULE_RESOURCE, MODULE_VERSION
+        resource = f"{MODULE_RESOURCE}@{MODULE_VERSION}"
+
+        parent = StorageAccount.reference(
+            account_name=account_name,
+            resource_group=resource_group,
+            subscription=subscription
+        )
+        existing = super().reference(resource=resource, name='deafult', parent=parent)
+        return existing
+
+    def _build_endpoint(self) -> str:
+        return f"https://{self.name()}.table.core.windows.net/"
+
+    def _outputs(
+            self,
+             *,
+             symbol: ResourceSymbol,
+             attrname: Optional[str],
+             resource_group: ResourceGroupSymbol,
+             parent: Optional[ResourceSymbol] = None,
+             **kwargs
+    ) -> Dict[str, Output]:
+        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group)
+        suffix = self._get_suffix()
+        if self._existing:
+            outputs[f"AZURE_TABLES_ENDPOINT{suffix}"] = Output("properties.primaryEndpoints.table", parent)
+        else:
+            outputs[f"AZURE_TABLES_ENDPOINT{suffix}"] = Output("outputs.serviceEndpoints.table", symbol)
+        return outputs
+
     def _merge_params(
             self,
             params: 'StorageAccountParams',
@@ -124,60 +185,9 @@ class TableStorage(_ClientResource):
             symbol: ModuleSymbol,
             attrname: Optional[str] = None,
             **kwargs
-        ) -> Dict[str, Output]:
-        table_services = params.pop("tableServices", dict(self.default_services))
+        ) -> Dict[str, Any]:
+        table_services = params.pop("tableServices", dict(self.DEFAULT_SERVICES))
         table_services.update(self.properties["tableServices"])
-        outputs = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
+        output_config = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
         params['tableServices'] = table_services
-        suffix = attrname or self._suffix
-        outputs[f"AZURE_TABLES_ENDPOINT_{suffix.upper()}"] = Output("outputs.serviceEndpoints.table", symbol)
-        return outputs
-
-    @overload
-    def __call__(
-            self,
-            cls: Callable[..., ClientType],
-            /,
-            *,
-            transport: Any = None,
-            options: Optional[Dict[str, Any]] = None,
-    ) -> ClientType:
-        ...
-    @overload
-    def __call__(self, *, transport: Any = None, options: Optional[Dict[str, Any]] = None) -> 'TableServiceClient':
-        ...
-    @overload
-    def __call__(self, cls: Type[Resource], /) -> Self:
-        ...
-    def __call__(self, cls=None, /, *, transport=None, options=None):
-        options = options or {}
-        if transport:
-            options['transport'] = transport
-        try:
-            # First we check if it's a Resource type or whether it has 'from_resource' constructor
-            return super()(self, cls, options=options)
-        except TypeError:
-            pass
-        kwargs = {}
-        endpoint = self.endpoint()
-        kwargs['credential'] = self.credential()
-        try:
-            kwargs['api_version'] = self.api_version()
-        except RuntimeError:
-            pass
-        try:
-            kwargs['audience'] = self.audience()
-        except RuntimeError:
-            pass
-        kwargs.update(self.client_options())
-        kwargs.update(options)
-        if cls and cls.__name__ != 'TableServiceClient':
-            client = cls(endpoint, **kwargs)
-        else:
-            from azure.data.tables import TableServiceClient
-            client = TableServiceClient(
-                endpoint,
-                **kwargs
-            )
-        client.__resource_settings__ = self
-        return client
+        return output_config

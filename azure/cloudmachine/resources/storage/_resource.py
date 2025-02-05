@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING, Literal, Unpack, Optional
+from typing import TYPE_CHECKING, Literal, Self, Union, Unpack, Optional, overload
+
+from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
 
 from ..._resource import Resource
 
@@ -6,18 +8,26 @@ if TYPE_CHECKING:
     from . import StorageAccountParams, StorageAccountKwargs
 
 
+# TODO: Fix publicNetworkAccess logic
 _DEFAULT_STORAGE_ACCOUNT: 'StorageAccountParams' = {
     "accessTier": "Hot",
     "allowBlobPublicAccess": False,
     "kind": "StorageV2",
     "skuName": "Standard_LRS",
+    "allowSharedKeyAccess": False,
+    "defaultToOAuthAuthentication": True,
+    "publicNetworkAccess": "Enabled",
+    "networkAcls": {
+        "bypass": "AzureServices",
+        "defaultAction": "Allow"
+    }
 }
 
 
 class StorageAccount(Resource):
     identifier: Literal["storage"] = "storage"
     module: Literal["br/public:avm/res/storage/storage-account"] = "br/public:avm/res/storage/storage-account"
-    defaults: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
+    DEFAULTS: 'StorageAccountParams' = _DEFAULT_STORAGE_ACCOUNT
     resource: Literal["Microsoft.Storage/storageAccounts"]
     properties: 'StorageAccountParams'
 
@@ -113,3 +123,40 @@ class StorageAccount(Resource):
     def version(self) -> str:
         from . import MODULE_VERSION
         return MODULE_VERSION
+
+    @property
+    def tag(self) -> str:
+        from . import MODULE_TAG
+        return MODULE_TAG
+
+    @overload
+    def reference(cls, resource_id: str, /) -> Self:
+        ...
+    @overload
+    def reference(
+            cls,
+            *,
+            name: str,
+            resource_group: Optional[Union[str, ResourceGroup]] = None,
+            subscription: Optional[str] = None,
+    ) -> Self:
+        ...
+    @classmethod
+    def reference(
+            cls,
+            resource_id: Optional[str] = None,
+            *,
+            name: Optional[str] = None,
+            resource_group: Optional[Union[str, ResourceGroup]] = None,
+            subscription: Optional[str] = None,
+    ) -> Self:
+        if resource_id:
+            return super().reference(resource_id)
+        from . import MODULE_RESOURCE, MODULE_VERSION
+        resource = f"{MODULE_RESOURCE}@{MODULE_VERSION}"
+        return super().reference(
+            resource=resource,
+            name=name,
+            resource_group=resource_group,
+            subscription=subscription
+        )

@@ -6,7 +6,8 @@ if TYPE_CHECKING:
 
 MODULE = "br/public:avm/res/storage/storage-account"
 MODULE_RESOURCE = "Microsoft.Storage/storageAccounts"
-MODULE_VERSION = "0.14.0"
+MODULE_VERSION = "2023-05-01"
+MODULE_TAG = "0.14.0"
 
 
 class CustomerManagedKey(TypedDict, total=False):
@@ -311,7 +312,7 @@ class StorageAccountParams(TypedDict, total=False):
     """Queue service and queues to create."""
     requireInfrastructureEncryption: bool
     """A Boolean indicating whether or not the service applies a secondary layer of encryption with platform managed keys for data at rest. For security reasons, it is recommended to set it to true."""
-    roleAssignments: List['RoleAssignment']
+    roleAssignments: List[Union['RoleAssignment', Literal['Contributor', 'Owner', 'Reader', 'Reader and Data Access', 'Role Based Access Control Administrator', 'Storage Account Backup Contributor', 'Storage Account Contributor', 'Storage Account Key Operator Service Role', 'Storage Blob Data Contributor', 'Storage Blob Data Owner', 'Storage Blob Data Reader', 'Storage Blob Delegator', 'Storage File Data Privileged Contributor', 'Storage File Data Privileged Reader', 'Storage File Data SMB Share Contributor', 'Storage File Data SMB Share Elevated Contributor', 'Storage File Data SMB Share Reader', 'Storage Queue Data Contributor', 'Storage Queue Data Message Processor', 'Storage Queue Data Message Sender', 'Storage Queue Data Reader', 'Storage Table Data Contributor', 'Storage Table Data Reader', 'User Access Administrator']]]
     """Array of role assignments to create."""
     sasExpirationPeriod: str
     """The SAS expiration period. DD.HH:MM:SS."""
@@ -387,7 +388,7 @@ class StorageAccountKwargs(TypedDict, total=False):
     """Whether or not public network access is allowed for this resource. For security reasons it should be disabled. If not specified, it will be disabled by default if private endpoints are set and networkAcls are not set."""
     require_infrastructure_encryption: bool
     """A Boolean indicating whether or not the service applies a secondary layer of encryption with platform managed keys for data at rest. For security reasons, it is recommended to set it to true."""
-    role_assignments: List['RoleAssignment']
+    role_assignments: List[Union['RoleAssignment', Literal['Contributor', 'Owner', 'Reader', 'Reader and Data Access', 'Role Based Access Control Administrator', 'Storage Account Backup Contributor', 'Storage Account Contributor', 'Storage Account Key Operator Service Role', 'Storage Blob Data Contributor', 'Storage Blob Data Owner', 'Storage Blob Data Reader', 'Storage Blob Delegator', 'Storage File Data Privileged Contributor', 'Storage File Data Privileged Reader', 'Storage File Data SMB Share Contributor', 'Storage File Data SMB Share Elevated Contributor', 'Storage File Data SMB Share Reader', 'Storage Queue Data Contributor', 'Storage Queue Data Message Processor', 'Storage Queue Data Message Sender', 'Storage Queue Data Reader', 'Storage Table Data Contributor', 'Storage Table Data Reader', 'User Access Administrator']]]
     """Array of role assignments to create."""
     sas_expiration_period: str
     """The SAS expiration period. DD.HH:MM:SS."""

@@ -2,7 +2,8 @@ from typing import TypedDict, Literal, List, Dict, Union
 
 MODULE = "br/public:avm/res/event-grid/system-topic"
 MODULE_RESOURCE = "Microsoft.EventGrid/systemTopics/eventSubscriptions"
-MODULE_VERSION = "0.4.0"
+MODULE_VERSION = "2023-12-15-preview"
+MODULE_TAG = "0.4.0"
 
 
 class SystemTopicSubscriptionParams(TypedDict, total=False):

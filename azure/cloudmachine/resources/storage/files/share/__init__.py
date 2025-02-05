@@ -3,7 +3,8 @@ from typing_extensions import Required
 
 MODULE = "br/public:avm/res/storage/storage-account"
 MODULE_RESOURCE = "Microsoft.Storage/storageAccounts/fileServices/shares"
-MODULE_VERSION = "0.14.0"
+MODULE_VERSION = "2023-01-01"
+MODULE_TAG = "0.14.0"
 
 
 class RoleAssignment(TypedDict, total=False):
