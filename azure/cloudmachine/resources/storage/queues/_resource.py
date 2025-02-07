@@ -122,13 +122,15 @@ class QueueStorage(_ClientResource):
         return MODULE_TAG
 
     @overload
+    @classmethod
     def reference(cls, resource_id: str, /) -> Self:
         ...
     @overload
+    @classmethod
     def reference(
         cls,
         *,
-        account_name: str,
+        name: str,
         resource_group: Optional[Union[str, ResourceGroup]] = None,
         subscription: Optional[str] = None,
     ) -> Self:
@@ -138,7 +140,7 @@ class QueueStorage(_ClientResource):
             cls,
             resource_id: Optional[str] = None,
             *,
-            account_name: Optional[str] = None,
+            name: Optional[str] = None,
             resource_group: Optional[str] = None,
             subscription: Optional[str] = None
     ) -> Self:
@@ -148,7 +150,7 @@ class QueueStorage(_ClientResource):
         resource = f"{MODULE_RESOURCE}@{MODULE_VERSION}"
 
         parent = StorageAccount.reference(
-            account_name=account_name,
+            account_name=name,
             resource_group=resource_group,
             subscription=subscription
         )

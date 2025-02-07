@@ -165,15 +165,17 @@ class BlobStorage(_ClientResource):
         return MODULE_TAG
 
     @overload
+    @classmethod
     def reference(cls, resource_id: str, /) -> Self:
         ...
     @overload
+    @classmethod
     def reference(
-        cls,
-        *,
-        name: str,
-        resource_group: Optional[Union[str, ResourceGroup]] = None,
-        subscription: Optional[str] = None,
+            cls,
+            *,
+            name: str,
+            resource_group: Optional[Union[str, ResourceGroup]] = None,
+            subscription: Optional[str] = None,
     ) -> Self:
         ...
     @classmethod

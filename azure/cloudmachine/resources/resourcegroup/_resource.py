@@ -57,9 +57,11 @@ class ResourceGroup(Resource):
         )
 
     @overload
+    @classmethod
     def reference(cls, resource_id: str, /) -> Self:
         ...
     @overload
+    @classmethod
     def reference(
             cls,
             *,

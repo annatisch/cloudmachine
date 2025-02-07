@@ -108,9 +108,11 @@ class AIDeployment(_ClientResource):
         return MODULE_TAG
 
     @overload
+    @classmethod
     def reference(cls, resource_id: str, /) -> Self:
         ...
     @overload
+    @classmethod
     def reference(
             cls,
             *,
