@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Self, TypedDict, Uni
 
 from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
 
-from ..._bicep.expressions import Expression, ModuleSymbol, Output, Parameter, ResourceGroupSymbol
+from ..._bicep.expressions import Expression, Output, Parameter, ResourceSymbol
 from ..._resource import Resource, FieldsType, FieldType
 
 if TYPE_CHECKING:
@@ -209,7 +209,7 @@ class MLWorkspace(Resource):
     def _find_resource_match(
             self,
             fields: FieldsType,
-            rg: ResourceGroupSymbol,
+            rg: ResourceSymbol,
             name: Optional[Union[str, Expression]] = None,
     ) -> Optional[FieldType]:
         kind = self.properties.get('kind')
@@ -229,9 +229,9 @@ class MLWorkspace(Resource):
             self,
             params: 'MachineLearningServicesWorkspaceParams',
             *,
-            symbol: ModuleSymbol,
+            symbol: ResourceSymbol,
             attrname: Optional[str] = None,
-            identity: Optional[ModuleSymbol],
+            identity: Optional[ResourceSymbol],
             **kwargs
     ) -> Dict[str, Any]:
         output_config = super()._merge_params(params, symbol=symbol, attrname=attrname, **kwargs)
@@ -268,11 +268,11 @@ class AIHub(MLWorkspace):
             self,
             params: 'MachineLearningServicesWorkspaceParams',
             *,
-            symbol: ModuleSymbol,
+            symbol: ResourceSymbol,
             fields: FieldsType,
             attrname: Optional[str] = None,
-            identity: Optional[ModuleSymbol],
-            resource_group: ModuleSymbol,
+            identity: Optional[ResourceSymbol],
+            resource_group: ResourceSymbol,
             **kwargs
     ) -> Dict[str, Any]:
         output_config = super()._merge_params(
@@ -337,10 +337,10 @@ class AIProject(MLWorkspace):
             self,
             params: 'MachineLearningServicesWorkspaceParams',
             *,
-            symbol: ModuleSymbol,
+            symbol: ResourceSymbol,
             fields: FieldsType,
             attrname: Optional[str] = None,
-            identity: Optional[ModuleSymbol],
+            identity: Optional[ResourceSymbol],
             **kwargs
     ) -> Dict[str, Any]:
         output_config = super()._merge_params(

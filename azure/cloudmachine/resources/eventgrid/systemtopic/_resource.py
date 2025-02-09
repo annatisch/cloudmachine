@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Self, Union, Unpack,
 
 from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
 
-from ...._bicep.expressions import ModuleSymbol, Output, Parameter
+from ...._bicep.expressions import Output, Parameter, ResourceSymbol
 from ...._resource import Resource, FieldsType
 
 if TYPE_CHECKING:
@@ -136,7 +136,7 @@ class EventSystemTopic(Resource):
             self,
             params: 'SystemTopicParams',
             *,
-            symbol: ModuleSymbol,
+            symbol: ResourceSymbol,
             fields: FieldsType,
             attrname: Optional[str] = None,
             **kwargs
@@ -168,7 +168,7 @@ class EventSystemTopic(Resource):
             params: Dict[str, Any],
             updated_params: Optional[Dict[str, Any]] = None,
             *,
-            identity: Optional[ModuleSymbol] = None
+            identity: Optional[ResourceSymbol] = None
     ) -> None:
         if updated_params:
             managed_identities = params.pop("managedIdentities", {})

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Self, Type, TypeVar, TypedDict, Union, Unpack, Optional, overload
 
-from ..._bicep.expressions import Output, ResourceGroupSymbol, Expression, ResourceSymbol
+from ..._bicep.expressions import Output, Expression, ResourceSymbol
 from ...resources.resourcegroup._resource import ResourceGroup
 from ..._resource import _ClientResource, Resource, FieldsType, FieldType
 
@@ -179,7 +179,7 @@ class CognitiveServicesAccount(_ClientResource):
     def _find_resource_match(
             self,
             fields: FieldsType,
-            rg: ResourceGroupSymbol,
+            rg: ResourceSymbol,
             name: Optional[Union[str, Expression]] = None,
     ) -> Optional[FieldType]:
         kind = self.properties.get('kind')
@@ -200,7 +200,7 @@ class CognitiveServicesAccount(_ClientResource):
             *,
             symbol: ResourceSymbol,
             attrname: Optional[str],
-            resource_group: ResourceGroupSymbol,
+            resource_group: ResourceSymbol,
             **kwargs
     ) -> Dict[str, Output]:
         outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)

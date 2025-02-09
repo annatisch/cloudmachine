@@ -2,14 +2,14 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, 
 
 from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
 
-from ....._bicep.expressions import Expression, ModuleSymbol, Output, Parameter, ResourceGroupSymbol, ResourceSymbol
+from ....._bicep.expressions import Expression, Output, Parameter, ResourceSymbol
 from ....._setting import StoredPrioritizedSetting
 from ....._resource import (
     Resource,
     _ClientResource,
     _build_envs,
 )
-from ..._resource import _DEFAULT_STORAGE_ACCOUNT
+from ... import _DEFAULT_STORAGE_ACCOUNT
 from .._resource import _DEFAULT_FILE_STORAGE, FileShareStorage
 
 
@@ -143,9 +143,9 @@ class FileShare(_ClientResource):
             shares: List['ShareParams'],
             new_share: 'ShareParams',
             *,
-            symbol: ModuleSymbol,
+            symbol: ResourceSymbol,
             parameters: Dict[str, Parameter],
-            identity: ModuleSymbol,
+            identity: ResourceSymbol,
     ) -> List['ShareParams']:
         share_name = new_share.get('name') or parameters['defaultName']
         existing = False
@@ -208,9 +208,9 @@ class FileShare(_ClientResource):
             self,
             params: 'StorageAccountParams',
             *,
-            symbol: ModuleSymbol,
+            symbol: ResourceSymbol,
             parameters: Dict[str, Parameter],
-            identity: ModuleSymbol,
+            identity: ResourceSymbol,
             attrname: Optional[str] = None,
             **kwargs
     ) -> Dict[str, Any]:

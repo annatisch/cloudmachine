@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Self, Union, Un
 
 from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
 
-from ....._bicep.expressions import ModuleSymbol, Output, Parameter
+from ....._bicep.expressions import Output, Parameter, ResourceSymbol
 from ....._setting import StoredPrioritizedSetting
 from ....._resource import (
     Resource,
@@ -158,7 +158,7 @@ class SystemTopicSubscription(Resource):
             new_subscription: 'SystemTopicSubscriptionParams',
             *,
             fields: FieldsType,
-            identity: Optional[ModuleSymbol],
+            identity: Optional[ResourceSymbol],
             parameters: Dict[str, Parameter],
     ) -> List['SystemTopicSubscriptionParams']:
         subscription_name = new_subscription.get('name') or parameters['defaultName']
@@ -230,8 +230,8 @@ class SystemTopicSubscription(Resource):
             self,
             params: 'SystemTopicParams',
             *,
-            symbol: ModuleSymbol,
-            identity: Optional[ModuleSymbol],
+            symbol: ResourceSymbol,
+            identity: Optional[ResourceSymbol],
             fields: FieldsType,
             attrname: Optional[str] = None,
             parameters: Dict[str, Parameter],
@@ -274,7 +274,7 @@ class SystemTopicSubscription(Resource):
             params: Dict[str, Any],
             updated_params: Optional[Dict[str, Any]] = None,
             *,
-            identity: Optional[ModuleSymbol] = None
+            identity: Optional[ResourceSymbol] = None
     ) -> None:
         if updated_params:
             managed_identities = params.pop("managedIdentities", {})

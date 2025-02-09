@@ -1,10 +1,15 @@
 import json
-from typing import Dict, List, TypeVar, Generic, Literal, Optional, Any, Union
-from enum import Enum
+from typing import Dict, List, Type, TypeVar, Generic, Literal, Optional, Any, Union
+from enum import StrEnum
 
 from .utils import resolve_value, serialize
 
 BicepDataTypes = Literal["string", "array", "object", "int", "bool"]
+
+class ParameterDefault(StrEnum):
+    MISSING = 'None'
+
+MISSING = ParameterDefault.MISSING
 
 
 class Expression:
@@ -12,30 +17,32 @@ class Expression:
         self._value = value
 
     def __eq__(self, value: Any) -> bool:
-        if isinstance(value, Expression):
-            return self._value == value._value
-        return False
+        try:
+            self.value == value.value
+        except AttributeError:
+            return False
 
     def __repr__(self) -> str:
         return resolve_value(self._value)
 
     def __hash__(self):
-        return hash(self._value)
+        return hash(self.value)
 
-    def _resolve_ref(self, expression: Union['Expression', str]):
+    def _resolve_expression(self, expression: Union['Expression', str]):
         try:
-            return expression.resolve()
+            return expression.value
         except AttributeError:
             return expression
 
     def _resolve_obj(self, value: Union['Expression', Any]):
         try:
-            return value.resolve()
+            return value.value
         except AttributeError:
             return serialize(value)
 
-    def resolve(self) -> str:
-        return self._resolve_ref(self._value)
+    @property
+    def value(self) -> str:
+        return self._resolve_expression(self._value)
     
     def format(
             self,
@@ -43,132 +50,57 @@ class Expression:
             prefix: Union['Expression', str] = "",
             suffix: Union['Expression', str] = "",
     ) -> str:
-        return f"{self._resolve_ref(prefix)}${{{self.resolve()}}}{self._resolve_ref(suffix)}"
+        return f"{self._resolve_expression(prefix)}${{{self.value}}}{self._resolve_expression(suffix)}"
 
 
 class Subscription(Expression):
     def __init__(self, subscription: Optional[Union[Expression, str]] = None, /):
         self._sub = subscription
 
-    def __eq__(self, value: Any) -> bool:
-        if isinstance(value, Subscription):
-            return self._sub == value._sub
-        return False
-
     def __repr__(self) -> str:
         return f"subscription({self._sub})"
 
-    def __hash__(self):
-        return hash(self._sub)
-
-    def resolve(self) -> str:
+    @property
+    def value(self) -> str:
         if self._sub:
             return f"subscription({resolve_value(self._sub)})"
         return f"subscription()"
 
     @property
     def subscription_id(self) -> Expression:
-        return Expression(f"{self.resolve()}.subscriptionId")
+        return Expression(f"{self.value}.subscriptionId")
 
-
-class Output(Expression):
-    def __init__(
-            self,
-            path: Union[Expression, str],
-            symbol: Optional[Expression] = None,
-            resolve_to_str: bool = False
-    ) -> None:
-        self.symbol = symbol
-        self._path = path
-        self._to_str = resolve_to_str
-
-    def __repr__(self) -> str:
-        return f"Output({self.symbol}, {self._path})"
-
-    def __eq__(self, value):
-        if isinstance(value, Output):
-            return self._path == value._path and self.symbol == value.symbol
-        return False
-
-    def __hash__(self):
-        return hash((self.symbol, self._path))
-
-    def resolve(self) -> str:
-        value = self._resolve_ref(self._path)
-        if self.symbol:
-            return f"{self.symbol.resolve()}.{self._path}"
-        #if self._to_str:
-        #    return f"'${value}'"
-        return value
 
 class ResourceSymbol(Expression):
     def __init__(
             self,
             value: str,
             *,
-            name: str = "name",
-            id: str = "id",
-            principal_id: Optional[str] = None,
+            principal_id: bool = False,
     ) -> None:
         self._value = value
-        self._name_output = name
-        self._id_output = id
         self._principal_id_output = principal_id 
 
     def __repr__(self) -> str:
         return f"resource({self._value})"
 
-    def __eq__(self, value: Any) -> bool:
-        if isinstance(value, ResourceSymbol):
-            return self._value == value._value
-        return False
-
-    def __hash__(self):
-        return hash(self._value)
-
-    def resolve(self) -> str:
+    @property
+    def value(self) -> str:
         return self._value
 
     @property
-    def name(self) -> Output:
-        return Output(self._name_output, self)
+    def name(self) -> 'Output[str]':
+        return Output("name", self)
 
     @property
-    def id(self) -> Output:
-        return Output(self._id_output, self)
+    def id(self) -> 'Output[str]':
+        return Output("id", self)
 
     @property
-    def principal_id(self) -> Output:
+    def principal_id(self) -> 'Output[str]':
         if not self._principal_id_output:
             raise ValueError("Module has no principal ID output.")
-        return Output(self._principal_id_output, self)
-
-
-class ModuleSymbol(ResourceSymbol):
-    def __init__(self, value: str, *, name: str = "outputs.name", id: str = "outputs.resourceId", principal_id = None):
-        super().__init__(value, name=name, id=id, principal_id=principal_id)
-
-    def __repr__(self) -> str:
-        return f"module({self._value})"
-
-class ResourceGroupSymbol(ModuleSymbol):
-    def __init__(self, symbol: str, *, name: str, existing: bool = False):
-        if existing:
-            super().__init__(symbol, name="name", id="id")
-        else:
-            super().__init__(symbol)
-        self._name = name
-
-    def __repr__(self) -> str:
-        return f"resourceGroup({resolve_value(self._name)})"
-
-    def __eq__(self, value: Any) -> bool:
-        if isinstance(value, ResourceGroupSymbol):
-            return self._name == value._name
-        return False
-
-    def __hash__(self):
-        return hash(self._name)
+        return Output("principalId", self)
 
 
 class Variable(Expression):
@@ -215,13 +147,18 @@ class Variable(Expression):
         return self._name
 
 
-class Parameter(Expression):
+ParameterType = TypeVar("ParameterType", str, int, bool, dict, list, None)
+class Parameter(Expression, Generic[ParameterType]):
+    name: str
+    type: str
+    default: Optional[ParameterType]
+
     def __init__(
             self,
             name: str,
-            type: str,
             *,
-            default: Optional[Any] = None,
+            type: Type[ParameterType] = str,
+            default: ParameterType = MISSING,
             secure: bool = False,
             description: Optional[str] = None,
             varname: Optional[str] = None,
@@ -231,9 +168,9 @@ class Parameter(Expression):
             max_length: Optional[int] = None,
             min_length: Optional[int] = None,
     ):
-        self._name = name
+        self.name = name
+        self.default = default
         self._type = type
-        self._default = default
         self._secure = secure
         self._description = description
         self._varname = varname
@@ -243,18 +180,31 @@ class Parameter(Expression):
         self._max_length = max_length
         self._min_length = min_length
 
+    @property
+    def value(self) -> str:
+        return self.name
+
+    @property
+    def type(self) -> str:
+        if self._type is str:
+            return "string"
+        if self._type is bool:
+            return "boolean"
+        if self._type is list:
+            return "array"
+        if self._type is int:
+            return "int"
+        if self._type is dict:
+            return "object"
+        else:
+            raise TypeError(f"Unrecognized parameter type: '{self._type}'.")
+
     def __repr__(self) -> str:
-        return f"parameter({self._name})"
+        if self.default is not MISSING:
+            return f"parameter({self.name}={self.default})"
+        return f"parameter({self.name})"
 
-    def __eq__(self, value):
-        if isinstance(value, Parameter):
-            return self._name == value._name and self._type == value._type
-        return False
-
-    def __hash__(self):
-        return hash((self._name, self._type))
-
-    def main_declare(self) -> str:
+    def __bicep(self) -> str:
         declaration = ""
         if self._secure:
             declaration += "@sys.secure()\n"
@@ -277,65 +227,83 @@ class Parameter(Expression):
             declaration += f"@sys.maxLength({self._max_length})\n"
         if self._min_length is not None:
             declaration += f"@sys.minLength({self._min_length})\n"
-        declaration += f"param {self._name} {self._type}"
-        if self._default is not None:
+        declaration += f"param {self.name} {self.type}"
+        if self.default is not MISSING:
             declaration += " = "
-            declaration += serialize(self._default)
+            declaration += serialize(self.default)
         declaration += "\n\n"
         return declaration
 
-    def module_declare(self) -> str:
-        return f"param {self._name} {self._type}\n"
-
-    def parameter(self) -> Dict[str, Dict[str, str]]:
+    def __obj(self) -> Dict[str, Dict[str, str]]:
         if not self._varname:
             return {}
-        value = f"${{{self._varname}={self._default}}}" if self._default else f"${{{self._varname}}}"
+        value = f"${{{self._varname}={self.default}}}" if self.default else f"${{{self._varname}}}"
         return {
-            self._name: {
+            self.name: {
                 "value": value
             }
         }
 
-    def resolve(self) -> str:
-        return self._name
+class Output(Parameter[ParameterType]):
+    def __init__(
+            self,
+            name: str,
+            path: Union[Expression, str],
+            symbol: Optional[ResourceSymbol] = None,
+            *,
+            type: Type[ParameterType] = str,
+            description: Optional[str] = None
+    ) -> None:
+        self.symbol = symbol
+        self._path = path
+        super().__init__(name=name, type=type, description=description)
+
+    def __repr__(self) -> str:
+        return f"output({self.name}, {self.type})"
+
+    @property
+    def value(self) -> str:
+        if self.symbol:
+            return f"{self.symbol.name}.{self._path}"
+        value = self._resolve_expression(self._path)
+        return value
+
+    def __bicep(self) -> str:
+        declaration = ""
+        if self._description:
+            declaration += f"@sys.description('{self._description}')\n"
+        return declaration
 
 
-class Guid(Expression):
+class Guid(Parameter[str]):
     def __init__(self, basestr: Union[Expression, str], *args: Union[Expression, str]) -> None:
         self._args = [basestr] + list(args)
 
     def __repr__(self):
-        return "guid(...)"
+        return f"guid({self._args[0]}, ...)"
 
-    def __eq__(self, value):
-        if isinstance(value, Guid):
-            return self._args == value._args
-        return False
+    @property
+    def type(self) -> str:
+        return "string"
 
-    def __hash__(self):
-        return hash(tuple(self._args))
-
-    def resolve(self) -> str:
+    @property
+    def value(self) -> str:
         arg_str = ", ".join([resolve_value(a) for a in self._args])
         return f"guid({arg_str})"
 
 
-class UniqueString(Expression):
+class UniqueString(Parameter[str]):
     def __init__(self, basestr: Union[Expression, str], *args: Union[Expression, str]) -> None:
         self._args = [basestr] + list(args)
 
     def __repr__(self):
-        return "uniqueString(...)"
+        return f"uniqueString({self._args[0]}, ...)"
 
-    def __eq__(self, value):
-        if isinstance(value, UniqueString):
-            return self._args == value._args
-        return False
+    @property
+    def type(self) -> str:
+        return "string"
 
-    def __hash__(self):
-        return hash(tuple(self._args))
-
-    def resolve(self) -> str:
+    @property
+    def value(self) -> str:
         arg_str = ", ".join([resolve_value(a) for a in self._args])
         return f"uniqueString({arg_str})"

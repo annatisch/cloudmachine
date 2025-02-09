@@ -2,6 +2,7 @@
 from ._resource import Resource, DefaultAction
 from ._provision import provision, export
 from ._component import resource, reference, CloudMachine
+from ._bicep.expressions import Parameter
 from ._version import VERSION
 
 MISSING = DefaultAction.MISSING
@@ -13,4 +14,5 @@ __all__ = [
     'reference',
     'Resource',
     'CloudMachine',
+    'Parameter'
 ]

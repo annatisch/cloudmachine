@@ -4,14 +4,14 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, 
 
 from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
 
-from ....._bicep.expressions import ModuleSymbol, Output, Parameter, ResourceSymbol, Expression
+from ....._bicep.expressions import Output, Parameter, ResourceSymbol, Expression
 from ....._setting import StoredPrioritizedSetting
 from ....._resource import (
     Resource,
     _ClientResource,
     _build_envs,
 )
-from ..._resource import _DEFAULT_STORAGE_ACCOUNT
+from ... import _DEFAULT_STORAGE_ACCOUNT
 from .._resource import _DEFAULT_BLOB_STORAGE, BlobStorage
 
 
@@ -157,9 +157,9 @@ class BlobContainer(_ClientResource):
             containers: List['ContainerParams'],
             new_container: 'ContainerParams',
             *,
-            symbol: ModuleSymbol,
+            symbol: ResourceSymbol,
             parameters: Dict[str, Parameter],
-            identity: ModuleSymbol,
+            identity: ResourceSymbol,
     ) -> List['ContainerParams']:
         container_name = new_container.get('name') or parameters['defaultName']
         existing = False
@@ -222,9 +222,9 @@ class BlobContainer(_ClientResource):
             self,
             params: 'StorageAccountParams',
             *,
-            symbol: ModuleSymbol,
+            symbol: ResourceSymbol,
             parameters: Dict[str, Parameter],
-            identity: ModuleSymbol,
+            identity: ResourceSymbol,
             attrname: Optional[str] = None,
             **kwargs
     ) -> Dict[str, Any]:

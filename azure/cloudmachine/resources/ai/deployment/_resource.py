@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, 
 
 from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
 
-from ...._bicep.expressions import Expression, ModuleSymbol, Output, Parameter, ResourceGroupSymbol, ResourceSymbol
+from ...._bicep.expressions import Expression, Output, Parameter, ResourceSymbol
 from ...._setting import StoredPrioritizedSetting
 from ...._resource import (
     Resource,
@@ -182,7 +182,7 @@ class AIDeployment(_ClientResource):
             *,
             symbol: ResourceSymbol,
             attrname: Optional[str],
-            resource_group: Union[str, ResourceGroupSymbol],
+            resource_group: Union[str, ResourceSymbol],
             name: Union[str, Expression],
             model: Optional[str] = None,
             version: Optional[str] = None,
@@ -222,7 +222,7 @@ class AIDeployment(_ClientResource):
             self,
             params: 'CognitiveServicesAccountParams',
             *,
-            symbol: ModuleSymbol,
+            symbol: ResourceSymbol,
             parameters: Dict[str, Parameter],
             attrname: Optional[str] = None,
             **kwargs

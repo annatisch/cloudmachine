@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Literal, Self, Union, Unpack, overload, Option
 
 from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
 
-from ..._bicep.expressions import ModuleSymbol, Output, ResourceSymbol
+from ..._bicep.expressions import Output, ResourceSymbol
 from ..._bicep.utils import generate_name, generate_suffix
 from ..._resource import Resource
 
@@ -97,14 +97,14 @@ class UserAssignedIdentity(Resource):
             subscription=subscription
         )
 
-    def _symbol(self) -> ModuleSymbol:
+    def _symbol(self) -> ResourceSymbol:
         resource_ref = self.resource.split("/")[0].split(".")[1]
         if self._existing:
             return ResourceSymbol(
                 f"{resource_ref.lower()}_{self._suffix}",
                 principal_id="properties.principalId"
             )
-        return ModuleSymbol(
+        return ResourceSymbol(
             f"{resource_ref.lower()}_{self._suffix}",
             principal_id="outputs.principalId"
         )

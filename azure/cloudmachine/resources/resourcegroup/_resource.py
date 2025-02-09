@@ -4,15 +4,13 @@ from ..._bicep.expressions import (
     Expression,
     Output,
     Parameter,
-    ModuleSymbol,
-    ResourceGroupSymbol,
     ResourceSymbol,
     Variable,
     UniqueString,
     Subscription,
 )
 from ..._bicep.utils import generate_name, generate_suffix
-from ..._resource import Resource, FieldsType, FieldType
+from ..._resource import Resource, FieldsType, FieldType, ResourceReference
 
 if TYPE_CHECKING:
     from . import ResourceGroupParams, ResourceGroupKwargs
@@ -33,12 +31,12 @@ class ResourceGroup(Resource):
             self,
             properties: Optional['ResourceGroupParams'] = None,
             /,
-            resource_group_name: Optional[str] = None,
+            name: Optional[str] = None,
             **kwargs: Unpack['ResourceGroupKwargs']
     ) -> None:
         rg_params: 'ResourceGroupParams' = properties or {}
-        if resource_group_name:
-            rg_params['name'] = resource_group_name
+        if name:
+            rg_params['name'] = name
         if 'enable_telemetry' in kwargs:
             rg_params['enableTelemetry'] = kwargs.pop('enable_telemetry')
         if 'location' in kwargs:
@@ -51,34 +49,19 @@ class ResourceGroup(Resource):
             rg_params['tags'] = kwargs.pop('tags')
 
         super().__init__(
-            properties=rg_params,
+            rg_params,
             service_prefix=["resource_group"],
             **kwargs
         )
 
-    @overload
-    @classmethod
-    def reference(cls, resource_id: str, /) -> Self:
-        ...
-    @overload
     @classmethod
     def reference(
             cls,
             *,
             name: str,
             subscription: Optional[str] = None,
-    ) -> Self:
-        ...
-    @classmethod
-    def reference(
-            cls,
-            resource_id: Optional[str] = None,
-            *,
-            name: Optional[str] = None,
-            subscription: Optional[str] = None,
-    ) -> Self:
-        if resource_id:
-            return super().reference(resource_id)
+    ) -> 'ResourceGroup[ResourceReference]':
+
         from . import MODULE_RESOURCE, MODULE_VERSION
         resource = f"{MODULE_RESOURCE}@{MODULE_VERSION}"
         existing = super().reference(
@@ -98,11 +81,6 @@ class ResourceGroup(Resource):
         from . import MODULE_VERSION
         return MODULE_VERSION
 
-    @property
-    def tag(self) -> str:
-        from . import MODULE_TAG
-        return MODULE_TAG
-
     def __bicep__(
             self,
             fields: FieldsType,
@@ -115,7 +93,7 @@ class ResourceGroup(Resource):
         if self._existing:
             rg_name = self._reference['name']
             base_symbol = self._symbol()
-            symbol = ResourceGroupSymbol(
+            symbol = ResourceSymbol(
                 symbol=base_symbol._value,
                 name=base_symbol.name,
                 existing=True
@@ -135,7 +113,7 @@ class ResourceGroup(Resource):
         except KeyError:
             rg_name = parameters['defaultName']
 
-        symbol = ResourceGroupSymbol(
+        symbol = ResourceSymbol(
             symbol=self._symbol()._value,
             name=rg_name,
         )

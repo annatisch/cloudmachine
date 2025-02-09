@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Self, Type, TypeVar, TypedDict, Union, Unpack, Optional, overload
 
-from azure.cloudmachine._bicep.expressions import Output, ResourceGroupSymbol, ResourceSymbol
+from azure.cloudmachine._bicep.expressions import Output, ResourceSymbol
 from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
 
 from ..._resource import _ClientResource, Resource
@@ -181,7 +181,7 @@ class SearchService(_ClientResource):
              *,
              symbol: ResourceSymbol,
              attrname: Optional[str],
-             resource_group: ResourceGroupSymbol,
+             resource_group: ResourceSymbol,
              **kwargs
     ) -> Dict[str, Output]:
         outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group)

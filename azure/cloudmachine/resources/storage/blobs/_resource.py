@@ -1,9 +1,9 @@
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Self, Union, Unpack, overload, Optional, Any, Type, TypeVar
 
 from ....resources.resourcegroup._resource import ResourceGroup
-from ...._bicep.expressions import ModuleSymbol, Output, ResourceGroupSymbol, ResourceSymbol
+from ...._bicep.expressions import Output, ResourceSymbol
 from ...._resource import Resource, _ClientResource
-from .._resource import _DEFAULT_STORAGE_ACCOUNT, StorageAccount
+from .. import _DEFAULT_STORAGE_ACCOUNT, StorageAccount
 
 if TYPE_CHECKING:
     from .. import StorageAccountParams
@@ -208,7 +208,7 @@ class BlobStorage(_ClientResource):
              *,
              symbol: ResourceSymbol,
              attrname: Optional[str],
-             resource_group: ResourceGroupSymbol,
+             resource_group: ResourceSymbol,
              parent: Optional[ResourceSymbol] = None,
              **kwargs
     ) -> Dict[str, Output]:
@@ -224,7 +224,7 @@ class BlobStorage(_ClientResource):
             self,
             params: 'StorageAccountParams',
             *,
-            symbol: ModuleSymbol,
+            symbol: ResourceSymbol,
             attrname: Optional[str] = None,
             **kwargs
         ) -> Dict[str, Any]:

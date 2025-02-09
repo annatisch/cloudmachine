@@ -30,9 +30,11 @@ from inspect import get_annotations
 import inspect
 from itertools import takewhile, product, accumulate
 from enum import Enum
+from copy import deepcopy
 import os
 import json
 from typing import (
+    Generic,
     Mapping,
     Required,
     Tuple,
@@ -65,11 +67,12 @@ from azure.core.credentials_async import AsyncSupportsTokenInfo
 from azure.core.settings import PrioritizedSetting
 
 from ._setting import StoredPrioritizedSetting
-from ._bicep.expressions import Guid, ModuleSymbol, Output, Expression, Parameter, ResourceGroupSymbol, ResourceSymbol, Subscription, UniqueString, Variable
+from ._bicep.expressions import Guid, Output, Expression, Parameter, ResourceSymbol, Subscription, UniqueString, Variable
 from ._bicep.utils import serialize, generate_suffix, resolve_value, serialize_dict, clean_name
 
 if TYPE_CHECKING:
     from .resources.resourcegroup._resource import ResourceGroup
+    from .resources._extension.roles import RoleAssignment
 
 
 class DefaultAction(Enum):
@@ -85,22 +88,6 @@ CredentialTypes = Union[
     Callable[[], AsyncSupportsTokenInfo],
     Literal['default', 'managedidentity'],
 ]
-
-class ResourceReference(TypedDict, total=False):
-    name: Required[str]
-    scope: ResourceGroup
-    parent: ResourceSymbol
-
-
-class FieldType(NamedTuple):
-    resource: str
-    params: Dict[str, Any]
-    symbol: ResourceSymbol
-    outputs: Dict[str, Union[str, Output]]
-    resource_group: ResourceGroupSymbol
-    version: str
-
-FieldsType = Dict[str, FieldType]
 
 
 def _load_dev_environment(name: Optional[str] = None, label: Optional[str] = None) -> Dict[str, str]:
@@ -130,45 +117,61 @@ def _build_envs(services: List[str], attributes: List[str]) -> List[str]:
 
 _EMPTY_DEFAULT = {}
 
+class ResourceReference(TypedDict, total=False):
+    name: Required[Union[str, Parameter[str]]]
+    resource_group: 'ResourceGroup'
+    subscription: Union[str, Parameter[str]]
 
-class Resource:
-    identifier: str = ""
-    module: str = ""
+class ExtensionResources(TypedDict, total=False):
+    role_assignments: Union[Parameter[List[Union['RoleAssignment', str]]], List[Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', str]]]
+    local_access_role: Union[Union['RoleAssignment', str], Parameter[Union['RoleAssignment', str]]]
+    # lock
+    # diagnostics
+    # private endpoint
+    # secret store
+
+
+ResourcePropertiesType = TypeVar("ResourcePropertiesType", bound=dict[str, Any])
+
+class FieldType(NamedTuple, Generic[ResourcePropertiesType]):
+    resource: str
+    version: str
+    properties: ResourcePropertiesType
+    symbol: ResourceSymbol
+    outputs: Dict[str, Union[str, Output]]
+    resource_group: ResourceSymbol
+    extensions: ExtensionResources
+    
+
+FieldsType = Dict[str, FieldType]
+
+class Resource(Generic[ResourcePropertiesType]):
     DEFAULTS: Mapping[str, Any] = _EMPTY_DEFAULT
     resource: str
-    module: str
     version: str
-    tag: str
     name: PrioritizedSetting[str, str]
     id: PrioritizedSetting[str, str]
     subscription: PrioritizedSetting[str, str]
-    properties: Mapping[str, Any]
-    component: Type
-    attr: str
+    properties: ResourcePropertiesType
+    extensions: ExtensionResources
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, properties: Optional[Dict[str, Any]] = None, /, **kwargs) -> None:
         """This constructor should not be used directly."""
-        self.properties: Dict[str, Any] = kwargs.pop('properties', {})
-        self._resource = ""
-        self._version = ""
+        self.properties: ResourcePropertiesType = properties or {}
+        self.extensions: ExtensionResources = kwargs.pop('extensions', {})
+        self._parent: Optional[Resource] = kwargs.pop('parent', None)
+        self._resource: str = kwargs.pop('resource', "")
+        self._subresource: Optional[str] = kwargs.pop('subresource', '')
+        self._version: str = kwargs.pop('resource_version', "")
+        self._suffix = ""
+        self._existing: bool = kwargs.pop('existing', False)
         self._prefixes: List[str] = kwargs.pop('service_prefix', [])
-        self._default = kwargs.pop('default', DefaultAction.BUILD_DEFAULT)
-        self._default_factory: Optional[Callable[[Dict[str, Any]], Any]] = kwargs.pop('default_factory', None)
-        self._supports_managed_identity = False
-        self._existing = False
-        self._reference: Optional[ResourceReference] = None
-
-        self._suffix = generate_suffix(5)
-        self._component: Optional[Type] = None
-        self._component_attr: Optional[str] = None
-        self._apps: List[str] = []
-        self._attrs: List[str] = []
-        self._inferred_resource: Optional[str] = None
-        self._inferred_reference: Optional[str] = None
-        self._inferred_obj: Optional[Resource] = None
-
-        self._args = kwargs.pop('args', [])
-        self._kwargs = kwargs.pop('kwargs', {})
+        self._default_action: DefaultAction = kwargs.pop('default_action', DefaultAction.BUILD_DEFAULT)
+        self._supports_managed_identity: bool = False
+        self._project_objects: List[Type] = []
+        self._project_attr_names: List[str] = []
+        if self._parent and not self._subresource:
+            raise ValueError('Parent must be specified with subresource.')
         if kwargs:
             raise TypeError(f"Resource {self.__class__.__name__} got unexpected kwargs: {list(kwargs.keys())}")
 
@@ -176,7 +179,7 @@ class Resource:
             'name',
             env_vars=_build_envs(self._prefixes, ['NAME']),
         )
-        self.id = StoredPrioritizedSetting(
+        self.resource_id = StoredPrioritizedSetting(
             name='resource_id',
             env_vars=_build_envs(self._prefixes, ['ID', 'RESOURCE_ID']),
             system_hook=self._build_resource_id
@@ -191,111 +194,17 @@ class Resource:
         )
         self._settings: Dict[str, StoredPrioritizedSetting] = {
             "name": self.name,
-            "id": self.id,
+            "resource_id": self.resource_id,
             "subscription_id": self.subscription,
             "resource_group": self.resource_group,
         }
 
-    @overload
-    @classmethod
-    def reference(cls, resource_id: str, /) -> Self:
-        ...
-    @overload
-    @classmethod
-    def reference(
-        cls,
-        *,
-        resource: str,
-        name: str,
-        resource_group: Optional[Union[str, 'ResourceGroup']] = None,
-        subscription: Optional[str] = None,
-    ) -> Self:
-        ...
-    @classmethod
-    def reference(
-            cls,
-            resource_id: Optional[str] = None,
-            *,
-            resource: Optional[str] = None,
-            name: Optional[str] = None,
-            resource_group: Optional[Union[str, 'ResourceGroup']] = None,
-            subscription: Optional[str] = None,
-            parent: Optional[Resource] = None,
-    ) -> Self:
-        if resource_id:
-            # We got resource ID.
-            raise NotImplementedError("TODO: Parse resource ID")
-        properties = ResourceReference(name=name)
-        if parent:
-            properties['parent'] = parent
-        if resource_group:
-            if isinstance(resource_group, str):
-                from .resources.resourcegroup._resource import ResourceGroup
-                resource_group = ResourceGroup.reference(name=resource_group, subscription=subscription)
-            properties['scope'] = resource_group
-
-        resource_ref = cls({})
-        resource_ref.name.set_value(name)
-        if resource_group:
-            resource_ref.resource_group.set_value(resource_group._reference['name'])
-        if subscription:
-            resource_ref.subscription.set_value(subscription)
-        resource_ref._reference = properties
-        resource_type, resource_version = resource.split('@')
-        resource_ref._resource = resource_type
-        resource_ref._version = resource_version
-        resource_ref._existing = True
-        suffix = '_' + clean_name(name).upper()
-        resource_ref._append_suffix(suffix)
-        return resource_ref
-
-    @classmethod
-    def _from_inferred_resource(cls, *args, **kwargs):
-        return cls(
-            properties={},
-            service_prefix=[],
-            args=args,
-            kwargs=kwargs,
-        )
-
-    def __repr__(self) -> str:
-        if self._reference:
-            name = self._reference['name']
-        else:
-            name = self.properties.get('name', '<default>')
-        return f"{self.__class__.__name__}('{name}')"
-
-    def __set_name__(self, owner: Type, name: str) -> None:
-        self.attr = name
-        if self._component is None:
-            if not self.resource:
-                from .resources import RESOURCE_BY_ANNOTATION
-                try:
-                    annotation = get_annotations(owner)[name]
-                except KeyError:
-                    raise RuntimeError(f"Resource '{name}' is missing type hint or resource identifier.") from None
-                self._inferred_resource = RESOURCE_BY_ANNOTATION[annotation.__name__].identifier
-        self.component = owner
-
-    def __get__(self, *args) -> Self:
-        if self._inferred_obj:
-            return self._inferred_obj
-        if self._inferred_resource:
-            from ._component import resource, reference
-            inferred_resource = resource(
-                self._inferred_resource,
-                *self._args,
-                **self._kwargs
-            )
-            inferred_resource._append_suffix(self._get_suffix())
-            inferred_resource._component = self._component
-            inferred_resource._component_attr = self._component_attr
-            inferred_resource._apps = self._apps
-            inferred_resource._attrs = self._attrs
-            inferred_resource._suffix = self._suffix
-            self._inferred_obj = inferred_resource
-            return inferred_resource
-        return self
+    def __eq__(self, value: Any) -> bool:
+        """Resource comparison. Resource is the same if it's the same type and same name."""
+        try:
+            return value.resource == self.resource and value.properties.get('name') == self.properties.get('name')
+        except:
+            return False
 
     @property
     def resource(self) -> str:
@@ -305,40 +214,68 @@ class Resource:
     def version(self) -> str:
         return self._version
 
-    @property
-    def tag(self) -> str:
-        return ""
+    @classmethod
+    def reference(
+            cls,
+            resource: str,
+            *,
+            name: str,
+            resource_group: Optional[Union[str, 'ResourceGroup', Parameter[str]]] = None,
+            subscription: Optional[Union[str, Parameter[str]]] = None,
+            parent: Optional[Resource] = None,
+    ) -> Self[ResourceReference]:
+        if parent and resource_group:
+            raise ValueError("Cannot specify both parent and resource_group.")
+        resource_type, resource_version = resource.split('@')
+        properties = ResourceReference(name=name)
+        if resource_group:
+            if isinstance(resource_group, str):
+                from .resources.resourcegroup._resource import ResourceGroup
+                resource_group = ResourceGroup.reference(name=resource_group, subscription=subscription)
+            properties['resource_group'] = resource_group
+        if subscription:
+            properties['subscription'] = subscription
+        resource_ref = cls(
+            properties,
+            resource=resource_type,
+            resource_version=resource_version,
+            parent=parent,
+            existing=True
+        )
+        resource_ref._set_suffix(name)
+        resource_ref.name.set_value(name)
+        if resource_group and isinstance(resource_group.properties['name'], str):
+            resource_ref.resource_group.set_value(resource_group.properties['name'])
+        if subscription and isinstance(subscription, str):
+            resource_ref.subscription.set_value(subscription)
+        return resource_ref
 
-    @property
-    def component(self) -> Type:
-        if not self._component:
-            raise ValueError("Resource not declared within a CloudMachine component.")
-        return self._component
-    
-    @component.setter
-    def component(self, value: Type) -> None:
-        if value not in self._apps:
-            self._apps.append(value)
-        if not self._component:
-            self._component = value
+    def __repr__(self) -> str:
+        name = self.properties.get('name', '<default>')
+        return f"{self.__class__.__name__}('{name}')"
 
-    @property
-    def attr(self) -> str:
-        if not self._component_attr:
-            raise ValueError("Resource not declared within a CloudMachine component.")
-        return self._component_attr
+    def __set_name__(self, owner: Type, name: str) -> None:
+        self._project_objects.append(owner)
+        self._project_attr_names.append(name)
 
-    @attr.setter
-    def attr(self, value: str) -> None:
-        if value not in self._attrs:
-            self._attrs.append(value)
-            suffix = clean_name(value).upper()
-            self._append_suffix('_' + suffix)
-        if not self._component_attr:
-            self._component_attr = value
+    def _add_attr(self, value: str) -> None:
+        if value in self._project_attr_names:
+            return
+        self._project_attr_names.append(value)
+        self._set_suffix(value)
+
+    def _set_suffix(self, value: str) -> None:
+        self._suffix = '_' + clean_name(value).upper()
+        for setting in self._settings.values():
+            setting.suffix = self._suffix
 
     def _build_resource_id(self) -> str:
-        raise NotImplementedError()
+        if not self._resource:
+            raise ValueError("No resource specified.")
+        if self._parent:
+            return f"{self._parent._build_resource_id()}/{self._subresource}/{self.name()}"
+        prefix = f"/subscriptions/{self.subscription()}/resourceGroups/{self.resource_group()}/providers/"
+        return prefix + f"{self._resource}/{self.name()}"
 
     def add_config_store(self, config: Mapping[str, Any], position: Literal['first', 'last'] = 'first') -> None:
         if position == 'first':
@@ -348,70 +285,63 @@ class Resource:
             for setting in self._settings.values():
                 setting.config_stores.append(config)
 
-    def _append_suffix(self, suffix: str) -> None:
-        for setting in self._settings.values():
-            setting.suffix = suffix
-
-    def _get_suffix(self) -> str:
-        return self._settings['id'].suffix
-
     def _symbol(self) -> ResourceSymbol:
-        if not self.resource:
+        if not self._resource:
             raise TypeError("Empty Resource object cannot be provisioned.")
         resource_ref = self.resource.split("/")[0].split(".")[1]
         symbol = f"{resource_ref.lower()}_{self._suffix}"
-        pid = None
-        if self.module and not self._existing:
-            if self.properties.get('managedIdentities', {}).get('systemAssigned', False):
-                pid = "outputs.systemAssignedMIPrincipalId"
-            return ModuleSymbol(symbol, principal_id=pid)
+        principal_id = None
         if self.properties.get('identity', {}).get('type', "").startswith('SystemAssigned'):
-            pid = "principalId"
-        return ResourceSymbol(symbol, principal_id=pid)
+            principal_id = "principalId"
+        return ResourceSymbol(symbol, principal_id=principal_id)
     
     def _outputs(
             self,
              *,
              symbol: ResourceSymbol,
-             attrname: Optional[str],
-             resource_group: Optional[ResourceGroupSymbol],
+             resource_group: ResourceSymbol,
              **kwargs
     ) -> Dict[str, Output]:
-        suffix = clean_name(attrname or self.properties.get('name', '')).upper()
-        suffix = ('_' + suffix) if suffix else suffix
-        self._append_suffix(suffix)
-        is_module = bool(self.module) and not self._existing
         outputs = {
-            f"AZURE_{self._prefixes[0].upper()}_ID{suffix}": Output(
-                "outputs.resourceId" if is_module else "id",
-                symbol
-            ),
-            f"AZURE_{self._prefixes[0].upper()}_NAME{suffix}": Output(
-                "outputs.name" if is_module else "name",
-                symbol
-            ),
+            f"AZURE_{self._prefixes[0].upper()}_ID{self._suffix}": Output("id", symbol),
+            f"AZURE_{self._prefixes[0].upper()}_NAME{self._suffix}": Output("name", symbol),
+            f"AZURE_{self._prefixes[0].upper()}_RESOURCE_GROUP{self._suffix}": resource_group.name
         }
-        rg_output = f"AZURE_{self._prefixes[0].upper()}_RESOURCE_GROUP{suffix}"
-        if is_module:
-            outputs[rg_output] = Output("outputs.resourceGroupName", symbol)
-        elif resource_group:
-            outputs[rg_output] = resource_group if isinstance(resource_group, str ) else resource_group.name
         return outputs
     
-    
-    def _merge_params(
+    def _merge_properties(
             self,
-            params: Dict[str, Any],
+            properties: Dict[str, Any],
             **kwargs
         ) -> Dict[str, Any]:
-        params.update(self.properties)
+        for key, value in self.properties:
+            if properties.get(key):
+                raise ValueError(f"Resource conflict: '{self.__class__.__name__}' cannot set '{key}' to '{value}'.")
+            properties[key] = value
         return {}
 
-    def _find_field(self, resource: List[str], fields: FieldsType, index: int = 0) -> Optional[FieldType]:
-        try:
-            return [f for f in reversed(list(fields.values())) if f.resource in resource][index]
-        except IndexError:
-            return None
+    def _find_last_resource_match(
+            self,
+            fields: FieldsType,
+            *,
+            resource: Optional[str] = None,
+            resource_group: Optional[ResourceSymbol] = None,
+            name: Optional[Union[str, Expression]] = None,
+    ) -> Optional[FieldType]:
+        resource = resource or self._resource
+        for field in (f for f in reversed(list(fields.values())) if f.resource == resource):
+            if name and resource_group:
+                if field.properties['name'] == name and field.resource_group == resource_group:
+                    return field
+            elif resource_group:
+                if field.resource_group == resource_group:
+                    return field
+            elif name:
+                if field.properties['name'] == name:
+                    return field
+            else:
+                return field
+        return None
 
     def _find_resource_group(
             self,
@@ -419,15 +349,14 @@ class Resource:
             parameters: Dict[str, Parameter],
             *,
             name: Optional[str] = None
-    ) -> ResourceGroupSymbol:
-        rg = ["br/public:avm/res/resources/resource-group", "Microsoft.Resources/resourceGroups"]
-        for field in [f for f in reversed(list(fields.values())) if f.resource in rg]:
-            if name:
-                if field.params['name'] == name:
-                    return field.symbol
-                continue
-            else:
-                return field.symbol
+    ) -> ResourceSymbol:
+        match = self._find_last_resource_match(
+            fields,
+            resource="Microsoft.Resources/resourceGroups",
+            name=name
+        )
+        if match:
+            return match.symbol
         from .resources.resourcegroup._resource import ResourceGroup
         if name:
             existing_rg = ResourceGroup.reference(name=name)
@@ -439,92 +368,97 @@ class Resource:
             self,
             fields: FieldsType,
             parameters: Dict[str, Parameter],
-            *,
-            index: int = 0) -> Optional[ModuleSymbol]:
-        ua = [
-            "br/public:avm/res/managed-identity/user-assigned-identity",
-            "Microsoft.ManagedIdentity/userAssignedIdentities"
-        ]
-        try:
-            return self._find_field(ua, fields, index).symbol
-        except AttributeError:
-            from .resources.managedidentity._resource import UserAssignedIdentity
-            new_identity = UserAssignedIdentity()
-            return new_identity.__bicep__(fields, parameters=parameters)
+    ) -> Optional[ResourceSymbol]:
+        match = self._find_last_resource_match(
+            fields,
+            resource="Microsoft.ManagedIdentity/userAssignedIdentities",
+        )
+        if match:
+            return match.symbol
+        from .resources.managedidentity._resource import UserAssignedIdentity
+        new_identity = UserAssignedIdentity()
+        return new_identity.__bicep__(fields, parameters=parameters)
 
+    # def _substitute_globals(self, params: Dict[str, Any], globals: Dict[str, Parameter]) -> None:
+    #     if not 'location' in params:
+    #         params['location'] = globals['location']
+    #     if not 'tags' in params:
+    #         # TODO: This should be a union if user provided tags
+    #         params['tags'] = globals['tags']
 
-    def _find_resource_match(
+    def _build_role_assignments(
             self,
+            properties: Dict[str, Any],
+            existing_role_assignments: Optional[List[Dict[str, Any]]] = None,
+            *,
             fields: FieldsType,
-            rg: ResourceGroupSymbol,
-            name: Optional[Union[str, Expression]] = None,
-    ) -> Optional[FieldType]:
-        for field in [f for f in reversed(list(fields.values())) if f.resource == self.module]:
-            if name:
-                if field.params['name'] == name and field.resource_group == rg:
-                    return field
-            else:
-                if field.resource_group == rg:
-                    return field
-        return None
-
-    def _substitute_globals(self, params: Dict[str, Any], globals: Dict[str, Parameter]) -> None:
-        if not 'location' in params:
-            params['location'] = globals['location']
-        if not 'tags' in params:
-            # TODO: This should be a union if user provided tags
-            params['tags'] = globals['tags']
-
-    def _update_role_assignments(
-            self,
-            params: Dict[str, Any],
-            updated_params: Optional[List[Dict[str, Any]]] = None,
-            *,
-            symbol: ModuleSymbol,
-            identity: Optional[ModuleSymbol] = None,
-            user_principal: Optional[Parameter] = None,
+            parameters: Dict[str, Parameter],
+            symbol: ResourceSymbol,
+            identity: ResourceSymbol,
+            user_access: bool,
     ) -> None:
-        if updated_params:
-            role_assignments = params.pop("roleAssignments", [])
-            updated_params.extend(role_assignments)
-            params['roleAssignments'] = updated_params
-        if 'roleAssignments' in params:
-            updated_roles = {}
-            for role in params['roleAssignments']:
+        if existing_role_assignments:
+            role_assignments = properties.pop("roleAssignments", [])
+            existing_role_assignments.extend(role_assignments)
+            properties['roleAssignments'] = existing_role_assignments
+        if 'roleAssignments' in properties:
+            for role in properties['roleAssignments']:
                 if isinstance(role, str):
-                    if identity:
-                        principal_id = identity.principal_id
-                        key = (principal_id, role)
-                        if key in updated_roles:
-                            continue
-                        updated_roles[key] = {
-                            'name': Guid(self.__class__.__name__, params['name'], principal_id, role),
-                            'principalId': principal_id,
-                            'principalType': 'ServicePrincipal',
-                            'roleDefinitionIdOrName': role
-                    }
-                    if user_principal:
-                        key = (user_principal, role)
-                        if key in updated_roles:
-                            continue
-                        updated_roles[key] = {
-                            'name': Guid(self.__class__.__name__, params['name'], user_principal, role),
-                            'principalId': user_principal,
-                            'principalType': 'User',
-                            'roleDefinitionIdOrName': role
+                    new_role = RoleAssignment(
+                        {
+                            'name': Guid(self.__class__.__name__, properties['name'], identity.principal_id, role),
+                            'properties': {
+                                'principalId': identity.principal_id,
+                                'principalType': 'ServicePrincipal',
+                                'roleDefinitionId': role
+                            },
+                            'scope': symbol
                         }
-                    if not user_principal and not identity:
-                        raise ValueError("Role cannot be defined as string without a managedidentity or user principal.")
+                    )
+                    if user_access:
+                        user_role = RoleAssignment(
+                            {
+                                'name': Guid(self.__class__.__name__, properties['name'], parameters['user_principal'], role),
+                                'properties': {
+                                    'principalId': parameters['user_principal'],
+                                    'principalType': 'User',
+                                    'roleDefinitionId': role
+                                },
+                                'scope': symbol
+                            }
+                        )
+                        user_role.__bicep__(fields, parameters=parameters)
                 else:
-                    updated_roles[(role['principalId'], role['roleDefinitionIdOrName'])] = role
-            params['roleAssignments'] = list(updated_roles.values())
+                    new_role = RoleAssignment(
+                        {
+                            'name': role.get(
+                                'name',
+                                Guid(
+                                    self.__class__.__name__,
+                                    properties['name'],
+                                    role['principalId'],
+                                    role['roleDefinitionIdOrName']
+                                )
+                            ),
+                            'properties': {
+                                'condition': role.get('condition'),
+                                'conditionVersion': role.get('conditionVersion'),
+                                'delegatedManagedIdentityResourceId': role.get('delegatedManagedIdentityResourceId'),
+                                'description': role.get('description'),
+                                'principalType': role.get('principalType'),
+                                'roleDefinitionId': role.get('roleDefinitionIdOrName')
+                            },
+                            'scope': symbol
+                        }
+                    )
+                new_role.__bicep__(fields, parameters=parameters)
 
     def _update_managed_identities(
             self,
             params: Dict[str, Any],
             updated_params: Optional[Dict[str, Any]] = None,
             *,
-            identity: Optional[ModuleSymbol] = None
+            identity: Optional[ResourceSymbol] = None
     ) -> None:
         if updated_params:
             managed_identities = params.pop("managedIdentities", {})
@@ -545,6 +479,16 @@ class Resource:
                     identities.append(identity.id)
                     params['managedIdentities']['userAssignedResourceIds'] = identities
 
+    def _add_parameters(self, obj: Dict[str, Any], parameters):
+        for value in obj.values():
+            if isinstance(value, Parameter):
+                parameters[value.name] = value
+            else:
+                try:
+                    self._add_parameters(value)
+                except (AttributeError, TypeError):
+                    pass
+
     def __bicep__(
             self,
             fields: FieldsType,
@@ -553,59 +497,67 @@ class Resource:
             app_component: Optional[Type] = None,
             attrname: Optional[str] = None
     ) -> ResourceSymbol:
-        field_id = self._component.__name__ if self._component else '__main__'
+        field_id = self._project_objects[0].__name__ if self._project_objects else '__main__'
+        self._set_suffix(attrname or self.properties.get('name', ''))
+
+        # We only want to add user access and export the outputs if either this is a resource not nested inside a
+        # project object, or if it's in the root project object.
+        output_resource = False
+        if not self._project_objects or (app_component and app_component in self._project_objects and attrname in self._project_attr_names):
+            output_resource = True
+        
+        # If the resource has a parent - add that to the fields first.
+        parent: Optional[ResourceSymbol] = None
+        if self._parent:
+            parent = self._parent.__bicep__(
+                fields,
+                parameters=parameters,
+                app_component=app_component,
+                attrname=self._suffix
+            )
+
         if self._existing:
-            properties = dict(self._reference)
-            suffix = attrname or clean_name(properties['name']).upper()
-            rg = None
-            if self._reference.get('parent'):
-                properties['parent'] = self._reference['parent'].__bicep__(
-                    fields,
-                    parameters=parameters,
-                    app_component=app_component,
-                    attrname=suffix
-                )
+            properties = dict(self.properties)
+            if parent:
+                properties['scope'] = parent
+            if 'resource_group' in properties:
+                rg = properties.pop('resource_group').__bicep__(fields, parameters=parameters)
+                properties['scope'] = rg
             else:
-                rg_name = self._reference.get('scope')
-                if isinstance(rg_name, Resource):
-                    rg = rg_name.__bicep__(fields, parameters=parameters)
-                else:
-                    rg = self._find_resource_group(fields, parameters, name=rg_name)
+                rg = self._find_resource_group(fields, parameters, name=rg_name)
                 properties['scope'] = rg
             symbol = self._symbol()
             outputs = self._outputs(
                 symbol=symbol,
-                attrname=suffix,
+                attrname=self._suffix,
                 resource_group=rg,
                 **properties
             )
-            symbol = self._symbol()
+            self._add_parameters(properties)
             field = FieldType(
-                self.resource,
-                properties,
-                symbol,
-                outputs,
-                rg,
-                self.version
+                resource=self.resource,
+                properties=properties,
+                symbol=symbol,
+                outputs=outputs,
+                resource_group=rg,
+                version=self.version,
+                extensions={}  # TODO: support adding role assignments to existing resources
             )
             fields[f"{field_id}.{attrname if attrname else symbol.resolve()}"] = field
             return symbol
 
-        reference = self.module or self.resource
-        if not reference:
-            raise TypeError("Empty Resource object cannot be provisioned.")
         rg_name = self._find_resource_group(fields, parameters)
         identity = self._find_identity(fields, parameters)
         resource_name = self.properties.get('name')
-        field = self._find_resource_match(fields, rg_name, resource_name)
+        field = self._find_last_resource_match(fields, resource_group=rg_name, name=resource_name)
         if field:
-            resource_name = field.params['name']
+            resource_name = field.properties['name']
         else:
-            if self._default == DefaultAction.MISSING:
-                raise TypeError(f'Missing resource of type: {reference}')
+            if self._default_action == DefaultAction.MISSING:
+                raise TypeError(f'Missing resource of type: {self.resource}')
             resource_name = resource_name or parameters['defaultName']
         if field:
-            params = field.params
+            params = field.properties
             symbol = field.symbol
             outputs = field.outputs
         else:
@@ -613,12 +565,18 @@ class Resource:
             params['name'] = resource_name
             symbol = self._symbol()
             outputs = {}
-            field = FieldType(reference, params, symbol, outputs, rg_name, self.tag or self.version)
-            fields[f"{field_id}.{self._component_attr if self._component_attr else symbol.resolve()}"] = field
+            field = FieldType(
+                resource=self.resource,
+                properties=params,
+                symbol=symbol,
+                outputs=outputs,
+                resource_group=rg_name,
+                version=self.version,
+                extensions=deepcopy(self.extensions)
+            )
+            fields[f"{field_id}.{self._project_attr_names[-1] if self._project_attr_names else symbol.value}"] = field
 
-        managed_identities = params.pop("managedIdentities", {})
-        role_assignments = params.pop("roleAssignments", [])
-        output_config = self._merge_params(
+        output_config = self._merge_properties(
             params,
             fields=fields,
             parameters=parameters,
@@ -633,23 +591,10 @@ class Resource:
             resource_group=rg_name,
             **output_config
         )
-        self._substitute_globals(params, parameters)
-        self._update_role_assignments(
-            params,
-            role_assignments,
-            symbol=symbol,
-            identity=identity,
-            user_principal=parameters.get("principalId")
-        )
-        self._update_managed_identities(
-            params,
-            managed_identities,
-            identity=identity
-        )
-        # We only want to export the outputs if either this is a resource not nested inside a
-        # component, or if it's in the root component.
-        if not self._component or (app_component and app_component in self._apps and attrname in self._attrs):
+        if output_resource:
             outputs.update(resource_outputs)
+        self._add_parameters(field.properties, parameters)
+        self._add_parameters(field.extensions)
         return symbol
 
 

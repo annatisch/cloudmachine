@@ -11,7 +11,7 @@ from dotenv import dotenv_values
 from ._version import VERSION
 from ._component import CloudMachine
 from ._bicep.utils import generate_name, resolve_value, serialize_dict, generate_suffix, serialize_list
-from ._bicep.expressions import Expression, ModuleSymbol, Output, Parameter, ResourceGroupSymbol, Subscription, UniqueString, Variable
+from ._bicep.expressions import Expression, Output, Parameter, Subscription, UniqueString, Variable
 from ._resource import Resource, FieldsType, _load_dev_environment
 from .resources import UserAssignedIdentity, ResourceGroup
 
