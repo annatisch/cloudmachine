@@ -2,7 +2,7 @@
 from typing import Literal
 from enum import Enum
 
-# TODO: This doesn't account for naming conflicts - consider making this a function
+
 class ResourceIdentifiers(str, Enum):
     resource_group: Literal['resourcegroup'] = 'resourcegroup'
     user_assigned_identity: Literal['userassignedidentity'] = 'userassignedidentity'

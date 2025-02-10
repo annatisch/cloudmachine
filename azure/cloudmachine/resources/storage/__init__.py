@@ -1,11 +1,11 @@
 from typing import TYPE_CHECKING, Dict, List, Literal, Self, TypedDict, Union, Unpack, Optional, overload
 from typing_extensions import TypeVar
 
-from ..._resource import Resource, ExtensionResources, ResourceReference
+from ..._resource import Resource, ExtensionResources, ResourceReference, FieldType
 from ..._bicep.expressions import Parameter
 from .._utils import _convert_managed_identities, ManagedIdentity, RoleAssignment, CustomerManagedKey
-from ..resourcegroup._resource import ResourceGroup
-from ..._parameters import DEFAULT_NAME, LOCATION
+from ..resourcegroup import ResourceGroup
+from ..._parameters import AZD_TAGS, DEFAULT_NAME, LOCATION
 
 if TYPE_CHECKING:
     from .types import (
@@ -102,8 +102,9 @@ StorageAccountResourceType = TypeVar('StorageAccountResourceType', default='Stor
 class StorageAccount(Resource[StorageAccountResourceType]):
     DEFAULTS: 'StorageAccountResource' = _DEFAULT_STORAGE_ACCOUNT
     resource: Literal["Microsoft.Storage/storageAccounts"]
-    properties: 'StorageAccountResource'
+    properties: StorageAccountResourceType
 
+    @overload
     def __init__(
             self,
             properties: Optional['StorageAccountResource'] = None,
@@ -111,73 +112,91 @@ class StorageAccount(Resource[StorageAccountResourceType]):
             name: Optional[Union[str, Parameter[str]]] = None,
             **kwargs: Unpack['StorageAccountKwargs']
     ) -> None:
-        storage_properties: 'StorageAccountResource' = properties or dict(self.DEFAULTS)
+        ...
+    @overload
+    def __init__(
+            self,
+            properties: ResourceReference,
+            /,
+            existing: Literal[True],
+    ) -> None:
+        ...
+    def __init__(
+            self,
+            properties=None,
+            /,
+            name=None,
+            existing=False,
+            **kwargs: Unpack['StorageAccountKwargs']
+    ) -> None:
         extensions: ExtensionResources = {}
         if 'role_assignments' in kwargs:
             extensions['role_assignments'] = kwargs.pop('role_assignments')
-        if not kwargs.get('existing', False):
-            if 'properties' not in storage_properties:
-                storage_properties['properties'] = {}
+        if not existing:
+            properties = properties or {}
+            if 'properties' not in properties:
+                properties['properties'] = {}
             if name:
-                storage_properties['name'] = name
+                properties['name'] = name
             if 'access_tier' in kwargs:
-                storage_properties['properties']['accessTier'] = kwargs.pop('access_tier')
+                properties['properties']['accessTier'] = kwargs.pop('access_tier')
             if 'enable_hierarchical_namespace' in kwargs:
-                storage_properties['properties']['isHnsEnabled'] = kwargs.pop('enable_hierarchical_namespace')
+                properties['properties']['isHnsEnabled'] = kwargs.pop('enable_hierarchical_namespace')
             if 'allow_blob_public_access' in kwargs:
-                storage_properties['properties']['allowBlobPublicAccess'] = kwargs.pop('allow_blob_public_access')
+                properties['properties']['allowBlobPublicAccess'] = kwargs.pop('allow_blob_public_access')
             if 'allow_cross_tenant_replication' in kwargs:
-                storage_properties['properties']['allowCrossTenantReplication'] = kwargs.pop('allow_cross_tenant_replication')
+                properties['properties']['allowCrossTenantReplication'] = kwargs.pop('allow_cross_tenant_replication')
             if 'allowed_copy_scope' in kwargs:
-                storage_properties['properties']['allowedCopyScope'] = kwargs.pop('allowed_copy_scope')
+                properties['properties']['allowedCopyScope'] = kwargs.pop('allowed_copy_scope')
             if 'allow_shared_key_access' in kwargs:
-                storage_properties['properties']['allowSharedKeyAccess'] = kwargs.pop('allow_shared_key_access')
+                properties['properties']['allowSharedKeyAccess'] = kwargs.pop('allow_shared_key_access')
             if 'custom_domain_name' in kwargs:
-                custom_domain = storage_properties['properties'].get('customDomain', {})
+                custom_domain = properties['properties'].get('customDomain', {})
                 custom_domain['name'] = kwargs.pop('custom_domain_name')
-                storage_properties['properties']['customDomain'] = custom_domain
+                properties['properties']['customDomain'] = custom_domain
             if 'custom_domain_use_subdomain_name' in kwargs:
-                custom_domain = storage_properties['properties'].get('customDomain', {})
+                custom_domain = properties['properties'].get('customDomain', {})
                 custom_domain['useSubDomainName'] = kwargs.pop('custom_domain_use_subdomain_name')
-                storage_properties['properties']['customDomain'] = custom_domain
+                properties['properties']['customDomain'] = custom_domain
             if 'default_to_oauth_authentication' in kwargs:
-                storage_properties['properties']['defaultToOAuthAuthentication'] = kwargs.pop('default_to_oauth_authentication')
+                properties['properties']['defaultToOAuthAuthentication'] = kwargs.pop('default_to_oauth_authentication')
             if 'dns_endpoint_type' in kwargs:
-                storage_properties['properties']['dnsEndpointType'] = kwargs.pop('dns_endpoint_type')
+                properties['properties']['dnsEndpointType'] = kwargs.pop('dns_endpoint_type')
             if 'enable_nfs_v3' in kwargs:
-                storage_properties['properties']['isNfsV3Enabled'] = kwargs.pop('enable_nfs_v3')
+                properties['properties']['isNfsV3Enabled'] = kwargs.pop('enable_nfs_v3')
             if 'enable_sftp' in kwargs:
-                storage_properties['properties']['isSftpEnabled'] = kwargs.pop('enable_sftp')
+                properties['properties']['isSftpEnabled'] = kwargs.pop('enable_sftp')
             if 'is_local_user_enabled' in kwargs:
-                storage_properties['properties']['isLocalUserEnabled'] = kwargs.pop('is_local_user_enabled')
+                properties['properties']['isLocalUserEnabled'] = kwargs.pop('is_local_user_enabled')
             if 'kind' in kwargs:
-                storage_properties['kind'] = kwargs.pop('kind')
+                properties['kind'] = kwargs.pop('kind')
             if 'location' in kwargs:
-                storage_properties['location'] = kwargs.pop('location')
+                properties['location'] = kwargs.pop('location')
             if 'managed_identities' in kwargs:
-                storage_properties['identity'] = _convert_managed_identities(kwargs.pop('managed_identities'))
+                properties['identity'] = _convert_managed_identities(kwargs.pop('managed_identities'))
             if 'minimum_tls_version' in kwargs:
-                storage_properties['properties']['minimumTlsVersion'] = kwargs.pop('minimum_tls_version')
+                properties['properties']['minimumTlsVersion'] = kwargs.pop('minimum_tls_version')
             if 'network_acls' in kwargs:
-                storage_properties['properties']['networkAcls'] = kwargs.pop('network_acls')
+                properties['properties']['networkAcls'] = kwargs.pop('network_acls')
             if 'public_network_access' in kwargs:
-                storage_properties['properties']['publicNetworkAccess'] = kwargs.pop('public_network_access')
+                properties['properties']['publicNetworkAccess'] = kwargs.pop('public_network_access')
             if 'sas_expiration_period' in kwargs:
-                storage_properties['properties']['sasPolicy'] = {}
-                storage_properties['properties']['sasPolicy']['sasExpirationPeriod'] = kwargs.pop('sas_expiration_period')
-                storage_properties['properties']['sasPolicy']['expirationAction'] = 'Block'
+                properties['properties']['sasPolicy'] = {}
+                properties['properties']['sasPolicy']['sasExpirationPeriod'] = kwargs.pop('sas_expiration_period')
+                properties['properties']['sasPolicy']['expirationAction'] = 'Block'
             if 'sku_name' in kwargs:
-                storage_properties['sku'] = {}
-                storage_properties['sku']['name'] = kwargs.pop('sku_name')
+                properties['sku'] = {}
+                properties['sku']['name'] = kwargs.pop('sku_name')
             if 'supports_https_traffic_only' in kwargs:
-                storage_properties['properties']['supportsHttpsTrafficOnly'] = kwargs.pop('supports_https_traffic_only')
+                properties['properties']['supportsHttpsTrafficOnly'] = kwargs.pop('supports_https_traffic_only')
             if 'tags' in kwargs:
-                storage_properties['tags'] = kwargs.pop('tags')
+                properties['tags'] = kwargs.pop('tags')
 
         super().__init__(
-            storage_properties,
+            properties,
             extensions=extensions,
             service_prefix=["storage"],
+            existing=existing,
             **kwargs
         )
         self._supports_managed_identity = True
@@ -202,39 +221,44 @@ class StorageAccount(Resource[StorageAccountResourceType]):
     def reference(
             cls,
             *,
-            name: Union[str, Parameter[str]],
-            resource_group: Optional[Union[str, 'ResourceGroup', Parameter[str]]] = None,
-            subscription: Optional[Union[str, Parameter[str]]] = None,
+            name: str,
+            resource_group: Optional[Union[str, 'ResourceGroup']] = None,
     ) -> 'StorageAccount[ResourceReference]':
         from .types import RESOURCE, VERSION
         resource = f"{RESOURCE}@{VERSION}"
         return super().reference(
             resource=resource,
             name=name,
-            resource_group=resource_group,
-            subscription=subscription
+            resource_group=resource_group
         )
 
 
 def _add_defaults(
+        field: FieldType,
         *,
-        properties: 'StorageAccountResource',
-        extensions: ExtensionResources,
         parameters: Dict[str, Parameter]
 ):
-    if 'name' not in properties:
-        properties['name'] = DEFAULT_NAME
-    if 'location' not in properties:
-        properties['location'] = LOCATION
-    if 'kind' not in properties:
-        properties['kind'] = 'StorageV2'
-    if 'sku' not in properties:
-        properties['sku'] = {}
-    if 'name' not in properties['sku']:
-        properties['sku']['name'] = 'Standard_GRS'
-    if 'properties' not in properties:
-        properties['properties'] = {}
-    if 'accessTier' not in properties['properties']:
-        properties['properties']['accessTier'] = 'Hot'
-    if 'allowCrossTenantReplication' not in properties['properties']:
-        properties['properties']['allowCrossTenantReplication'] = False
+    if field.existing:
+        return
+    if 'name' not in field.properties:
+        field.properties['name'] = DEFAULT_NAME
+    if 'location' not in field.properties:
+        field.properties['location'] = LOCATION
+    if 'tags' not in field.properties:
+        field.properties['tags'] = AZD_TAGS
+    if 'kind' not in field.properties:
+        field.properties['kind'] = 'StorageV2'
+    if 'sku' not in field.properties:
+        field.properties['sku'] = {}
+    if 'name' not in field.properties['sku']:
+        field.properties['sku']['name'] = 'Standard_GRS'
+    if 'properties' not in field.properties:
+        field.properties['properties'] = {}
+    if 'accessTier' not in field.properties['properties']:
+        field.properties['properties']['accessTier'] = 'Hot'
+    if 'allowCrossTenantReplication' not in field.properties['properties']:
+        field.properties['properties']['allowCrossTenantReplication'] = False
+    if not 'role_assignments' in field.extensions:
+        field.extensions['role_assignments'] = ['Blob Data Contributor']
+    if parameters['localAccess'].default != 'None' and 'local_access_role' not in field.extensions and field.outputs:
+        field.extensions['local_access_role'] = ['Blob Data Contributor']

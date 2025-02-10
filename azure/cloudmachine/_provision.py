@@ -13,7 +13,8 @@ from ._component import CloudMachine
 from ._bicep.utils import generate_name, resolve_value, serialize_dict, generate_suffix, serialize_list
 from ._bicep.expressions import Expression, Output, Parameter, Subscription, UniqueString, Variable
 from ._resource import Resource, FieldsType, _load_dev_environment
-from .resources import UserAssignedIdentity, ResourceGroup
+from .resources.resourcegroup import ResourceGroup
+from .resources.managedidentity import UserAssignedIdentity
 
 _BICEP_PARAMS = {
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",

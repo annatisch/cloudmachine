@@ -117,10 +117,12 @@ def _build_envs(services: List[str], attributes: List[str]) -> List[str]:
 
 _EMPTY_DEFAULT = {}
 
+
 class ResourceReference(TypedDict, total=False):
     name: Required[Union[str, Parameter[str]]]
     resource_group: 'ResourceGroup'
     subscription: Union[str, Parameter[str]]
+
 
 class ExtensionResources(TypedDict, total=False):
     role_assignments: Union[Parameter[List[Union['RoleAssignment', str]]], List[Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', str]]]
@@ -138,9 +140,10 @@ class FieldType(NamedTuple, Generic[ResourcePropertiesType]):
     version: str
     properties: ResourcePropertiesType
     symbol: ResourceSymbol
-    outputs: Dict[str, Union[str, Output]]
+    outputs: List[Output]
     resource_group: ResourceSymbol
     extensions: ExtensionResources
+    existing: bool
     
 
 FieldsType = Dict[str, FieldType]
@@ -187,6 +190,7 @@ class Resource(Generic[ResourcePropertiesType]):
         self.subscription = StoredPrioritizedSetting(
             name='subscription_id',
             env_var='AZURE_SUBSCRIPTION_ID',
+            system_hook=self._existing_subscription_id
         )
         self.resource_group = StoredPrioritizedSetting(
             name='resource_group',
@@ -230,10 +234,10 @@ class Resource(Generic[ResourcePropertiesType]):
         properties = ResourceReference(name=name)
         if resource_group:
             if isinstance(resource_group, str):
-                from .resources.resourcegroup._resource import ResourceGroup
+                from .resources.resourcegroup import ResourceGroup
                 resource_group = ResourceGroup.reference(name=resource_group, subscription=subscription)
             properties['resource_group'] = resource_group
-        if subscription:
+        elif subscription:
             properties['subscription'] = subscription
         resource_ref = cls(
             properties,
@@ -264,10 +268,19 @@ class Resource(Generic[ResourcePropertiesType]):
         self._project_attr_names.append(value)
         self._set_suffix(value)
 
-    def _set_suffix(self, value: str) -> None:
-        self._suffix = '_' + clean_name(value).upper()
-        for setting in self._settings.values():
-            setting.suffix = self._suffix
+    def _set_suffix(self, value: Union[str, Parameter]) -> None:
+        if value:
+            if isinstance(value, str):
+                self._suffix = '_' + clean_name(value).upper()
+            else:
+                self._suffix = '_' + clean_name(value.value).upper()
+            for setting in self._settings.values():
+                setting.suffix = self._suffix
+
+    def _existing_subscription_id(self) -> str:
+        if self._existing and 'resource_group' in self.properties:
+            return self.properties['resource_group'].subscription()
+        raise RuntimeError("Existing resource group reference has no subscription specified.")
 
     def _build_resource_id(self) -> str:
         if not self._resource:
@@ -286,27 +299,32 @@ class Resource(Generic[ResourcePropertiesType]):
                 setting.config_stores.append(config)
 
     def _symbol(self) -> ResourceSymbol:
-        if not self._resource:
+        if not self.resource:
             raise TypeError("Empty Resource object cannot be provisioned.")
-        resource_ref = self.resource.split("/")[0].split(".")[1]
-        symbol = f"{resource_ref.lower()}_{self._suffix}"
+        # resource_ref = self.resource.split("/")[0].split(".")[1]
+        resource_ref = self.resource.split("/")[-1].lower()
+        if resource_ref.endswith("ies"):
+            resource_ref = resource_ref.rstrip("ies") + "y"
+        else:
+            resource_ref = resource_ref.rstrip('s')
+        symbol = f"{resource_ref}{self._suffix.lower()}" if self._suffix else resource_ref
         principal_id = None
         if self.properties.get('identity', {}).get('type', "").startswith('SystemAssigned'):
             principal_id = "principalId"
         return ResourceSymbol(symbol, principal_id=principal_id)
-    
+
     def _outputs(
             self,
              *,
              symbol: ResourceSymbol,
              resource_group: ResourceSymbol,
              **kwargs
-    ) -> Dict[str, Output]:
-        outputs = {
-            f"AZURE_{self._prefixes[0].upper()}_ID{self._suffix}": Output("id", symbol),
-            f"AZURE_{self._prefixes[0].upper()}_NAME{self._suffix}": Output("name", symbol),
-            f"AZURE_{self._prefixes[0].upper()}_RESOURCE_GROUP{self._suffix}": resource_group.name
-        }
+    ) -> List[Output]:
+        outputs = [
+            Output(f"AZURE_{self._prefixes[0].upper()}_ID{self._suffix}", "id", symbol),
+            Output(f"AZURE_{self._prefixes[0].upper()}_NAME{self._suffix}", "name", symbol),
+            Output(f"AZURE_{self._prefixes[0].upper()}_RESOURCE_GROUP{self._suffix}", resource_group.name)
+        ]
         return outputs
     
     def _merge_properties(
@@ -314,9 +332,9 @@ class Resource(Generic[ResourcePropertiesType]):
             properties: Dict[str, Any],
             **kwargs
         ) -> Dict[str, Any]:
-        for key, value in self.properties:
+        for key, value in self.properties.items():
             if properties.get(key):
-                raise ValueError(f"Resource conflict: '{self.__class__.__name__}' cannot set '{key}' to '{value}'.")
+                raise ValueError(f"{repr(self)} cannot set '{key}' to '{value}', already set to: '{properties[key]}'.")
             properties[key] = value
         return {}
 
@@ -328,16 +346,16 @@ class Resource(Generic[ResourcePropertiesType]):
             resource_group: Optional[ResourceSymbol] = None,
             name: Optional[Union[str, Expression]] = None,
     ) -> Optional[FieldType]:
-        resource = resource or self._resource
+        resource = resource or self.resource
         for field in (f for f in reversed(list(fields.values())) if f.resource == resource):
             if name and resource_group:
-                if field.properties['name'] == name and field.resource_group == resource_group:
+                if field.properties.get('name') == name and field.resource_group == resource_group:
                     return field
             elif resource_group:
                 if field.resource_group == resource_group:
                     return field
             elif name:
-                if field.properties['name'] == name:
+                if field.properties.get('name') == name:
                     return field
             else:
                 return field
@@ -357,7 +375,7 @@ class Resource(Generic[ResourcePropertiesType]):
         )
         if match:
             return match.symbol
-        from .resources.resourcegroup._resource import ResourceGroup
+        from .resources.resourcegroup import ResourceGroup
         if name:
             existing_rg = ResourceGroup.reference(name=name)
             return existing_rg.__bicep__(fields, parameters=parameters)
@@ -375,16 +393,9 @@ class Resource(Generic[ResourcePropertiesType]):
         )
         if match:
             return match.symbol
-        from .resources.managedidentity._resource import UserAssignedIdentity
+        from .resources.managedidentity import UserAssignedIdentity
         new_identity = UserAssignedIdentity()
         return new_identity.__bicep__(fields, parameters=parameters)
-
-    # def _substitute_globals(self, params: Dict[str, Any], globals: Dict[str, Parameter]) -> None:
-    #     if not 'location' in params:
-    #         params['location'] = globals['location']
-    #     if not 'tags' in params:
-    #         # TODO: This should be a union if user provided tags
-    #         params['tags'] = globals['tags']
 
     def _build_role_assignments(
             self,
@@ -485,7 +496,7 @@ class Resource(Generic[ResourcePropertiesType]):
                 parameters[value.name] = value
             else:
                 try:
-                    self._add_parameters(value)
+                    self._add_parameters(value, parameters)
                 except (AttributeError, TypeError):
                     pass
 
@@ -524,7 +535,7 @@ class Resource(Generic[ResourcePropertiesType]):
                 rg = properties.pop('resource_group').__bicep__(fields, parameters=parameters)
                 properties['scope'] = rg
             else:
-                rg = self._find_resource_group(fields, parameters, name=rg_name)
+                rg = self._find_resource_group(fields, parameters)
                 properties['scope'] = rg
             symbol = self._symbol()
             outputs = self._outputs(
@@ -533,7 +544,7 @@ class Resource(Generic[ResourcePropertiesType]):
                 resource_group=rg,
                 **properties
             )
-            self._add_parameters(properties)
+            self._add_parameters(properties, parameters)
             field = FieldType(
                 resource=self.resource,
                 properties=properties,
@@ -541,38 +552,34 @@ class Resource(Generic[ResourcePropertiesType]):
                 outputs=outputs,
                 resource_group=rg,
                 version=self.version,
-                extensions={}  # TODO: support adding role assignments to existing resources
+                extensions={},  # TODO: support adding role assignments to existing resources
+                existing=True,
             )
-            fields[f"{field_id}.{attrname if attrname else symbol.resolve()}"] = field
+            fields[f"{field_id}.{attrname if attrname else symbol.value}"] = field
             return symbol
 
-        rg_name = self._find_resource_group(fields, parameters)
+        rg = self._find_resource_group(fields, parameters)
         identity = self._find_identity(fields, parameters)
-        resource_name = self.properties.get('name')
-        field = self._find_last_resource_match(fields, resource_group=rg_name, name=resource_name)
-        if field:
-            resource_name = field.properties['name']
-        else:
-            if self._default_action == DefaultAction.MISSING:
-                raise TypeError(f'Missing resource of type: {self.resource}')
-            resource_name = resource_name or parameters['defaultName']
+        field = self._find_last_resource_match(fields, resource_group=rg, name=self.properties.get('name'))
+        if not field and self._default_action == DefaultAction.MISSING:
+            raise TypeError(f'Missing resource of type: {self.resource}')
         if field:
             params = field.properties
             symbol = field.symbol
             outputs = field.outputs
         else:
             params = dict(self.DEFAULTS)
-            params['name'] = resource_name
             symbol = self._symbol()
-            outputs = {}
+            outputs = []
             field = FieldType(
                 resource=self.resource,
                 properties=params,
                 symbol=symbol,
                 outputs=outputs,
-                resource_group=rg_name,
+                resource_group=rg,
                 version=self.version,
-                extensions=deepcopy(self.extensions)
+                extensions=deepcopy(self.extensions),
+                existing=False,
             )
             fields[f"{field_id}.{self._project_attr_names[-1] if self._project_attr_names else symbol.value}"] = field
 
@@ -583,18 +590,18 @@ class Resource(Generic[ResourcePropertiesType]):
             identity=identity,
             symbol=symbol,
             attrname=attrname,
-            resource_group=rg_name
+            resource_group=rg
         )
-        resource_outputs = self._outputs(
-            symbol=symbol,
-            attrname=attrname,
-            resource_group=rg_name,
-            **output_config
-        )
-        if output_resource:
-            outputs.update(resource_outputs)
+        if not outputs and output_resource:
+            resource_outputs = self._outputs(
+                symbol=symbol,
+                attrname=attrname,
+                resource_group=rg,
+                **output_config
+            )
+            outputs.extend(resource_outputs)
         self._add_parameters(field.properties, parameters)
-        self._add_parameters(field.extensions)
+        self._add_parameters(field.extensions, parameters)
         return symbol
 
 

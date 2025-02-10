@@ -6,7 +6,7 @@ import string
 
 def resolve_value(value: Any, **params) -> str:
     try:
-        value: str = value.resolve()
+        value: str = value.value
     except AttributeError:
         value: str = json.dumps(value).replace('"', "'")
     if params :

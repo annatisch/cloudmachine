@@ -1,5 +1,6 @@
 
-from ._bicep.expressions import Parameter, UniqueString, Subscription
+from typing import Dict
+from ._bicep.expressions import Parameter, UniqueString, Subscription, Variable
 
 
 LOCATION: Parameter[str] = Parameter(
@@ -35,11 +36,17 @@ LOCAL_ACCESS: Parameter[str] = Parameter(
     allowed=['User', 'Application', 'None'],
     description='Whether to add application roles to the local user or app.'
 )
+AZD_TAGS: Parameter[Dict[str, str]] = Variable(
+    'azdTags',
+    value={'azd-env-name': ENV_NAME},
+    description='Tags to apply to all resources in AZD envrionment.'
+)
 
 GLOBAL_PARAMS = {
-    'location': LOCATION,
-    'environmentName': ENV_NAME,
-    'defaultName': DEFAULT_NAME,
-    'principalId': LOCAL_PRINCIPAL,
-    'localAccess': LOCAL_ACCESS
+    '__location': LOCATION,
+    '__environmentName': ENV_NAME,
+    '__defaultName': DEFAULT_NAME,
+    '__principalId': LOCAL_PRINCIPAL,
+    '__localAccess': LOCAL_ACCESS,
+    '__azdTags': AZD_TAGS,
 }

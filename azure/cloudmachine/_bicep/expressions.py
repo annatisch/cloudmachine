@@ -18,12 +18,16 @@ class Expression:
 
     def __eq__(self, value: Any) -> bool:
         try:
-            self.value == value.value
+            print("EQ", self.value, value.value, self.value == value.value)
+            return self.value == value.value
         except AttributeError:
             return False
 
+    def __ne__(self, value: Any) -> bool:
+        return not self.__eq__(value)
+
     def __repr__(self) -> str:
-        return resolve_value(self._value)
+        return str(self._resolve_expression(self._value))
 
     def __hash__(self):
         return hash(self.value)
@@ -44,13 +48,10 @@ class Expression:
     def value(self) -> str:
         return self._resolve_expression(self._value)
     
-    def format(
-            self,
-            *,
-            prefix: Union['Expression', str] = "",
-            suffix: Union['Expression', str] = "",
-    ) -> str:
-        return f"{self._resolve_expression(prefix)}${{{self.value}}}{self._resolve_expression(suffix)}"
+    def format(self, format_str: Optional[str] = None, /) -> str:
+        if format_str:
+            return format_str.format(f'${{{self.value}}}')
+        return f"${{{self.value}}}"
 
 
 class Subscription(Expression):
@@ -58,7 +59,8 @@ class Subscription(Expression):
         self._sub = subscription
 
     def __repr__(self) -> str:
-        return f"subscription({self._sub})"
+        sub = self._sub or "<default>"
+        return f"subscription({sub})"
 
     @property
     def value(self) -> str:
@@ -90,68 +92,24 @@ class ResourceSymbol(Expression):
 
     @property
     def name(self) -> 'Output[str]':
-        return Output("name", self)
+        return Output(f"{self._value}Name", "name", self)
 
     @property
     def id(self) -> 'Output[str]':
-        return Output("id", self)
+        return Output(f"{self._value}Id", "id", self)
 
     @property
     def principal_id(self) -> 'Output[str]':
         if not self._principal_id_output:
             raise ValueError("Module has no principal ID output.")
-        return Output("principalId", self)
-
-
-class Variable(Expression):
-    def __init__(
-            self,
-            name: str,
-            type: str,
-            value: Any,
-            *,
-            description: Optional[str] = None
-    ):
-        self._name = name
-        self._type = type
-        self._value = value
-        self._description = description
-
-    def __repr__(self) -> str:
-        return f"var({self._name})"
-
-    def __str__(self) -> str:
-        return self._name
-
-    def __eq__(self, value):
-        if isinstance(value, Variable):
-            return self._name == value._name and self._type == value._type
-        return False
-
-    def __hash__(self):
-        return hash((self._name, self._type))
-
-    def main_declare(self) -> str:
-        declaration = ""
-        if self._description:
-            declaration += f"@sys.description('{self._description}')\n"
-        declaration += f"var {self._name} = "
-        declaration += serialize(self._value)
-        declaration += "\n\n"
-        return declaration
-
-    def module_declare(self) -> str:
-        return f"param {self._name} {self._type}\n"
-
-    def resolve(self) -> str:
-        return self._name
+        return Output(f"{self._value}PrincipalId", "principalId", self)
 
 
 ParameterType = TypeVar("ParameterType", str, int, bool, dict, list, None)
 class Parameter(Expression, Generic[ParameterType]):
     name: str
     type: str
-    default: Optional[ParameterType]
+    default: Union[ParameterType, Literal[ParameterDefault.MISSING]]
 
     def __init__(
             self,
@@ -204,7 +162,7 @@ class Parameter(Expression, Generic[ParameterType]):
             return f"parameter({self.name}={self.default})"
         return f"parameter({self.name})"
 
-    def __bicep(self) -> str:
+    def __bicep__(self) -> str:
         declaration = ""
         if self._secure:
             declaration += "@sys.secure()\n"
@@ -234,28 +192,61 @@ class Parameter(Expression, Generic[ParameterType]):
         declaration += "\n\n"
         return declaration
 
-    def __obj(self) -> Dict[str, Dict[str, str]]:
+    def __obj__(self) -> Dict[str, Dict[str, str]]:
         if not self._varname:
             return {}
-        value = f"${{{self._varname}={self.default}}}" if self.default else f"${{{self._varname}}}"
+        if self.default is not MISSING:
+            value = f"${{{self._varname}={self.default}}}"
+        else:
+            value =f"${{{self._varname}}}"
         return {
             self.name: {
                 "value": value
             }
         }
 
+
+class Variable(Parameter[ParameterType]):
+    def __init__(
+            self,
+            name: str,
+            value: ParameterType,
+            *,
+            description: Optional[str] = None
+    ):
+        self._value = value
+        super().__init__(
+            name=name,
+            type=type(value),
+            description=description
+        )
+
+    def __repr__(self) -> str:
+        return f"var({self.name})"
+
+
+    def __bicep__(self) -> str:
+        declaration = ""
+        if self._description:
+            declaration += f"@sys.description('{self._description}')\n"
+        declaration += f"var {self.name} = "
+        declaration += serialize(self._value)
+        declaration += "\n\n"
+        return declaration
+
+
 class Output(Parameter[ParameterType]):
     def __init__(
             self,
             name: str,
-            path: Union[Expression, str],
+            value: Union[Expression, str],
             symbol: Optional[ResourceSymbol] = None,
             *,
             type: Type[ParameterType] = str,
             description: Optional[str] = None
     ) -> None:
         self.symbol = symbol
-        self._path = path
+        self._path = value
         super().__init__(name=name, type=type, description=description)
 
     def __repr__(self) -> str:
@@ -264,14 +255,15 @@ class Output(Parameter[ParameterType]):
     @property
     def value(self) -> str:
         if self.symbol:
-            return f"{self.symbol.name}.{self._path}"
+            return f"{self.symbol.value}.{self._path}"
         value = self._resolve_expression(self._path)
         return value
 
-    def __bicep(self) -> str:
+    def __bicep__(self) -> str:
         declaration = ""
         if self._description:
             declaration += f"@sys.description('{self._description}')\n"
+        declaration += f"output {self.name} {self.type} = {self.value}"
         return declaration
 
 

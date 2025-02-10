@@ -14,22 +14,10 @@ from ._resource import Resource, DefaultAction, _load_dev_environment
 from .resources._identifiers import ResourceIdentifiers
 
 if TYPE_CHECKING:
-    from .resources import (
-        ResourceGroup,
-        UserAssignedIdentity,
-        TableStorage,
-        BlobStorage,
-        BlobContainer,
-        DatalakeStorage,
-        QueueStorage,
-        FileShareStorage,
-        FileShare,
-        EventSystemTopic,
-        SystemTopicSubscription,
-    )
-    from .resources.managedidentity import UserAssignedIdentityParams, UserAssignedIdentityKwargs
-    from .resources.resourcegroup import ResourceGroupParams, ResourceGroupKwargs
+    from .resources.managedidentity import UserAssignedIdentity, UserAssignedIdentityKwargs
+    from .resources.resourcegroup import ResourceGroup, ResourceGroupKwargs
     from .resources.storage import StorageAccount, StorageAccountKwargs
+
     from .resources.storage.tables import TableServiceParams, TableStorageKwargs
     from .resources.storage.blobs import BlobServiceParams, BlobStorageKwargs
     from .resources.storage.blobs.container import ContainerParams, ContainerKwargs

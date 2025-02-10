@@ -46,7 +46,6 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         system_hook: Optional[Callable[[], ValidInputType]] = None,
         default: Union[ValidInputType, _Unset] = _unset,
         convert: Optional[Callable[[Union[ValidInputType, str]], ValueType]] = None,
-        resource_outputs: Optional[Dict[str, str]] = None,
     ):
         super().__init__(
             name=name,
@@ -58,11 +57,7 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         self.suffix = suffix
         self._tostr = to_str or str
         self._env_vars = env_vars or []
-        self._resource_outputs = resource_outputs or {}
         self.config_stores = []
-        self._is_output = False
-        if self._env_var in self._resource_outputs or [e for e in self._env_vars if e in self._resource_outputs]:
-            self._is_output = True
 
     def __call__(self, value: Optional[ValidInputType] = None) -> ValueType:
         """Return the setting value according to the standard precedence.
@@ -98,23 +93,26 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         for env_var in self._env_vars:
             if env_var + self.suffix in os.environ:
                 return os.environ[env_var + self.suffix]
-        if self._env_var and self._env_var + self.suffix in os.environ:
-            return os.environ[self._env_var + self.suffix]
+        if self._env_var and self._env_var in os.environ:
+            return os.environ[self._env_var]
 
         # 1. system setting
         if self._system_hook:
-            return self._system_hook()
+            try:
+                return self._system_hook()
+            except RuntimeError:
+                pass
 
         # 0. implicit default
         if not isinstance(self._default, _Unset):
             return self._default
 
         all_vars = "\n".join([e + self.suffix for e in self._env_vars])
+        all_vars += "\n" if all_vars else ""
         if self._env_var:
-            all_vars + f"\n{self._env_var + self.suffix}"
+            all_vars += f"{self._env_var}\n"
         message = f"No configured value found for setting {self._name!r}.\nChecked the following settings:\n{all_vars}"
-        if self._is_output:
-            message += f"\nYou may need to run the 'provision' command to populate resource settings."
+        message += f"\nYou may need to run the 'provision' command to populate resource settings."
         raise RuntimeError(message)
 
     def set_value(self, value: Union[PrioritizedSetting[ValidInputType, ValueType], ValidInputType]) -> None:

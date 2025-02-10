@@ -246,4 +246,4 @@ class StorageAccountResource(TypedDict, total=False):
     sku: Union[Sku, Parameter[Sku]]
     """Gets or sets the SKU name."""
     tags: Union[Dict[str, Union[str, Parameter[str]]], Parameter[Dict[str, str]]]
-    """Resource tags	Dictionary of tag names and values."""
+    """Dictionary of resource tag names and values."""
