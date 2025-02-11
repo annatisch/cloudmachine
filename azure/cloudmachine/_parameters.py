@@ -29,13 +29,6 @@ LOCAL_PRINCIPAL: Parameter[str] = Parameter(
     description="ID of the user or app to assign application roles",
     varname="AZURE_PRINCIPAL_ID"
 )
-LOCAL_ACCESS: Parameter[str] = Parameter(
-    'localAccess',
-    type=str,
-    default=True,
-    allowed=['User', 'Application', 'None'],
-    description='Whether to add application roles to the local user or app.'
-)
 AZD_TAGS: Parameter[Dict[str, str]] = Variable(
     'azdTags',
     value={'azd-env-name': ENV_NAME},
@@ -43,10 +36,9 @@ AZD_TAGS: Parameter[Dict[str, str]] = Variable(
 )
 
 GLOBAL_PARAMS = {
-    '__location': LOCATION,
-    '__environmentName': ENV_NAME,
-    '__defaultName': DEFAULT_NAME,
-    '__principalId': LOCAL_PRINCIPAL,
-    '__localAccess': LOCAL_ACCESS,
-    '__azdTags': AZD_TAGS,
+    'location': LOCATION,
+    'environmentName': ENV_NAME,
+    'defaultName': DEFAULT_NAME,
+    'principalId': LOCAL_PRINCIPAL,
+    'azdTags': AZD_TAGS,
 }

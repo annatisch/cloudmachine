@@ -66,13 +66,15 @@ from azure.core.credentials import (
 from azure.core.credentials_async import AsyncSupportsTokenInfo
 from azure.core.settings import PrioritizedSetting
 
+from ._parameters import DEFAULT_NAME, LOCATION, AZD_TAGS
 from ._setting import StoredPrioritizedSetting
-from ._bicep.expressions import Guid, Output, Expression, Parameter, ResourceSymbol, Subscription, UniqueString, Variable
+from ._bicep.expressions import Guid, Output, Expression, Parameter, ResourceSymbol, ResourceGroup, UniqueString, Variable
 from ._bicep.utils import serialize, generate_suffix, resolve_value, serialize_dict, clean_name
 
 if TYPE_CHECKING:
-    from .resources.resourcegroup._resource import ResourceGroup
-    from .resources._extension.roles import RoleAssignment
+    from .resources.resourcegroup import ResourceGroup
+    from .resources._utils import RoleAssignment as SimpleRoleAssignment
+
 
 
 class DefaultAction(Enum):
@@ -125,8 +127,8 @@ class ResourceReference(TypedDict, total=False):
 
 
 class ExtensionResources(TypedDict, total=False):
-    role_assignments: Union[Parameter[List[Union['RoleAssignment', str]]], List[Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', str]]]
-    local_access_role: Union[Union['RoleAssignment', str], Parameter[Union['RoleAssignment', str]]]
+    role_assignments: Union[Parameter[List[Union['SimpleRoleAssignment', str]]], List[Union[Parameter[Union[str, 'SimpleRoleAssignment']], 'SimpleRoleAssignment', str]]]
+    user_role: Union[Union['SimpleRoleAssignment', str], Parameter[Union['SimpleRoleAssignment', str]]]
     # lock
     # diagnostics
     # private endpoint
@@ -144,6 +146,8 @@ class FieldType(NamedTuple, Generic[ResourcePropertiesType]):
     resource_group: ResourceSymbol
     extensions: ExtensionResources
     existing: bool
+    name: Optional[Union[str, Parameter[str]]]
+    add_defaults: Optional[Callable[[FieldType, Dict[str, Parameter]], None]]
     
 
 FieldsType = Dict[str, FieldType]
@@ -224,8 +228,8 @@ class Resource(Generic[ResourcePropertiesType]):
             resource: str,
             *,
             name: str,
-            resource_group: Optional[Union[str, 'ResourceGroup', Parameter[str]]] = None,
-            subscription: Optional[Union[str, Parameter[str]]] = None,
+            resource_group: Optional[Union[str, 'ResourceGroup']] = None,
+            subscription: Optional[str] = None,
             parent: Optional[Resource] = None,
     ) -> Self[ResourceReference]:
         if parent and resource_group:
@@ -238,7 +242,7 @@ class Resource(Generic[ResourcePropertiesType]):
                 resource_group = ResourceGroup.reference(name=resource_group, subscription=subscription)
             properties['resource_group'] = resource_group
         elif subscription:
-            properties['subscription'] = subscription
+            properties['subscription'] = str(subscription)
         resource_ref = cls(
             properties,
             resource=resource_type,
@@ -317,14 +321,17 @@ class Resource(Generic[ResourcePropertiesType]):
             self,
              *,
              symbol: ResourceSymbol,
-             resource_group: ResourceSymbol,
              **kwargs
     ) -> List[Output]:
         outputs = [
             Output(f"AZURE_{self._prefixes[0].upper()}_ID{self._suffix}", "id", symbol),
             Output(f"AZURE_{self._prefixes[0].upper()}_NAME{self._suffix}", "name", symbol),
-            Output(f"AZURE_{self._prefixes[0].upper()}_RESOURCE_GROUP{self._suffix}", resource_group.name)
         ]
+        rg_output = f"AZURE_{self._prefixes[0].upper()}_RESOURCE_GROUP{self._suffix}"
+        if self._existing and self.properties.get('resource_group'):
+            outputs.append(Output(rg_output, self.properties['resource_group'].properties['name']))
+        else:
+            outputs.append(Output(rg_output, ResourceGroup().name))
         return outputs
     
     def _merge_properties(
@@ -333,7 +340,7 @@ class Resource(Generic[ResourcePropertiesType]):
             **kwargs
         ) -> Dict[str, Any]:
         for key, value in self.properties.items():
-            if properties.get(key):
+            if properties.get(key) and properties[key] != value:
                 raise ValueError(f"{repr(self)} cannot set '{key}' to '{value}', already set to: '{properties[key]}'.")
             properties[key] = value
         return {}
@@ -397,108 +404,138 @@ class Resource(Generic[ResourcePropertiesType]):
         new_identity = UserAssignedIdentity()
         return new_identity.__bicep__(fields, parameters=parameters)
 
-    def _build_role_assignments(
+    def _build_role_assignment(
             self,
-            properties: Dict[str, Any],
-            existing_role_assignments: Optional[List[Dict[str, Any]]] = None,
-            *,
+            role: Union[str, 'SimpleRoleAssignment'],
             fields: FieldsType,
+            name: Union[str, Parameter[str]],
+            *,
             parameters: Dict[str, Parameter],
             symbol: ResourceSymbol,
-            identity: ResourceSymbol,
+            principal_id: Expression,
+            principal_type: Literal['ServicePrincipal', 'User']
+    ) -> ResourceSymbol:
+        from .resources._extension.roles import RoleAssignment
+        if isinstance(role, str):
+            new_role = RoleAssignment(
+                {
+                    'name': Guid(self.__class__.__name__, name, principal_type, role),
+                    'properties': {
+                        'principalId': principal_id,
+                        'principalType': principal_type,
+                        'roleDefinitionId': role
+                    },
+                    'scope': symbol
+                }
+            )
+            return new_role.__bicep__(fields, parameters=parameters)
+        else:
+            new_role = RoleAssignment(
+                {
+                    'name': role.get(
+                        'name',
+                        Guid(
+                            self.__class__.__name__,
+                            name,
+                            role['principalId'],
+                            role['roleDefinitionIdOrName']
+                        )
+                    ),
+                    'properties': {
+                        'condition': role.get('condition'),
+                        'conditionVersion': role.get('conditionVersion'),
+                        'delegatedManagedIdentityResourceId': role.get('delegatedManagedIdentityResourceId'),
+                        'description': role.get('description'),
+                        'principalType': role.get('principalType'),
+                        'roleDefinitionId': role.get('roleDefinitionIdOrName')
+                    },
+                    'scope': symbol
+                }
+            )
+            return new_role.__bicep__(fields, parameters=parameters)
+    
+    def _add_role_assignments(
+            self,
+            fields: FieldsType,
+            properties: Dict[str, Any],
+            *,
+            extensions: Dict[str, Any],
+            parameters: Dict[str, Parameter],
+            symbol: ResourceSymbol,
+            identity: Optional[ResourceSymbol],
             user_access: bool,
     ) -> None:
-        if existing_role_assignments:
-            role_assignments = properties.pop("roleAssignments", [])
-            existing_role_assignments.extend(role_assignments)
-            properties['roleAssignments'] = existing_role_assignments
-        if 'roleAssignments' in properties:
-            for role in properties['roleAssignments']:
-                if isinstance(role, str):
-                    new_role = RoleAssignment(
-                        {
-                            'name': Guid(self.__class__.__name__, properties['name'], identity.principal_id, role),
-                            'properties': {
-                                'principalId': identity.principal_id,
-                                'principalType': 'ServicePrincipal',
-                                'roleDefinitionId': role
-                            },
-                            'scope': symbol
-                        }
-                    )
-                    if user_access:
-                        user_role = RoleAssignment(
-                            {
-                                'name': Guid(self.__class__.__name__, properties['name'], parameters['user_principal'], role),
-                                'properties': {
-                                    'principalId': parameters['user_principal'],
-                                    'principalType': 'User',
-                                    'roleDefinitionId': role
-                                },
-                                'scope': symbol
-                            }
-                        )
-                        user_role.__bicep__(fields, parameters=parameters)
-                else:
-                    new_role = RoleAssignment(
-                        {
-                            'name': role.get(
-                                'name',
-                                Guid(
-                                    self.__class__.__name__,
-                                    properties['name'],
-                                    role['principalId'],
-                                    role['roleDefinitionIdOrName']
-                                )
-                            ),
-                            'properties': {
-                                'condition': role.get('condition'),
-                                'conditionVersion': role.get('conditionVersion'),
-                                'delegatedManagedIdentityResourceId': role.get('delegatedManagedIdentityResourceId'),
-                                'description': role.get('description'),
-                                'principalType': role.get('principalType'),
-                                'roleDefinitionId': role.get('roleDefinitionIdOrName')
-                            },
-                            'scope': symbol
-                        }
-                    )
-                new_role.__bicep__(fields, parameters=parameters)
+        if identity:
+            for role in self.extensions.get('role_assignments', []):
+                if not extensions.get('role_assignments'):
+                    extensions['role_assignments'] = []
+                role_symbol = self._build_role_assignment(
+                    role,
+                    fields,
+                    properties.get('name', parameters['defaultName']),
+                    parameters=parameters,
+                    symbol=symbol,
+                    principal_id=identity.principal_id,
+                    principal_type='ServicePrincipal'
+                )
+                if role_symbol not in extensions['role_assignments']:
+                    extensions['role_assignments'].append(role_symbol)
+                
+        if self.extensions.get('user_role') and user_access:
+            if not extensions.get('user_roles'):
+                extensions['user_roles'] = []
+            role_symbol = self._build_role_assignment(
+                self.extensions['user_role'],
+                fields,
+                properties.get('name', parameters['defaultName']),
+                parameters=parameters,
+                symbol=symbol,
+                principal_id=parameters['principalId'],
+                principal_type='User'
+            )
+            if role_symbol not in extensions['user_roles']:
+                extensions['user_roles'].append(role_symbol)
 
     def _update_managed_identities(
             self,
-            params: Dict[str, Any],
-            updated_params: Optional[Dict[str, Any]] = None,
+            properties: Dict[str, Any],
             *,
             identity: Optional[ResourceSymbol] = None
     ) -> None:
-        if updated_params:
-            managed_identities = params.pop("managedIdentities", {})
-            user_assigned_identities = managed_identities.pop("userAssignedResourceIds", [])
-            user_assigned_identities.extend(updated_params.get('userAssignedResourceIds', []))
-            managed_identities.update(updated_params)
-            managed_identities["userAssignedResourceIds"] = user_assigned_identities
-            params['managedIdentities'] = managed_identities
         if identity and self._supports_managed_identity:
-            if 'managedIdentities' not in params:
-                params['managedIdentities'] = {
-                    'userAssignedResourceIds': [identity.id]
+            if 'identity' not in properties:
+                properties['identity'] = {
+                    'type': 'UserAssigned',
+                    'userAssignedIdentities': {identity: {}}
                 }
             else:
-                identities = params['managedIdentities'].get('userAssignedResourceIds', [])
-                existing = [i for i in identities if (hasattr(i, 'symbol') and i.symbol == identity) or i == identity]
-                if not existing:
-                    identities.append(identity.id)
-                    params['managedIdentities']['userAssignedResourceIds'] = identities
+                identities = properties['identity'].get('userAssignedIdentities', {})
+                if identity not in identities:
+                    identities[identity] = {}
+                if properties['identity']['type'] == 'None':
+                    properties['identity']['type'] = 'UserAssigned'
+                elif properties['identity']['type'] == 'SystemAssigned':
+                    properties['identity']['type'] = 'SystemAssigned,UserAssigned'
+                properties['identity']['userAssignedIdentities'] = identities
 
     def _add_parameters(self, obj: Dict[str, Any], parameters):
         for value in obj.values():
-            if isinstance(value, Parameter):
+            if isinstance(value, Parameter) and value.name:
                 parameters[value.name] = value
             else:
                 try:
                     self._add_parameters(value, parameters)
                 except (AttributeError, TypeError):
                     pass
+
+    def _add_defaults(self, field: FieldType, parameters: Dict[str, Parameter]):
+        if 'name' not in field.properties:
+            field.properties['name'] = DEFAULT_NAME
+        if 'location' not in field.properties:
+            field.properties['location'] = LOCATION
+        if 'tags' not in field.properties:
+            field.properties['tags'] = AZD_TAGS
+        #field.name = field.properties['name']
 
     def __bicep__(
             self,
@@ -554,6 +591,8 @@ class Resource(Generic[ResourcePropertiesType]):
                 version=self.version,
                 extensions={},  # TODO: support adding role assignments to existing resources
                 existing=True,
+                name=properties['name'],
+                add_defaults=None
             )
             fields[f"{field_id}.{attrname if attrname else symbol.value}"] = field
             return symbol
@@ -578,8 +617,10 @@ class Resource(Generic[ResourcePropertiesType]):
                 outputs=outputs,
                 resource_group=rg,
                 version=self.version,
-                extensions=deepcopy(self.extensions),
+                extensions={},
                 existing=False,
+                name=self.properties.get('name'),
+                add_defaults=self._add_defaults
             )
             fields[f"{field_id}.{self._project_attr_names[-1] if self._project_attr_names else symbol.value}"] = field
 
@@ -592,6 +633,16 @@ class Resource(Generic[ResourcePropertiesType]):
             attrname=attrname,
             resource_group=rg
         )
+        self._add_role_assignments(
+            fields,
+            params,
+            parameters=parameters,
+            symbol=symbol,
+            identity=identity,
+            extensions=field.extensions,
+            user_access=(output_resource and parameters.get('principalId'))
+        )
+        self._update_managed_identities(params, identity=identity)
         if not outputs and output_resource:
             resource_outputs = self._outputs(
                 symbol=symbol,

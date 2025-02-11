@@ -133,11 +133,13 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
                 resource=self.resource,
                 properties=properties,
                 symbol=symbol,
-                outputs={},
+                outputs=[],
                 resource_group=symbol,
                 version=self.version,
                 extensions={},
                 existing=True,
+                name=self.properties['name'],
+                add_defaults=None,
             )
             fields[f"{field_id}.{attrname if attrname else symbol.value}"] = field
             return symbol
@@ -153,27 +155,15 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
                 resource=self.resource,
                 properties=properties,
                 symbol=symbol,
-                outputs={},
+                outputs=[],
                 resource_group=symbol,
                 version=self.version,
                 extensions={},
                 existing=False,
+                name=self.properties.get('name'),
+                add_defaults=self._add_defaults
             )
             fields[f"{field_id}.{attrname if attrname else symbol.value}"] = field
         self._merge_properties(properties, symbol=symbol, resource_group=symbol)
         self._add_parameters(field.properties, parameters)
         return symbol
-
-def _add_defaults(
-        field: FieldType,
-        *,
-        parameters: Dict[str, Parameter]
-):
-    if field.existing:
-        return
-    if 'name' not in field.properties:
-        field.properties['name'] = DEFAULT_NAME
-    if 'location' not in field.properties:
-        field.properties['location'] = LOCATION
-    if 'tags' not in field.properties:
-        field.properties['tags'] = AZD_TAGS

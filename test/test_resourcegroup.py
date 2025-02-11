@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 from azure.cloudmachine._resource import FieldType
-from azure.cloudmachine.resources.resourcegroup import ResourceGroup, _add_defaults
+from azure.cloudmachine.resources.resourcegroup import ResourceGroup
 from azure.cloudmachine._parameters import GLOBAL_PARAMS
 from azure.cloudmachine._bicep.expressions import ResourceSymbol, Subscription
 from azure.cloudmachine import Parameter
@@ -20,31 +20,31 @@ def test_resourcegroup_properties():
     fields = {}
     symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
     assert list(fields.keys()) == ['__main__.resourcegroup']
-    assert fields['__main__.resourcegroup'] == FieldType(
-        resource="Microsoft.Resources/resourceGroups",
-        properties={},
-        outputs={},
-        extensions={},
-        existing=False,
-        version="2021-04-01",
-        symbol=symbol,
-        resource_group=symbol
-    )
+    assert fields['__main__.resourcegroup'].resource == "Microsoft.Resources/resourceGroups"
+    assert fields['__main__.resourcegroup'].properties == {}
+    assert fields['__main__.resourcegroup'].outputs == []
+    assert fields['__main__.resourcegroup'].extensions == {}
+    assert fields['__main__.resourcegroup'].existing == False
+    assert fields['__main__.resourcegroup'].version
+    assert fields['__main__.resourcegroup'].symbol == symbol
+    assert fields['__main__.resourcegroup'].resource_group == symbol
+    assert fields['__main__.resourcegroup'].name == None
+    assert fields['__main__.resourcegroup'].add_defaults
 
     r2 = ResourceGroup(location='westus')
     assert r2.properties == {'location': 'westus'}
     r2.__bicep__(fields, parameters=GLOBAL_PARAMS)
     assert list(fields.keys()) == ['__main__.resourcegroup']
-    assert fields['__main__.resourcegroup'] == FieldType(
-        resource="Microsoft.Resources/resourceGroups",
-        properties={'location': 'westus'},
-        outputs={},
-        extensions={},
-        existing=False,
-        version="2021-04-01",
-        symbol=symbol,
-        resource_group=symbol
-    )
+    assert fields['__main__.resourcegroup'].resource == "Microsoft.Resources/resourceGroups"
+    assert fields['__main__.resourcegroup'].properties == {'location': 'westus'}
+    assert fields['__main__.resourcegroup'].outputs == []
+    assert fields['__main__.resourcegroup'].extensions == {}
+    assert fields['__main__.resourcegroup'].existing == False
+    assert fields['__main__.resourcegroup'].version
+    assert fields['__main__.resourcegroup'].symbol == symbol
+    assert fields['__main__.resourcegroup'].resource_group == symbol
+    assert fields['__main__.resourcegroup'].name == None
+    assert fields['__main__.resourcegroup'].add_defaults
 
     r3 = ResourceGroup(location='eastus')
     assert r3.properties == {'location': 'eastus'}
@@ -55,16 +55,16 @@ def test_resourcegroup_properties():
     assert r4.properties == {'name': 'foo', 'tags': {'test': 'value'}}
     symbol = r4.__bicep__(fields, parameters=GLOBAL_PARAMS)
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.resourcegroup_foo']
-    assert fields['__main__.resourcegroup_foo'] == FieldType(
-        resource="Microsoft.Resources/resourceGroups",
-        properties={'name': 'foo', 'tags': {'test': 'value'}},
-        outputs={},
-        extensions={},
-        existing=False,
-        version="2021-04-01",
-        symbol=symbol,
-        resource_group=symbol
-    )
+    assert fields['__main__.resourcegroup_foo'].resource == "Microsoft.Resources/resourceGroups"
+    assert fields['__main__.resourcegroup_foo'].properties == {'name': 'foo', 'tags': {'test': 'value'}}
+    assert fields['__main__.resourcegroup_foo'].outputs == []
+    assert fields['__main__.resourcegroup_foo'].extensions == {}
+    assert fields['__main__.resourcegroup_foo'].existing == False
+    assert fields['__main__.resourcegroup_foo'].version
+    assert fields['__main__.resourcegroup_foo'].symbol == symbol
+    assert fields['__main__.resourcegroup_foo'].resource_group == symbol
+    assert fields['__main__.resourcegroup_foo'].name == 'foo'
+    assert fields['__main__.resourcegroup_foo'].add_defaults
 
 
 def test_resourcegroup_reference():
@@ -84,16 +84,16 @@ def test_resourcegroup_reference():
     fields = {}
     symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
     assert list(fields.keys()) == ['__main__.resourcegroup_foo']
-    assert fields['__main__.resourcegroup_foo'] == FieldType(
-        resource="Microsoft.Resources/resourceGroups",
-        properties={'name': 'foo'},
-        outputs={},
-        extensions={},
-        existing=True,
-        version="2021-04-01",
-        symbol=symbol,
-        resource_group=symbol
-    )
+    assert fields['__main__.resourcegroup_foo'].resource == "Microsoft.Resources/resourceGroups"
+    assert fields['__main__.resourcegroup_foo'].properties == {'name': 'foo'}
+    assert fields['__main__.resourcegroup_foo'].outputs == []
+    assert fields['__main__.resourcegroup_foo'].extensions == {}
+    assert fields['__main__.resourcegroup_foo'].existing == True
+    assert fields['__main__.resourcegroup_foo'].version
+    assert fields['__main__.resourcegroup_foo'].symbol == symbol
+    assert fields['__main__.resourcegroup_foo'].resource_group == symbol
+    assert fields['__main__.resourcegroup_foo'].name == 'foo'
+    assert not fields['__main__.resourcegroup_foo'].add_defaults
 
     r = ResourceGroup.reference(name='bar', subscription=TEST_SUB)
     assert r.properties == {'name': 'bar', 'subscription': TEST_SUB}
@@ -101,16 +101,16 @@ def test_resourcegroup_reference():
     assert r.resource_id() == f"/subscriptions/{TEST_SUB}/providers/Microsoft.Resources/resourceGroups/bar"
     symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
     assert list(fields.keys()) == ['__main__.resourcegroup_foo', '__main__.resourcegroup_bar']
-    assert fields['__main__.resourcegroup_bar'] == FieldType(
-        resource="Microsoft.Resources/resourceGroups",
-        properties={'name': 'bar', 'scope': Subscription(TEST_SUB)},
-        outputs={},
-        extensions={},
-        existing=True,
-        version="2021-04-01",
-        symbol=symbol,
-        resource_group=symbol
-    )
+    assert fields['__main__.resourcegroup_bar'].resource == "Microsoft.Resources/resourceGroups"
+    assert fields['__main__.resourcegroup_bar'].properties == {'name': 'bar', 'scope': Subscription(TEST_SUB)}
+    assert fields['__main__.resourcegroup_bar'].outputs == []
+    assert fields['__main__.resourcegroup_bar'].extensions == {}
+    assert fields['__main__.resourcegroup_bar'].existing == True
+    assert fields['__main__.resourcegroup_bar'].version
+    assert fields['__main__.resourcegroup_bar'].symbol == symbol
+    assert fields['__main__.resourcegroup_bar'].resource_group == symbol
+    assert fields['__main__.resourcegroup_bar'].name == 'bar'
+    assert not fields['__main__.resourcegroup_bar'].add_defaults
 
 def test_resourcegroup_defaults():
     rg_name = Parameter('rgName')
@@ -118,9 +118,9 @@ def test_resourcegroup_defaults():
     fields = {}
     r.__bicep__(fields, parameters=GLOBAL_PARAMS)
     field = fields.popitem()[1]
-    _add_defaults(field, parameters=GLOBAL_PARAMS)
+    r._add_defaults(field, parameters=GLOBAL_PARAMS)
     assert field.properties == {
         'name': rg_name,
-        'location': GLOBAL_PARAMS['__location'],
-        'tags': GLOBAL_PARAMS['__azdTags']
+        'location': GLOBAL_PARAMS['location'],
+        'tags': GLOBAL_PARAMS['azdTags']
     }

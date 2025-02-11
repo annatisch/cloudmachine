@@ -50,7 +50,7 @@ def test_expression_resourcesymbol():
     assert symbol.value == "foo"
     assert symbol.name.value == "foo.name"
     assert symbol.id.value == "foo.id"
-    assert symbol.principal_id.value == "foo.principalId"
+    assert symbol.principal_id.value == "foo.properties.principalId"
 
 
 def test_expression_parameter():
@@ -65,7 +65,6 @@ def test_expression_parameter():
 
     param = exp.Parameter("test", default="foo")
     assert param.default == "foo"
-    assert repr(param) == "parameter(test=foo)"
     assert param.__bicep__() == "param test string = 'foo'\n\n"
 
     param = exp.Parameter("test", description="test param")

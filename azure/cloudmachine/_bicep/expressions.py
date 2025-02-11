@@ -18,7 +18,6 @@ class Expression:
 
     def __eq__(self, value: Any) -> bool:
         try:
-            print("EQ", self.value, value.value, self.value == value.value)
             return self.value == value.value
         except AttributeError:
             return False
@@ -73,6 +72,27 @@ class Subscription(Expression):
         return Expression(f"{self.value}.subscriptionId")
 
 
+class ResourceGroup(Expression):
+    def __init__(self, resource_group: Optional[Union[Expression, str]] = None, /):
+        self._rg = resource_group
+
+    def __repr__(self) -> str:
+        sub = self._rg or "<default>"
+        return f"resourcegroup({sub})"
+
+    @property
+    def value(self) -> str:
+        if self._rg:
+            return f"resourceGroup({resolve_value(self._rg)})"
+        return f"resourceGroup()"
+
+    @property
+    def name(self) -> Union[str, Expression]:
+        if self._rg:
+            return self._rg
+        return Expression(f"{self.value}.name")
+
+
 class ResourceSymbol(Expression):
     def __init__(
             self,
@@ -92,17 +112,17 @@ class ResourceSymbol(Expression):
 
     @property
     def name(self) -> 'Output[str]':
-        return Output(f"{self._value}Name", "name", self)
+        return Output(None, "name", self)
 
     @property
     def id(self) -> 'Output[str]':
-        return Output(f"{self._value}Id", "id", self)
+        return Output(None, "id", self)
 
     @property
     def principal_id(self) -> 'Output[str]':
         if not self._principal_id_output:
             raise ValueError("Module has no principal ID output.")
-        return Output(f"{self._value}PrincipalId", "principalId", self)
+        return Output(None, "properties.principalId", self)
 
 
 ParameterType = TypeVar("ParameterType", str, int, bool, dict, list, None)
@@ -158,11 +178,9 @@ class Parameter(Expression, Generic[ParameterType]):
             raise TypeError(f"Unrecognized parameter type: '{self._type}'.")
 
     def __repr__(self) -> str:
-        if self.default is not MISSING:
-            return f"parameter({self.name}={self.default})"
         return f"parameter({self.name})"
 
-    def __bicep__(self) -> str:
+    def __bicep__(self, default: Optional[ParameterType] = None, /) -> str:
         declaration = ""
         if self._secure:
             declaration += "@sys.secure()\n"
@@ -186,9 +204,9 @@ class Parameter(Expression, Generic[ParameterType]):
         if self._min_length is not None:
             declaration += f"@sys.minLength({self._min_length})\n"
         declaration += f"param {self.name} {self.type}"
-        if self.default is not MISSING:
+        if default or self.default is not MISSING:
             declaration += " = "
-            declaration += serialize(self.default)
+            declaration += serialize(default or self.default)
         declaration += "\n\n"
         return declaration
 
@@ -225,13 +243,13 @@ class Variable(Parameter[ParameterType]):
         return f"var({self.name})"
 
 
-    def __bicep__(self) -> str:
+    def __bicep__(self, default: Optional[ParameterType] = None, /) -> str:
         declaration = ""
         if self._description:
             declaration += f"@sys.description('{self._description}')\n"
         declaration += f"var {self.name} = "
-        declaration += serialize(self._value)
-        declaration += "\n\n"
+        declaration += serialize(default or self._value)
+        declaration += "\n"
         return declaration
 
 
@@ -250,20 +268,20 @@ class Output(Parameter[ParameterType]):
         super().__init__(name=name, type=type, description=description)
 
     def __repr__(self) -> str:
-        return f"output({self.name}, {self.type})"
+        return f"output({self.value})"
 
     @property
     def value(self) -> str:
         if self.symbol:
             return f"{self.symbol.value}.{self._path}"
-        value = self._resolve_expression(self._path)
+        value = resolve_value(self._path)
         return value
 
-    def __bicep__(self) -> str:
+    def __bicep__(self, *args) -> str:
         declaration = ""
         if self._description:
             declaration += f"@sys.description('{self._description}')\n"
-        declaration += f"output {self.name} {self.type} = {self.value}"
+        declaration += f"output {self.name} {self.type} = {self.value}\n"
         return declaration
 
 
@@ -272,11 +290,15 @@ class Guid(Parameter[str]):
         self._args = [basestr] + list(args)
 
     def __repr__(self):
-        return f"guid({self._args[0]}, ...)"
+        return self.value
 
     @property
     def type(self) -> str:
         return "string"
+
+    @property
+    def name(self) -> None:
+        return None
 
     @property
     def value(self) -> str:
@@ -289,13 +311,30 @@ class UniqueString(Parameter[str]):
         self._args = [basestr] + list(args)
 
     def __repr__(self):
-        return f"uniqueString({self._args[0]}, ...)"
+        return self.value
 
     @property
     def type(self) -> str:
         return "string"
 
     @property
+    def name(self) -> None:
+        return None
+
+    @property
     def value(self) -> str:
         arg_str = ", ".join([resolve_value(a) for a in self._args])
         return f"uniqueString({arg_str})"
+
+
+class RoleDefinition(Expression):
+    def __init__(self, guid: str) -> None:
+        self._guid = guid
+        self.description: Optional[str] = None
+
+    def __repr__(self):
+        return f"roleDefinition({self._guid})"
+
+    @property
+    def value(self) -> str:
+        return f"subscriptionResourceId(\n      'Microsoft.Authorization/roleDefinitions',\n      '{self._guid}'\n    )\n"

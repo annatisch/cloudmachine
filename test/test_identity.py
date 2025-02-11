@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 from azure.cloudmachine._resource import FieldType
-from azure.cloudmachine.resources.managedidentity import UserAssignedIdentity, _add_defaults
+from azure.cloudmachine.resources.managedidentity import UserAssignedIdentity
 from azure.cloudmachine.resources.resourcegroup import ResourceGroup
 from azure.cloudmachine._parameters import GLOBAL_PARAMS
 from azure.cloudmachine._bicep.expressions import ResourceSymbol, Output
@@ -21,31 +21,31 @@ def test_identity_properties():
     fields = {}
     symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity']
-    assert fields['__main__.userassignedidentity'] == FieldType(
-        resource="Microsoft.ManagedIdentity/userAssignedIdentities",
-        properties={},
-        outputs=[Output('AZURE_CLIENT_ID', "properties.clientId", symbol)],
-        extensions={},
-        existing=False,
-        version="2024-11-30",
-        symbol=symbol,
-        resource_group=ResourceSymbol('resourcegroup')
-    )
+    assert fields['__main__.userassignedidentity'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
+    assert fields['__main__.userassignedidentity'].properties == {}
+    assert fields['__main__.userassignedidentity'].outputs == [Output('AZURE_CLIENT_ID', "properties.clientId", symbol)]
+    assert fields['__main__.userassignedidentity'].extensions == {}
+    assert fields['__main__.userassignedidentity'].existing == False
+    assert fields['__main__.userassignedidentity'].version
+    assert fields['__main__.userassignedidentity'].symbol == symbol
+    assert fields['__main__.userassignedidentity'].resource_group == ResourceSymbol('resourcegroup')
+    assert not fields['__main__.userassignedidentity'].name
+    assert fields['__main__.userassignedidentity'].add_defaults
 
     r2 = UserAssignedIdentity(location='westus')
     assert r2.properties == {'location': 'westus'}
     r2.__bicep__(fields, parameters=GLOBAL_PARAMS)
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity']
-    assert fields['__main__.userassignedidentity'] == FieldType(
-        resource="Microsoft.ManagedIdentity/userAssignedIdentities",
-        properties={'location': 'westus'},
-        outputs=[Output('AZURE_CLIENT_ID', "properties.clientId", symbol)],
-        extensions={},
-        existing=False,
-        version="2024-11-30",
-        symbol=symbol,
-        resource_group=ResourceSymbol('resourcegroup')
-    )
+    assert fields['__main__.userassignedidentity'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
+    assert fields['__main__.userassignedidentity'].properties == {'location': 'westus'}
+    assert fields['__main__.userassignedidentity'].outputs == [Output('AZURE_CLIENT_ID', "properties.clientId", symbol)]
+    assert fields['__main__.userassignedidentity'].extensions == {}
+    assert fields['__main__.userassignedidentity'].existing == False
+    assert fields['__main__.userassignedidentity'].version
+    assert fields['__main__.userassignedidentity'].symbol == symbol
+    assert fields['__main__.userassignedidentity'].resource_group == ResourceSymbol('resourcegroup')
+    assert not fields['__main__.userassignedidentity'].name
+    assert fields['__main__.userassignedidentity'].add_defaults
 
     r3 = UserAssignedIdentity(location='eastus')
     assert r3.properties == {'location': 'eastus'}
@@ -56,16 +56,16 @@ def test_identity_properties():
     assert r4.properties == {'name': 'foo', 'tags': {'test': 'value'}}
     symbol = r4.__bicep__(fields, parameters=GLOBAL_PARAMS)
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.userassignedidentity_foo']
-    assert fields['__main__.userassignedidentity_foo'] == FieldType(
-        resource="Microsoft.ManagedIdentity/userAssignedIdentities",
-        properties={'name': 'foo', 'tags': {'test': 'value'}},
-        outputs=[Output('AZURE_CLIENT_ID', "properties.clientId", symbol)],
-        extensions={},
-        existing=False,
-        version="2024-11-30",
-        symbol=symbol,
-        resource_group=ResourceSymbol('resourcegroup')
-    )
+    assert fields['__main__.userassignedidentity_foo'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
+    assert fields['__main__.userassignedidentity_foo'].properties == {'name': 'foo', 'tags': {'test': 'value'}}
+    assert fields['__main__.userassignedidentity_foo'].outputs == [Output('AZURE_CLIENT_ID', "properties.clientId", symbol)]
+    assert fields['__main__.userassignedidentity_foo'].extensions == {}
+    assert fields['__main__.userassignedidentity_foo'].existing == False
+    assert fields['__main__.userassignedidentity_foo'].version
+    assert fields['__main__.userassignedidentity_foo'].symbol == symbol
+    assert fields['__main__.userassignedidentity_foo'].resource_group == ResourceSymbol('resourcegroup')
+    assert fields['__main__.userassignedidentity_foo'].name == 'foo'
+    assert fields['__main__.userassignedidentity_foo'].add_defaults
 
     param1 = Parameter("testA")
     param2 = Parameter("testB")
@@ -75,16 +75,17 @@ def test_identity_properties():
     fields = {}
     symbol = r5.__bicep__(fields, parameters=params)
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity_testa']
-    assert fields['__main__.userassignedidentity_testa'] == FieldType(
-        resource="Microsoft.ManagedIdentity/userAssignedIdentities",
-        properties={'name': param1, 'tags': {'foo': param2}},
-        outputs=[Output('AZURE_CLIENT_ID', "properties.clientId", symbol)],
-        extensions={},
-        existing=False,
-        version="2024-11-30",
-        symbol=symbol,
-        resource_group=ResourceSymbol('resourcegroup')
-    )
+    assert fields['__main__.userassignedidentity_testa'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
+    assert fields['__main__.userassignedidentity_testa'].properties == {'name': param1, 'tags': {'foo': param2}}
+    assert fields['__main__.userassignedidentity_testa'].outputs == [Output('AZURE_CLIENT_ID', "properties.clientId", symbol)]
+    assert fields['__main__.userassignedidentity_testa'].extensions == {}
+    assert fields['__main__.userassignedidentity_testa'].existing == False
+    assert fields['__main__.userassignedidentity_testa'].version
+    assert fields['__main__.userassignedidentity_testa'].symbol == symbol
+    assert fields['__main__.userassignedidentity_testa'].resource_group == ResourceSymbol('resourcegroup')
+    assert fields['__main__.userassignedidentity_testa'].name == param1
+    assert fields['__main__.userassignedidentity_testa'].add_defaults
+
     assert params.get('testA') == param1
     assert params.get('testB') == param2
 
@@ -106,16 +107,16 @@ def test_identity_reference():
     fields = {}
     symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity_foo']
-    assert fields['__main__.userassignedidentity_foo'] == FieldType(
-        resource="Microsoft.ManagedIdentity/userAssignedIdentities",
-        properties={'name': 'foo', 'scope': ResourceSymbol('resourcegroup')},
-        outputs=[Output('AZURE_CLIENT_ID', "properties.clientId", symbol)],
-        extensions={},
-        existing=True,
-        version="2024-11-30",
-        symbol=symbol,
-        resource_group=ResourceSymbol('resourcegroup')
-    )
+    assert fields['__main__.userassignedidentity_foo'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
+    assert fields['__main__.userassignedidentity_foo'].properties == {'name': 'foo', 'scope': ResourceSymbol("resourcegroup")}
+    assert fields['__main__.userassignedidentity_foo'].outputs == [Output('AZURE_CLIENT_ID', "properties.clientId", symbol)]
+    assert fields['__main__.userassignedidentity_foo'].extensions == {}
+    assert fields['__main__.userassignedidentity_foo'].existing == True
+    assert fields['__main__.userassignedidentity_foo'].version
+    assert fields['__main__.userassignedidentity_foo'].symbol == symbol
+    assert fields['__main__.userassignedidentity_foo'].resource_group == ResourceSymbol('resourcegroup')
+    assert fields['__main__.userassignedidentity_foo'].name == 'foo'
+    assert not fields['__main__.userassignedidentity_foo'].add_defaults
 
     r = UserAssignedIdentity.reference(name='bar', resource_group="rgtest")
     assert r.properties == {'name': 'bar', 'resource_group': ResourceGroup(name='rgtest')}
@@ -123,16 +124,16 @@ def test_identity_reference():
     fields = {}
     symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
     assert list(fields.keys()) == ['__main__.resourcegroup_rgtest', '__main__.userassignedidentity_bar']
-    assert fields['__main__.userassignedidentity_bar'] == FieldType(
-        resource="Microsoft.ManagedIdentity/userAssignedIdentities",
-        properties={'name': 'bar', 'scope': ResourceSymbol("resourcegroup_rgtest")},
-        outputs=[Output('AZURE_CLIENT_ID', "properties.clientId", symbol)],
-        extensions={},
-        existing=True,
-        version="2024-11-30",
-        symbol=symbol,
-        resource_group=ResourceSymbol('resourcegroup_rgtest')
-    )
+    assert fields['__main__.userassignedidentity_bar'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
+    assert fields['__main__.userassignedidentity_bar'].properties == {'name': 'bar', 'scope': ResourceSymbol("resourcegroup_rgtest")}
+    assert fields['__main__.userassignedidentity_bar'].outputs == [Output('AZURE_CLIENT_ID', "properties.clientId", symbol)]
+    assert fields['__main__.userassignedidentity_bar'].extensions == {}
+    assert fields['__main__.userassignedidentity_bar'].existing == True
+    assert fields['__main__.userassignedidentity_bar'].version
+    assert fields['__main__.userassignedidentity_bar'].symbol == symbol
+    assert fields['__main__.userassignedidentity_bar'].resource_group == ResourceSymbol('resourcegroup_rgtest')
+    assert fields['__main__.userassignedidentity_bar'].name == 'bar'
+    assert not fields['__main__.userassignedidentity_bar'].add_defaults
 
     r = UserAssignedIdentity.reference(name='bar', resource_group=ResourceGroup.reference(name='rgtest', subscription=TEST_SUB))
     assert r.properties == {'name': 'bar', 'resource_group': ResourceGroup(name='rgtest')}
@@ -142,16 +143,16 @@ def test_identity_reference():
     fields = {}
     symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
     assert list(fields.keys()) == ['__main__.resourcegroup_rgtest', '__main__.userassignedidentity_bar']
-    assert fields['__main__.userassignedidentity_bar'] == FieldType(
-        resource="Microsoft.ManagedIdentity/userAssignedIdentities",
-        properties={'name': 'bar', 'scope': ResourceSymbol("resourcegroup_rgtest")},
-        outputs=[Output('AZURE_CLIENT_ID', "properties.clientId", symbol)],
-        extensions={},
-        existing=True,
-        version="2024-11-30",
-        symbol=symbol,
-        resource_group=ResourceSymbol('resourcegroup_rgtest')
-    )
+    assert fields['__main__.userassignedidentity_bar'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
+    assert fields['__main__.userassignedidentity_bar'].properties == {'name': 'bar', 'scope': ResourceSymbol("resourcegroup_rgtest")}
+    assert fields['__main__.userassignedidentity_bar'].outputs == [Output('AZURE_CLIENT_ID', "properties.clientId", symbol)]
+    assert fields['__main__.userassignedidentity_bar'].extensions == {}
+    assert fields['__main__.userassignedidentity_bar'].existing == True
+    assert fields['__main__.userassignedidentity_bar'].version
+    assert fields['__main__.userassignedidentity_bar'].symbol == symbol
+    assert fields['__main__.userassignedidentity_bar'].resource_group == ResourceSymbol('resourcegroup_rgtest')
+    assert fields['__main__.userassignedidentity_bar'].name == 'bar'
+    assert not fields['__main__.userassignedidentity_bar'].add_defaults
 
 
 def test_identity_defaults():
@@ -160,9 +161,9 @@ def test_identity_defaults():
     fields = {}
     r.__bicep__(fields, parameters=GLOBAL_PARAMS)
     field: FieldType = fields.popitem()[1]
-    _add_defaults(field, parameters=GLOBAL_PARAMS)
+    r._add_defaults(field, parameters=GLOBAL_PARAMS)
     assert field.properties == {
         'name': ua_name,
-        'location': GLOBAL_PARAMS['__location'],
-        'tags': GLOBAL_PARAMS['__azdTags']
+        'location': GLOBAL_PARAMS['location'],
+        'tags': GLOBAL_PARAMS['azdTags']
     }

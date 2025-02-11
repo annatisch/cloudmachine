@@ -10,16 +10,16 @@ from dotenv import dotenv_values
 
 from ._version import VERSION
 from ._component import CloudMachine
+from ._parameters import GLOBAL_PARAMS
 from ._bicep.utils import generate_name, resolve_value, serialize_dict, generate_suffix, serialize_list
-from ._bicep.expressions import Expression, Output, Parameter, Subscription, UniqueString, Variable
-from ._resource import Resource, FieldsType, _load_dev_environment
+from ._bicep.expressions import Expression, Output, Parameter, ResourceSymbol, Subscription, UniqueString, Variable
+from ._resource import FieldType, Resource, FieldsType, _load_dev_environment
 from .resources.resourcegroup import ResourceGroup
 from .resources.managedidentity import UserAssignedIdentity
 
 _BICEP_PARAMS = {
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
     "contentVersion": "1.0.0.0",
-    "parameters": {}
 }
 
 def _provision_project(name: str, label: Optional[str] = None) -> None:
@@ -91,9 +91,10 @@ def provision(
         infra_dir: str = "infra",
         main_bicep: str = "main",
         output_dir: str = ".",
-        add_user_principal: bool = True,
+        user_access: bool = True,
         location: Optional[str] = None,
         name: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
 ) -> AppType:
     ...
 @overload
@@ -102,9 +103,10 @@ def provision(
         infra_dir: str = "infra",
         main_bicep: str = "main",
         output_dir: str = ".",
-        add_user_principal: bool = True,
+        user_access: bool = True,
         location: Optional[str] = None,
         name: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
 ) -> ResourceType:
     ...
 @overload
@@ -113,9 +115,10 @@ def provision(
         infra_dir: str = "infra",
         main_bicep: str = "main",
         output_dir: str = ".",
-        add_user_principal: bool = True,
+        user_access: bool = True,
         location: Optional[str] = None,
         name: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Union[ResourceType, AppType]]:
     ...
 def provision(
@@ -123,9 +126,10 @@ def provision(
         infra_dir: str = "infra",
         main_bicep: str = "main",
         output_dir: str = ".",
-        add_user_principal: bool = True,
+        user_access: bool = True,
         location: Optional[str] = None,
         name: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
 ):
     deployment_name = name or _get_filename()
     working_dir = os.path.abspath(output_dir)
@@ -134,9 +138,10 @@ def provision(
         infra_dir=infra_dir,
         main_bicep=main_bicep,
         output_dir=output_dir,
-        add_user_principal=add_user_principal,
+        user_access=user_access,
         location=location,
         name=deployment_name,
+        config=config
     )
     returncode = _init_project(
         root_path=working_dir,
@@ -162,49 +167,28 @@ def export(
         infra_dir: str = "infra",
         main_bicep: str = "main",
         output_dir: str = ".",
-        add_user_principal: bool = True,
+        user_access: bool = True,
         location: Optional[str] = None,
         name: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
 ) -> None:
     if not __r:
         return
     deployment = list(__r)
+    if not deployment:
+        print("No resources to deploy.")
+        return
+    config = config or {}
     print("Building bicep...")
     working_dir = os.path.abspath(output_dir)
     infra_dir = os.path.join(working_dir, infra_dir)
-    parameters: Dict[str, Parameter] = {}
-    parameters['location'] = Parameter(
-        'location',
-        'string',
-        default=location,
-        description="Primary location for all resources",
-        min_length=1,
-        varname="AZURE_LOCATION"
-    )
-    parameters['environmentName'] = Parameter(
-        'environmentName',
-        'string',
-        default=location,
-        description="AZD environment name",
-        min_length=1,
-        max_length=64,
-        varname="AZURE_ENV_NAME"
-    )
-    if add_user_principal:
-        parameters['principalId'] = Parameter(
-            'principalId',
-            'string',
-            description="Id of the user or app to assign application roles",
-            varname="AZURE_PRINCIPAL_ID"
-            ,
-        )
-    parameters['tags'] = Variable('tags', 'object', { 'azd-env-name': parameters['environmentName'] })
-    deployment_name = name or _get_filename()
-    parameters['defaultName'] = Variable(
-        'defaultName',
-        'string',
-        UniqueString(Subscription().subscription_id,  deployment_name, parameters['location'])
-    )
+    parameters: Dict[str, Parameter] = dict(GLOBAL_PARAMS)
+    if not user_access:
+        # If we don't want any local access, simply remove the parameter.
+        parameters.pop('principalId')
+    if location:
+        parameters['location'].default = location
+
     try:
         os.makedirs(infra_dir)
     except FileExistsError:
@@ -212,9 +196,6 @@ def export(
     bicep_main = os.path.join(infra_dir, f"{main_bicep}.bicep")
     with open(bicep_main, 'w') as main:
         main.write("targetScope = 'subscription'\n\n")
-        for parameter in parameters.values():
-            main.write(parameter.main_declare())
-
         fields: FieldsType = {}
         for resource in deployment:
             if isinstance(resource, Resource):
@@ -230,18 +211,25 @@ def export(
                     component_resources=_get_component_resources(resource),
                     component_fields=fields,
                 )
+        for parameter in parameters.values():
+            main.write(parameter.__bicep__(config.get(parameter.name)))
         _write_resources(
             bicep=main,
-            fields=fields,
-            parameters=parameters
+            fields=list(fields.values()),
+            parameters=parameters,
+            deployment_name=name or _get_filename(),
+            infra_dir=infra_dir,
+            config=config
+
         )
         main.write("\n")
 
     main_parameters = os.path.join(infra_dir, f"{main_bicep}.parameters.json")
     params_content = dict(_BICEP_PARAMS)
+    params_content["parameters"] = {}
     for parameter in parameters.values():
         if isinstance(parameter, Parameter):
-            params_content["parameters"].update(parameter.parameter())
+            params_content["parameters"].update(parameter.__obj__())
     with open(main_parameters, 'w') as params_json:
         json.dump(params_content, params_json, indent=4)
 
@@ -276,41 +264,79 @@ def _parse_module(
 
 def _write_resources(
         bicep: IO[str],
-        fields: FieldsType,
+        fields: List[FieldType],
         parameters: Dict[str, Parameter],
+        infra_dir: str,
+        deployment_name: str,
+        config: Dict[str, Any],
+        resource_group_scope: Optional[ResourceSymbol] = None,
 ) -> None:
     all_outputs = []
-    depends = None
-    for key, (resource, params, symbol, outputs, resource_group, version) in fields.items():
-        if resource.startswith('br/public:'):
-            bicep.write(f"module {symbol.resolve()} '{resource}:{version}' = {{\n")
-            bicep.write(f"  name: '${{deployment().name}}_{symbol.resolve()}'\n")
-            if 'resources/resource-group' not in resource:
-                bicep.write(f"  scope: {resource_group}\n")
-            bicep.write("  params: {\n")
-            bicep.write(serialize_dict(params, "    ", **parameters))
-            bicep.write("  }\n")
-            if depends:
-                bicep.write("  dependsOn: [\n")
-                bicep.write(serialize_list([depends], "    "))
-                bicep.write("  ]\n")
-            bicep.write("}\n")
-            depends = symbol
-        elif resource == "Microsoft.Resources/resourceGroups":
-            bicep.write(f"resource {symbol.resolve()} '{resource}@{version}' existing = {{\n")
-            bicep.write(f"  name: {resolve_value(params['name'], **parameters)}\n")
-            if 'scope' in params:
-                bicep.write(f"  scope: subscription('{params['scope']}')\n")
-            bicep.write("}\n")
-        elif resource.startswith('Microsoft.'):
-            bicep.write(f"resource {symbol.resolve()} '{resource}@{version}' existing = {{\n")
-            bicep.write(f"  name: {resolve_value(params['name'], **parameters)}\n")
-            if 'parent' in params:
-                bicep.write(f"  parent: {resolve_value(params['parent'])}\n")
+    for index, field in enumerate(fields):
+        if field.add_defaults:
+           field.add_defaults(field, parameters)
+        if field.resource == "Microsoft.Resources/resourceGroups":
+            if field.existing:
+                bicep.write(f"resource {field.symbol.value} '{field.resource}@{field.version}' existing = {{\n")
+                bicep.write(f"  name: {resolve_value(field.properties['name'], **config)}\n")
+                if 'scope' in field.properties:
+                    bicep.write(f"  scope: {field.properties['scope'].value}\n")
+                elif resource_group_scope:
+                    bicep.write("  scope: subscription()\n")
+                bicep.write("}\n\n")
+                if resource_group_scope:
+                    continue
+            elif not resource_group_scope:
+                bicep.write(f"resource {field.symbol.value} '{field.resource}@{field.version}' = {{\n")
+                bicep.write(serialize_dict(field.properties, "  ", **config))
+                bicep.write("}\n\n")
             else:
-                bicep.write(f"  scope: {resource_group}\n")
+                # TODO Currently only supporting the creation of a single resource group,
+                # however other existing resources may continue to reference other resource groups
+                # by name
+                raise ValueError("Cannot create additional resource group in deployment.")
+            if fields[index + 1:]:
+                bicep.write(f"module {deployment_name}_module '{deployment_name}.bicep' = {{\n")
+                bicep.write(f"  name: '${{deployment().name}}_{deployment_name}'\n")
+                bicep.write(f"  scope: {field.symbol.value}\n")
+                bicep.write("  params: {\n")
+                for parameter in parameters.values():
+                    bicep.write(f"    {parameter.value}: {parameter.value}\n")
+                bicep.write("  }\n")
+                bicep.write("}\n")
+                bicep_module = os.path.join(infra_dir, f"{deployment_name}.bicep")
+                with open(bicep_module, 'w') as module:
+                    for parameter in parameters.values():
+                        module.write(f"param {parameter.name} {parameter.type}\n")
+                    module.write("\n")
+                    outputs = _write_resources(
+                        bicep=module,
+                        fields=fields[index + 1:],
+                        parameters=parameters,
+                        infra_dir=infra_dir,
+                        config=config,
+                        resource_group_scope=field.symbol,
+                        deployment_name=None # TODO: support submodules/resource groups
+                    )
+                    for output, type in outputs:
+                        bicep.write(f"output {output} {type} = {deployment_name}_module.outputs.{output}\n")
+                    bicep.write("\n")
+                break
+        elif field.existing:
+            bicep.write(f"resource {field.symbol.value} '{field.resource}@{field.version}' existing = {{\n")
+            bicep.write(f"  name: {resolve_value(field.properties['name'], **config)}\n")
+            if 'parent' in field.properties:
+                bicep.write(f"  parent: {resolve_value(field.properties['parent'])}\n")
+            elif field.resource_group != resource_group_scope:
+                bicep.write(f"  scope: {field.resource_group.value}\n")
             bicep.write("}\n")
-        for varname, output in outputs.items():
-            all_outputs.append(varname)
-            bicep.write(f"output {varname} string = {resolve_value(output)}\n")
+        else:
+            bicep.write(f"resource {field.symbol.value} '{field.resource}@{field.version}' = {{\n")
+            bicep.write(serialize_dict(field.properties, "  ", **config))
+            bicep.write("}\n")
         bicep.write("\n")
+        for output in field.outputs:
+            all_outputs.append((output.name, output.type))
+            bicep.write(output.__bicep__())
+        bicep.write("\n\n")
+    return all_outputs

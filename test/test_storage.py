@@ -2,12 +2,26 @@
 from uuid import uuid4
 
 import pytest
-from azure.cloudmachine.resources.storage import StorageAccount, _add_defaults
-from azure.cloudmachine.resources import ResourceGroup
+from azure.cloudmachine.resources.storage import StorageAccount
+from azure.cloudmachine.resources.resourcegroup import ResourceGroup
 from azure.cloudmachine._parameters import GLOBAL_PARAMS
+from azure.cloudmachine._resource import FieldType
+from azure.cloudmachine._bicep.expressions import ResourceSymbol, Output, ResourceGroup as DefaultResourceGroup
 from azure.cloudmachine import Parameter
 
 TEST_SUB = str(uuid4())
+RG = ResourceSymbol('resourcegroup')
+IDENTITY = {
+    'type': 'UserAssigned',
+    'userAssignedIdentities': {ResourceSymbol('userassignedidentity'): {}}
+}
+
+def _get_outputs(suffix="", rg=None):
+    return [
+        Output(f"AZURE_STORAGE_ID{suffix.upper()}", "id", ResourceSymbol(f"storageaccount{suffix}")),
+        Output(f"AZURE_STORAGE_NAME{suffix.upper()}", "name", ResourceSymbol(f"storageaccount{suffix}")),
+        Output(f"AZURE_STORAGE_RESOURCE_GROUP{suffix.upper()}", rg if rg else DefaultResourceGroup().name),
+    ]
 
 def test_storage_properties():
     r = StorageAccount()
@@ -18,12 +32,77 @@ def test_storage_properties():
     assert r.resource == "Microsoft.Storage/storageAccounts"
     assert r.version
     fields = {}
-    r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount']
+    assert fields['__main__.storageaccount'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['__main__.storageaccount'].properties == {'properties': {}, 'identity': IDENTITY}
+    assert fields['__main__.storageaccount'].outputs == _get_outputs()
+    assert fields['__main__.storageaccount'].extensions == {}
+    assert fields['__main__.storageaccount'].existing == False
+    assert fields['__main__.storageaccount'].version
+    assert fields['__main__.storageaccount'].symbol == symbol
+    assert fields['__main__.storageaccount'].resource_group == RG
+    assert not fields['__main__.storageaccount'].name
+    assert fields['__main__.storageaccount'].add_defaults
 
+    r2 = StorageAccount(location='westus', sku_name='Standard_RAGRS')
+    assert r2.properties == {'location': 'westus', 'sku': {'name': 'Standard_RAGRS'}, 'properties': {}}
+    r2.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount']
+    assert fields['__main__.storageaccount'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['__main__.storageaccount'].properties == {'location': 'westus', 'sku': {'name': 'Standard_RAGRS'}, 'properties': {}, 'identity': IDENTITY}
+    assert fields['__main__.storageaccount'].outputs == _get_outputs()
+    assert fields['__main__.storageaccount'].extensions == {}
+    assert fields['__main__.storageaccount'].existing == False
+    assert fields['__main__.storageaccount'].version
+    assert fields['__main__.storageaccount'].symbol == symbol
+    assert fields['__main__.storageaccount'].resource_group == RG
+    assert not fields['__main__.storageaccount'].name
+    assert fields['__main__.storageaccount'].add_defaults
 
-    # r = StorageAccount(name='foo', location='eastus', sku_name='Standard_LRS')
-    # fields = []
-    # r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    r3 = StorageAccount(sku_name='Premium_ZRS')
+    assert r3.properties == {'sku': {'name': 'Premium_ZRS'}, 'properties': {}}
+    with pytest.raises(ValueError):
+        r3.__bicep__(fields, parameters=GLOBAL_PARAMS)
+
+    r4 = StorageAccount(name='foo', tags={'test': 'value'}, access_tier='Cool')
+    assert r4.properties == {'name': 'foo', 'tags': {'test': 'value'}, 'properties': {'accessTier': 'Cool'}}
+    symbol = r4.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount', '__main__.storageaccount_foo']
+    assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'tags': {'test': 'value'}, 'properties': {'accessTier': 'Cool'}, 'identity': IDENTITY}
+    assert fields['__main__.storageaccount_foo'].outputs == _get_outputs("_foo")
+    assert fields['__main__.storageaccount_foo'].extensions == {}
+    assert fields['__main__.storageaccount_foo'].existing == False
+    assert fields['__main__.storageaccount_foo'].version
+    assert fields['__main__.storageaccount_foo'].symbol == symbol
+    assert fields['__main__.storageaccount_foo'].resource_group == RG
+    assert fields['__main__.storageaccount_foo'].name == 'foo'
+    assert fields['__main__.storageaccount_foo'].add_defaults
+
+    param1 = Parameter("testA")
+    param2 = Parameter("testB")
+    param3 = Parameter("testC")
+    r5 = StorageAccount(name=param1, sku_name=param2, access_tier=param3)
+    assert r5.properties == {'name': param1, 'sku': {'name': param2}, 'properties': {'accessTier': param3}}
+    params = dict(GLOBAL_PARAMS)
+    fields = {}
+    symbol = r5.__bicep__(fields, parameters=params)
+    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount_testa']
+    assert fields['__main__.storageaccount_testa'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['__main__.storageaccount_testa'].properties == {'name': param1, 'sku': {'name': param2}, 'properties': {'accessTier': param3}, 'identity': IDENTITY}
+    assert fields['__main__.storageaccount_testa'].outputs == _get_outputs("_testa")
+    assert fields['__main__.storageaccount_testa'].extensions == {}
+    assert fields['__main__.storageaccount_testa'].existing == False
+    assert fields['__main__.storageaccount_testa'].version
+    assert fields['__main__.storageaccount_testa'].symbol == symbol
+    assert fields['__main__.storageaccount_testa'].resource_group == RG
+    assert fields['__main__.storageaccount_testa'].name == param1
+    assert fields['__main__.storageaccount_testa'].add_defaults
+    assert params.get('testA') == param1
+    assert params.get('testB') == param2
+    assert params.get('testC') == param3
+
 
 def test_storage_reference():
     r = StorageAccount.reference(name='foo')
@@ -38,23 +117,52 @@ def test_storage_reference():
         r.subscription()
     with pytest.raises(RuntimeError):
         r.resource_id()
+    fields = {}
+    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.storageaccount_foo']
+    assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'scope': RG}
+    assert fields['__main__.storageaccount_foo'].outputs == _get_outputs("_foo")
+    assert fields['__main__.storageaccount_foo'].extensions == {}
+    assert fields['__main__.storageaccount_foo'].existing == True
+    assert fields['__main__.storageaccount_foo'].version
+    assert fields['__main__.storageaccount_foo'].symbol == symbol
+    assert fields['__main__.storageaccount_foo'].resource_group == RG
+    assert fields['__main__.storageaccount_foo'].name == 'foo'
+    assert not fields['__main__.storageaccount_foo'].add_defaults
 
+    rg = ResourceSymbol('resourcegroup_bar')
     r = StorageAccount.reference(name='foo', resource_group='bar')
     assert r.properties == {'name': 'foo', 'resource_group': ResourceGroup(name='bar')}
     assert r.resource_group() == 'bar'
+    fields = {}
+    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    assert list(fields.keys()) == ['__main__.resourcegroup_bar', '__main__.storageaccount_foo']
+    assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'scope': rg}
+    assert fields['__main__.storageaccount_foo'].outputs == _get_outputs("_foo", 'bar')
+    assert fields['__main__.storageaccount_foo'].extensions == {}
+    assert fields['__main__.storageaccount_foo'].existing == True
+    assert fields['__main__.storageaccount_foo'].version
+    assert fields['__main__.storageaccount_foo'].symbol == symbol
+    assert fields['__main__.storageaccount_foo'].resource_group == rg
+    assert fields['__main__.storageaccount_foo'].name == 'foo'
+    assert not fields['__main__.storageaccount_foo'].add_defaults
 
-    r = StorageAccount.reference(name='foo', resource_group=ResourceGroup(name='bar'), subscription=TEST_SUB)
-    assert r.properties == {'name': 'foo', 'resource_group': ResourceGroup(name='bar'), 'subscription': TEST_SUB}
+    r = StorageAccount.reference(name='foo', resource_group=ResourceGroup.reference(name='bar', subscription=TEST_SUB))
+    assert r.properties == {'name': 'foo', 'resource_group': ResourceGroup(name='bar')}
     assert r.subscription() == TEST_SUB
     assert r.resource_id() == f"/subscriptions/{TEST_SUB}/resourceGroups/bar/providers/Microsoft.Storage/storageAccounts/foo"
 
-#def test_storage_merge():
 
 def test_storage_defaults():
     access_tier = Parameter('myAccessTier', default='Premium')
     r = StorageAccount(location='westus', sku_name='Premium_ZRS', access_tier=access_tier)
-    _add_defaults(properties=r.properties, extensions=r.extensions, parameters=GLOBAL_PARAMS)
-    assert r.properties == {
+    fields = {}
+    r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    field = fields.popitem()[1]
+    r._add_defaults(field, parameters=GLOBAL_PARAMS)
+    assert field.properties == {
         'name': GLOBAL_PARAMS['defaultName'],
         'location': 'westus',
         'sku': {
@@ -64,5 +172,7 @@ def test_storage_defaults():
         'properties': {
             'accessTier': access_tier,
             'allowCrossTenantReplication': False
-        }
+        },
+        'identity': IDENTITY,
+        'tags': GLOBAL_PARAMS['azdTags']
     }

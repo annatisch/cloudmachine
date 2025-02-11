@@ -9,19 +9,20 @@ def resolve_value(value: Any, **params) -> str:
         value: str = value.value
     except AttributeError:
         value: str = json.dumps(value).replace('"', "'")
-    if params :
-        resolved_params = {k: resolve_value(v) for k, v in params.items()}
-        try:
-            return value.format(**resolved_params)
-        except IndexError:
-            # This will happen if the value is a dict, like '{}'
-            return value
+    # TODO: Not sure how/whether we should attempt to use parameters here.
+    # if params :
+    #     resolved_params = {k: resolve_value(v) for k, v in params.items()}
+    #     try:
+    #         return value.format(**resolved_params)
+    #     except IndexError:
+    #         # This will happen if the value is a dict, like '{}'
+    #         return value
     return value
 
 
 def resolve_key(key: Any) -> str:
     try:
-        return key.resolve()
+        return key.value
     except AttributeError:
         if key.isidentifier():
             return key
@@ -38,7 +39,7 @@ def generate_suffix(length: int = 5, /) -> str:
 
 
 def generate_name(seed: str, max_length: int = 20) -> str:
-    return ''.join([random.Random(c).choice(string.ascii_lowercase) for c in resolve_value(seed)][:max_length])
+    return ''.join([random.Random(c).choice(string.ascii_lowercase) for c in resolve_value(seed)])
 
 
 def serialize(value: Any, indent: str = "", /, **params) -> str:

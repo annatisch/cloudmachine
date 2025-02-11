@@ -109,7 +109,7 @@ class UserAssignedIdentity(Resource[UserAssignedIdentityResourceType]):
         else:
             resource_ref = resource_ref.rstrip('s')
         symbol = f"{resource_ref}{self._suffix.lower()}" if self._suffix else resource_ref
-        return ResourceSymbol(symbol, principal_id="properties.principalId")
+        return ResourceSymbol(symbol, principal_id=True)
 
     def _outputs(self, symbol, **kwargs) -> List[Output]:
         return [Output("AZURE_CLIENT_ID", "properties.clientId", symbol)]

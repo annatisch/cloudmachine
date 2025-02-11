@@ -85,7 +85,9 @@ class StorageAccountKwargs(TypedDict, total=False):
     require_infrastructure_encryption: Union[bool, Parameter[bool]]
     """A Boolean indicating whether or not the service applies a secondary layer of encryption with platform managed keys for data at rest. For security reasons, it is recommended to set it to true."""
     role_assignments: Union[Parameter[List[Union['RoleAssignment', str]]], List[Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', Literal['Contributor', 'Owner', 'Reader', 'Reader and Data Access', 'Role Based Access Control Administrator', 'Storage Account Backup Contributor', 'Storage Account Contributor', 'Storage Account Key Operator Service Role', 'Storage Blob Data Contributor', 'Storage Blob Data Owner', 'Storage Blob Data Reader', 'Storage Blob Delegator', 'Storage File Data Privileged Contributor', 'Storage File Data Privileged Reader', 'Storage File Data SMB Share Contributor', 'Storage File Data SMB Share Elevated Contributor', 'Storage File Data SMB Share Reader', 'Storage Queue Data Contributor', 'Storage Queue Data Message Processor', 'Storage Queue Data Message Sender', 'Storage Queue Data Reader', 'Storage Table Data Contributor', 'Storage Table Data Reader', 'User Access Administrator']]]]
-    """Array of role assignments to create."""
+    """Array of role assignments to create for user-assigned identity."""
+    user_role: Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', Literal['Contributor', 'Owner', 'Reader', 'Reader and Data Access', 'Role Based Access Control Administrator', 'Storage Account Backup Contributor', 'Storage Account Contributor', 'Storage Account Key Operator Service Role', 'Storage Blob Data Contributor', 'Storage Blob Data Owner', 'Storage Blob Data Reader', 'Storage Blob Delegator', 'Storage File Data Privileged Contributor', 'Storage File Data Privileged Reader', 'Storage File Data SMB Share Contributor', 'Storage File Data SMB Share Elevated Contributor', 'Storage File Data SMB Share Reader', 'Storage Queue Data Contributor', 'Storage Queue Data Message Processor', 'Storage Queue Data Message Sender', 'Storage Queue Data Reader', 'Storage Table Data Contributor', 'Storage Table Data Reader', 'User Access Administrator']]
+    """Role assignment to create for user principal ID"""
     # TODO: support timedelta
     sas_expiration_period: Union[str, Parameter[str]]
     """The SAS expiration period. DD.HH:MM:SS."""
@@ -132,6 +134,8 @@ class StorageAccount(Resource[StorageAccountResourceType]):
         extensions: ExtensionResources = {}
         if 'role_assignments' in kwargs:
             extensions['role_assignments'] = kwargs.pop('role_assignments')
+        if 'user_role' in kwargs:
+            extensions['user_role'] = kwargs.pop('user_role')
         if not existing:
             properties = properties or {}
             if 'properties' not in properties:
@@ -232,33 +236,22 @@ class StorageAccount(Resource[StorageAccountResourceType]):
             resource_group=resource_group
         )
 
-
-def _add_defaults(
-        field: FieldType,
-        *,
-        parameters: Dict[str, Parameter]
-):
-    if field.existing:
-        return
-    if 'name' not in field.properties:
-        field.properties['name'] = DEFAULT_NAME
-    if 'location' not in field.properties:
-        field.properties['location'] = LOCATION
-    if 'tags' not in field.properties:
-        field.properties['tags'] = AZD_TAGS
-    if 'kind' not in field.properties:
-        field.properties['kind'] = 'StorageV2'
-    if 'sku' not in field.properties:
-        field.properties['sku'] = {}
-    if 'name' not in field.properties['sku']:
-        field.properties['sku']['name'] = 'Standard_GRS'
-    if 'properties' not in field.properties:
-        field.properties['properties'] = {}
-    if 'accessTier' not in field.properties['properties']:
-        field.properties['properties']['accessTier'] = 'Hot'
-    if 'allowCrossTenantReplication' not in field.properties['properties']:
-        field.properties['properties']['allowCrossTenantReplication'] = False
-    if not 'role_assignments' in field.extensions:
-        field.extensions['role_assignments'] = ['Blob Data Contributor']
-    if parameters['localAccess'].default != 'None' and 'local_access_role' not in field.extensions and field.outputs:
-        field.extensions['local_access_role'] = ['Blob Data Contributor']
+    def _add_defaults(self, field: FieldType, parameters: Dict[str, Parameter]):
+        super()._add_defaults(field, parameters)
+        if 'kind' not in field.properties:
+            field.properties['kind'] = 'StorageV2'
+        if 'sku' not in field.properties:
+            field.properties['sku'] = {}
+        if 'name' not in field.properties['sku']:
+            field.properties['sku']['name'] = 'Standard_GRS'
+        if 'properties' not in field.properties:
+            field.properties['properties'] = {}
+        if 'accessTier' not in field.properties['properties']:
+            field.properties['properties']['accessTier'] = 'Hot'
+        if 'allowCrossTenantReplication' not in field.properties['properties']:
+            field.properties['properties']['allowCrossTenantReplication'] = False
+        # TODO: How to add default role assignments?
+        # if not 'role_assignments' in field.extensions:
+        #     field.extensions['role_assignments'] = ['Storage Blob Data Contributor']
+        # if parameters['__localAccess'].default != 'None' and 'local_access_role' not in field.extensions and field.outputs:
+        #     field.extensions['user_role'] = ['Blob Data Contributor']

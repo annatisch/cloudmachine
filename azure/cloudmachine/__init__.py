@@ -6,6 +6,7 @@ from ._bicep.expressions import Parameter
 from ._version import VERSION
 
 MISSING = DefaultAction.MISSING
+
 __version__ = VERSION
 __all__ = [
     'provision',
@@ -14,5 +15,6 @@ __all__ = [
     'reference',
     'Resource',
     'CloudMachine',
-    'Parameter'
+    'Parameter',
+    'MISSING'
 ]
