@@ -19,7 +19,7 @@ def test_identity_properties():
     assert r.resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
     assert r.version
     fields = {}
-    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity']
     assert fields['__main__.userassignedidentity'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
     assert fields['__main__.userassignedidentity'].properties == {}
@@ -34,7 +34,7 @@ def test_identity_properties():
 
     r2 = UserAssignedIdentity(location='westus')
     assert r2.properties == {'location': 'westus'}
-    r2.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    r2.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity']
     assert fields['__main__.userassignedidentity'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
     assert fields['__main__.userassignedidentity'].properties == {'location': 'westus'}
@@ -50,11 +50,11 @@ def test_identity_properties():
     r3 = UserAssignedIdentity(location='eastus')
     assert r3.properties == {'location': 'eastus'}
     with pytest.raises(ValueError):
-        r3.__bicep__(fields, parameters=GLOBAL_PARAMS)
+        r3.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
 
     r4 = UserAssignedIdentity(name='foo', tags={'test': 'value'})
     assert r4.properties == {'name': 'foo', 'tags': {'test': 'value'}}
-    symbol = r4.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.userassignedidentity_foo']
     assert fields['__main__.userassignedidentity_foo'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
     assert fields['__main__.userassignedidentity_foo'].properties == {'name': 'foo', 'tags': {'test': 'value'}}
@@ -105,7 +105,7 @@ def test_identity_reference():
         r.resource_id()
 
     fields = {}
-    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity_foo']
     assert fields['__main__.userassignedidentity_foo'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
     assert fields['__main__.userassignedidentity_foo'].properties == {'name': 'foo', 'scope': ResourceSymbol("resourcegroup")}
@@ -122,7 +122,7 @@ def test_identity_reference():
     assert r.properties == {'name': 'bar', 'resource_group': ResourceGroup(name='rgtest')}
     assert r.resource_group() == 'rgtest'
     fields = {}
-    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup_rgtest', '__main__.userassignedidentity_bar']
     assert fields['__main__.userassignedidentity_bar'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
     assert fields['__main__.userassignedidentity_bar'].properties == {'name': 'bar', 'scope': ResourceSymbol("resourcegroup_rgtest")}
@@ -141,7 +141,7 @@ def test_identity_reference():
     assert r.subscription() == TEST_SUB
     assert r.resource_id() == f"/subscriptions/{TEST_SUB}/resourceGroups/rgtest/providers/Microsoft.ManagedIdentity/userAssignedIdentities/bar"
     fields = {}
-    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup_rgtest', '__main__.userassignedidentity_bar']
     assert fields['__main__.userassignedidentity_bar'].resource == "Microsoft.ManagedIdentity/userAssignedIdentities"
     assert fields['__main__.userassignedidentity_bar'].properties == {'name': 'bar', 'scope': ResourceSymbol("resourcegroup_rgtest")}
@@ -159,9 +159,9 @@ def test_identity_defaults():
     ua_name = Parameter('uaName')
     r = UserAssignedIdentity(name=ua_name)
     fields = {}
-    r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     field: FieldType = fields.popitem()[1]
-    r._add_defaults(field, parameters=GLOBAL_PARAMS)
+    r._add_defaults(field, parameters=dict(GLOBAL_PARAMS))
     assert field.properties == {
         'name': ua_name,
         'location': GLOBAL_PARAMS['location'],

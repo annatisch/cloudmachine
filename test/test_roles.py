@@ -32,7 +32,7 @@ def test_roles_properties():
         'user_role': 'Storage Blob Data Contributor'
     }
     fields = {}
-    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     role_symbol = fields[f'__main__.storageaccount_foo'].extensions['role_assignments'][0]
     assert fields[f'__main__.{role_symbol._value}'].resource == "Microsoft.Authorization/roleAssignments"
     assert fields[f'__main__.{role_symbol._value}'].properties == {'name': CONTRIB_GUID, 'scope': symbol, 'properties': {'principalId': IDENTITY.principal_id, 'principalType': 'ServicePrincipal', 'roleDefinitionId': 'Storage Blob Data Contributor'}}
@@ -45,7 +45,7 @@ def test_roles_properties():
         'role_assignments': ['Storage Blob Data Owner'],
         'user_role': 'Owner'
     }
-    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert len(fields[f'__main__.storageaccount_foo'].extensions['role_assignments']) == 2
     assert len(fields[f'__main__.storageaccount_foo'].extensions['user_roles']) == 2
 
@@ -59,9 +59,9 @@ def test_roles_defaults():
         'user_role': 'Storage Blob Data Contributor'
     }
     fields = {}
-    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     role_symbol = fields[f'__main__.storageaccount_foo'].extensions['role_assignments'][0]
-    base._add_defaults(fields[f'__main__.{role_symbol._value}'], parameters=GLOBAL_PARAMS)
+    base._add_defaults(fields[f'__main__.{role_symbol._value}'], parameters=dict(GLOBAL_PARAMS))
     assert fields[f'__main__.{role_symbol._value}'].properties == {
         'name': CONTRIB_GUID,
         'scope': symbol,

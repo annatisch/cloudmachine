@@ -2,6 +2,7 @@ from unittest import mock
 import os
 import filecmp
 import pytest
+import difflib
 
 
 from azure.cloudmachine import export, provision, Parameter
@@ -18,105 +19,130 @@ def _get_infra_dir() -> str:
     return os.path.join(test_dir, "test_infra")
 
 
+def _compare_outputs(output_dir, ref_dir, test_dir):
+    for _, _, files in os.walk(os.path.join(output_dir, ref_dir)):
+        for filename in files:
+            with open(os.path.join(output_dir, ref_dir, filename), 'r') as _ref:
+                ref_file = _ref.readlines()
+            with open(os.path.join(output_dir, test_dir, filename), 'r') as _test:
+                test_file = _test.readlines()
+            diff = difflib.unified_diff(
+                ref_file,
+                test_file,
+                fromfile=f'{ref_dir}/{filename}',
+                tofile=f'{test_dir}/{filename}',
+            )
+            changes = ("".join(diff))
+            has_changes = bool(changes)
+            assert not has_changes, "\n" + changes
+            os.remove(os.path.join(output_dir, test_dir, filename))
+    os.rmdir(os.path.join(output_dir, test_dir))
+
 @pytest.fixture
 def export_dir(request):
     output_dir = _get_infra_dir()
+    ref_dir = request.node.name
     test_dir = f"infra_{request.node.name}"
-    yield output_dir, test_dir
-    basedir = os.path.join(output_dir, request.node.name)
-    assert os.path.isdir(basedir)
-    for filename in ["main.bicep", "main.parameters.json", "test.bicep"]:
-        baseline = os.path.join(basedir, filename)
-        if os.path.exists(baseline):
-            assert filecmp.cmp(
-                os.path.join(output_dir, test_dir, filename),
-                baseline,
-                shallow=False
-            )
-    #os.rmdir(os.path.join(output_dir, test_dir))
+    return output_dir, ref_dir, test_dir
 
 
 def test_export_resourcegroup(export_dir):
     r = ResourceGroup()
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_resourcegroup_with_properties(export_dir):
     r = ResourceGroup(name="foo", location="eastus", tags={"key": "value"})
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_resourcegroup_with_parameter(export_dir):
     param = Parameter("resourceGroupName", default="foo")
     r = ResourceGroup(name=param)
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_resourcegroup_with_config(export_dir):
     param = Parameter("resourceGroupName", default="foo")
     r = ResourceGroup(name=param)
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test", config={"resourceGroupName": "bar"})
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test", config={"resourceGroupName": "bar"})
+    _compare_outputs(*export_dir)
 
 
 def test_export_resourcegroup_existing(export_dir):
     r = ResourceGroup.reference(name="foo")
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_resourcegroup_existing_with_subscription(export_dir):
     r = ResourceGroup.reference(name="foo", subscription=TEST_SUB)
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_identity(export_dir):
     r = UserAssignedIdentity()
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_identity_with_properties(export_dir):
     r = UserAssignedIdentity(name='foo', location='westus', tags={'key': 'value'})
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_identity_with_parameter(export_dir):
     param = Parameter("testLocation")
     r = UserAssignedIdentity(location=param)
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test", config={"testLocation": "eastus"})
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test", config={"testLocation": "eastus"})
+    _compare_outputs(*export_dir)
 
 
 def test_export_identity_existing(export_dir):
     r = UserAssignedIdentity.reference(name="exists")
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_identity_existing_with_resourcegroup(export_dir):
     r = UserAssignedIdentity.reference(name="exists", resource_group="rgexists")
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_identity_existing_with_resourcegroup_and_subscription(export_dir):
     r = UserAssignedIdentity.reference(name="exists", resource_group=ResourceGroup.reference(name='rgexists', subscription=TEST_SUB))
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_storage(export_dir):
     r = StorageAccount()
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_storage_with_properties(export_dir):
     r = StorageAccount(enable_hierarchical_namespace=True, allow_blob_public_access=True, sku_name='Premium_LRS', location="westus")
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_storage_with_role_assignments(export_dir):
     r = StorageAccount(role_assignments=['Storage Blob Data Owner'], user_role='Storage Blob Data Contributor')
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
 
 
 def test_export_storage_with_no_user_access(export_dir):
     r = StorageAccount(role_assignments=['Storage Blob Data Owner'], user_role='Storage Blob Data Contributor')
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[1], name="test", user_access=False)
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test", user_access=False)
+    _compare_outputs(*export_dir)
 
 
 #def test_export_storage_multiple(export_dir):

@@ -32,7 +32,7 @@ def test_storage_properties():
     assert r.resource == "Microsoft.Storage/storageAccounts"
     assert r.version
     fields = {}
-    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount']
     assert fields['__main__.storageaccount'].resource == "Microsoft.Storage/storageAccounts"
     assert fields['__main__.storageaccount'].properties == {'properties': {}, 'identity': IDENTITY}
@@ -47,7 +47,7 @@ def test_storage_properties():
 
     r2 = StorageAccount(location='westus', sku_name='Standard_RAGRS')
     assert r2.properties == {'location': 'westus', 'sku': {'name': 'Standard_RAGRS'}, 'properties': {}}
-    r2.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    r2.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount']
     assert fields['__main__.storageaccount'].resource == "Microsoft.Storage/storageAccounts"
     assert fields['__main__.storageaccount'].properties == {'location': 'westus', 'sku': {'name': 'Standard_RAGRS'}, 'properties': {}, 'identity': IDENTITY}
@@ -63,11 +63,11 @@ def test_storage_properties():
     r3 = StorageAccount(sku_name='Premium_ZRS')
     assert r3.properties == {'sku': {'name': 'Premium_ZRS'}, 'properties': {}}
     with pytest.raises(ValueError):
-        r3.__bicep__(fields, parameters=GLOBAL_PARAMS)
+        r3.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
 
     r4 = StorageAccount(name='foo', tags={'test': 'value'}, access_tier='Cool')
     assert r4.properties == {'name': 'foo', 'tags': {'test': 'value'}, 'properties': {'accessTier': 'Cool'}}
-    symbol = r4.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount', '__main__.storageaccount_foo']
     assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
     assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'tags': {'test': 'value'}, 'properties': {'accessTier': 'Cool'}, 'identity': IDENTITY}
@@ -118,7 +118,7 @@ def test_storage_reference():
     with pytest.raises(RuntimeError):
         r.resource_id()
     fields = {}
-    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.storageaccount_foo']
     assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
     assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'scope': RG}
@@ -136,7 +136,7 @@ def test_storage_reference():
     assert r.properties == {'name': 'foo', 'resource_group': ResourceGroup(name='bar')}
     assert r.resource_group() == 'bar'
     fields = {}
-    symbol = r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup_bar', '__main__.storageaccount_foo']
     assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
     assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'scope': rg}
@@ -159,9 +159,9 @@ def test_storage_defaults():
     access_tier = Parameter('myAccessTier', default='Premium')
     r = StorageAccount(location='westus', sku_name='Premium_ZRS', access_tier=access_tier)
     fields = {}
-    r.__bicep__(fields, parameters=GLOBAL_PARAMS)
+    r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     field = fields.popitem()[1]
-    r._add_defaults(field, parameters=GLOBAL_PARAMS)
+    r._add_defaults(field, parameters=dict(GLOBAL_PARAMS))
     assert field.properties == {
         'name': GLOBAL_PARAMS['defaultName'],
         'location': 'westus',
