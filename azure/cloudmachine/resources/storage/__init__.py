@@ -15,8 +15,6 @@ if TYPE_CHECKING:
         Encryption
     )
 
-_DEFAULT_STORAGE_ACCOUNT: 'StorageAccountResource' = {}
-
 
 class StorageAccountKwargs(TypedDict, total=False):
     access_tier: Union[Literal['Cool', 'Hot', 'Premium'], Parameter[str]]
@@ -91,7 +89,7 @@ class StorageAccountKwargs(TypedDict, total=False):
     # TODO: support timedelta
     sas_expiration_period: Union[str, Parameter[str]]
     """The SAS expiration period. DD.HH:MM:SS."""
-    sku_name: Union[Literal['Premium_LRS', 'Premium_ZRS', 'Standard_GRS', 'Standard_GZRS', 'Standard_LRS', 'Standard_RAGRS', 'Standard_RAGZRS', 'Standard_ZRS'], Parameter[str]]
+    sku: Union[Literal['Premium_LRS', 'Premium_ZRS', 'Standard_GRS', 'Standard_GZRS', 'Standard_LRS', 'Standard_RAGRS', 'Standard_RAGZRS', 'Standard_ZRS'], Parameter[str]]
     """Storage Account Sku Name."""
     supports_https_traffic_only: Union[bool, Parameter[bool]]
     """Allows HTTPS traffic only to storage service if sets to true."""
@@ -99,38 +97,23 @@ class StorageAccountKwargs(TypedDict, total=False):
     """Tags of the resource."""
 
 
+_DEFAULT_STORAGE_ACCOUNT: 'StorageAccountResource' = {}
 StorageAccountResourceType = TypeVar('StorageAccountResourceType', default='StorageAccountResource')
+
 
 class StorageAccount(Resource[StorageAccountResourceType]):
     DEFAULTS: 'StorageAccountResource' = _DEFAULT_STORAGE_ACCOUNT
     resource: Literal["Microsoft.Storage/storageAccounts"]
     properties: StorageAccountResourceType
 
-    @overload
     def __init__(
             self,
             properties: Optional['StorageAccountResource'] = None,
             /,
             name: Optional[Union[str, Parameter[str]]] = None,
-            **kwargs: Unpack['StorageAccountKwargs']
+            **kwargs: Unpack[StorageAccountKwargs]
     ) -> None:
-        ...
-    @overload
-    def __init__(
-            self,
-            properties: ResourceReference,
-            /,
-            existing: Literal[True],
-    ) -> None:
-        ...
-    def __init__(
-            self,
-            properties=None,
-            /,
-            name=None,
-            existing=False,
-            **kwargs: Unpack['StorageAccountKwargs']
-    ) -> None:
+        existing = kwargs.pop('existing', False)
         extensions: ExtensionResources = {}
         if 'role_assignments' in kwargs:
             extensions['role_assignments'] = kwargs.pop('role_assignments')
@@ -188,9 +171,9 @@ class StorageAccount(Resource[StorageAccountResourceType]):
                 properties['properties']['sasPolicy'] = {}
                 properties['properties']['sasPolicy']['sasExpirationPeriod'] = kwargs.pop('sas_expiration_period')
                 properties['properties']['sasPolicy']['expirationAction'] = 'Block'
-            if 'sku_name' in kwargs:
+            if 'sku' in kwargs:
                 properties['sku'] = {}
-                properties['sku']['name'] = kwargs.pop('sku_name')
+                properties['sku']['name'] = kwargs.pop('sku')
             if 'supports_https_traffic_only' in kwargs:
                 properties['properties']['supportsHttpsTrafficOnly'] = kwargs.pop('supports_https_traffic_only')
             if 'tags' in kwargs:

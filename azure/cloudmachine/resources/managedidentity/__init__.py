@@ -29,7 +29,6 @@ class UserAssignedIdentity(Resource[UserAssignedIdentityResourceType]):
     resource: Literal["Microsoft.ManagedIdentity/userAssignedIdentities"]
     properties: UserAssignedIdentityResourceType
 
-    @overload
     def __init__(
             self,
             properties: Optional['UserAssignedIdentityResource'] = None,
@@ -37,24 +36,8 @@ class UserAssignedIdentity(Resource[UserAssignedIdentityResourceType]):
             name: Optional[Union[str, Parameter[str]]] = None,
             **kwargs: Unpack['UserAssignedIdentityKwargs']
     ) -> None:
-        ...
-    @overload
-    def __init__(
-            self,
-            properties: ResourceReference,
-            /,
-            existing: Literal[True],
-    ) -> None:
-        ...
-    def __init__(
-            self,
-            properties = None,
-            /,
-            name=None,
-            existing=False,
-            **kwargs: Unpack['UserAssignedIdentityKwargs']
-    ) -> None:
         extensions: ExtensionResources = {}
+        existing = kwargs.pop('existing', False)
         if not existing:
             properties = properties or {}
             if name:

@@ -45,7 +45,7 @@ def test_storage_properties():
     assert not fields['__main__.storageaccount'].name
     assert fields['__main__.storageaccount'].add_defaults
 
-    r2 = StorageAccount(location='westus', sku_name='Standard_RAGRS')
+    r2 = StorageAccount(location='westus', sku='Standard_RAGRS')
     assert r2.properties == {'location': 'westus', 'sku': {'name': 'Standard_RAGRS'}, 'properties': {}}
     r2.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount']
@@ -60,7 +60,7 @@ def test_storage_properties():
     assert not fields['__main__.storageaccount'].name
     assert fields['__main__.storageaccount'].add_defaults
 
-    r3 = StorageAccount(sku_name='Premium_ZRS')
+    r3 = StorageAccount(sku='Premium_ZRS')
     assert r3.properties == {'sku': {'name': 'Premium_ZRS'}, 'properties': {}}
     with pytest.raises(ValueError):
         r3.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
@@ -83,7 +83,7 @@ def test_storage_properties():
     param1 = Parameter("testA")
     param2 = Parameter("testB")
     param3 = Parameter("testC")
-    r5 = StorageAccount(name=param1, sku_name=param2, access_tier=param3)
+    r5 = StorageAccount(name=param1, sku=param2, access_tier=param3)
     assert r5.properties == {'name': param1, 'sku': {'name': param2}, 'properties': {'accessTier': param3}}
     params = dict(GLOBAL_PARAMS)
     fields = {}
@@ -157,7 +157,7 @@ def test_storage_reference():
 
 def test_storage_defaults():
     access_tier = Parameter('myAccessTier', default='Premium')
-    r = StorageAccount(location='westus', sku_name='Premium_ZRS', access_tier=access_tier)
+    r = StorageAccount(location='westus', sku='Premium_ZRS', access_tier=access_tier)
     fields = {}
     r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     field = fields.popitem()[1]

@@ -36,7 +36,6 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
     resource: Literal["Microsoft.Resources/resourceGroups"]
     properties: ResourceGroupResourceType
 
-    @overload
     def __init__(
             self,
             properties: Optional['ResourceGroupResource'] = None,
@@ -44,24 +43,8 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
             name: Optional[Union[str, Parameter[str]]] = None,
             **kwargs: Unpack['ResourceGroupKwargs']
     ) -> None:
-        ...
-    @overload
-    def __init__(
-            self,
-            properties: ResourceReference,
-            /,
-            existing: Literal[True],
-    ) -> None:
-        ...
-    def __init__(
-            self,
-            properties = None,
-            /,
-            name=None,
-            existing=False,
-            **kwargs: Unpack['ResourceGroupKwargs']
-    ) -> None:
         extensions: ExtensionResources = {}
+        existing = kwargs.pop('existing', False)
         if not existing:
             properties = properties or {}
             if name:

@@ -9,6 +9,7 @@ from azure.cloudmachine import export, provision, Parameter
 from azure.cloudmachine.resources.storage import StorageAccount
 from azure.cloudmachine.resources.resourcegroup import ResourceGroup
 from azure.cloudmachine.resources.managedidentity import UserAssignedIdentity
+from azure.cloudmachine.resources.ai import AIServices
 
 
 TEST_SUB = '6e441d6a-23ce-4450-a4a6-78f8d4f45ce9'
@@ -127,8 +128,18 @@ def test_export_storage(export_dir):
     _compare_outputs(*export_dir)
 
 
+def test_export_storage_existing(export_dir):
+    r = StorageAccount.reference(name='storagetest', resource_group='testrg')
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
+
+
+#def test_export_storage_multiple(export_dir):
+#def test_export_storage_with_parameters(export_dir):
+
+
 def test_export_storage_with_properties(export_dir):
-    r = StorageAccount(enable_hierarchical_namespace=True, allow_blob_public_access=True, sku_name='Premium_LRS', location="westus")
+    r = StorageAccount(enable_hierarchical_namespace=True, allow_blob_public_access=True, sku='Premium_LRS', location="westus")
     export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
     _compare_outputs(*export_dir)
 
@@ -145,7 +156,38 @@ def test_export_storage_with_no_user_access(export_dir):
     _compare_outputs(*export_dir)
 
 
-#def test_export_storage_multiple(export_dir):
+def test_export_aiservices(export_dir):
+    r = AIServices()
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
+
+
+def test_export_aiservices_existing(export_dir):
+    r = AIServices.reference(name='aitest', resource_group='aitest')
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
+
+
+def test_export_aiservices_with_properties(export_dir):
+    r = AIServices(sku='C2', location="westus", public_network_access='Disabled')
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
+
+
+def test_export_aiservices_with_role_assignments(export_dir):
+    r = AIServices(role_assignments=['Cognitive Services OpenAI Contributor'], user_role='Cognitive Services OpenAI User')
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    _compare_outputs(*export_dir)
+
+
+def test_export_aiservices_with_no_user_access(export_dir):
+    r = AIServices(role_assignments=['Cognitive Services OpenAI Contributor'], user_role='Cognitive Services OpenAI User')
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test", user_access=False)
+    _compare_outputs(*export_dir)
+
+#def test_export_aiservices_multiple(export_dir):
+#def test_export_aiservices_with_parameters(export_dir):
+
 
 
 

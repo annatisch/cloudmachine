@@ -1,16 +1,15 @@
 from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, Tuple, TypedDict, Union, Unpack, overload, Optional, Any, Type, TypeVar
 
-from azure.cloudmachine.resources.resourcegroup._resource import ResourceGroup
+from ...resourcegroup import ResourceGroup
 
 from ...._bicep.expressions import Expression, Output, Parameter, ResourceSymbol
 from ...._setting import StoredPrioritizedSetting
 from ...._resource import (
-    Resource,
     _ClientResource,
     _build_envs,
 )
 
-from .._resource import _DEFAULT_AI_SERVICES, AIServices
+from .. import _DEFAULT_AI_SERVICES, AIServices
 
 
 if TYPE_CHECKING:

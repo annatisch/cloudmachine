@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from .resources.managedidentity import UserAssignedIdentity, UserAssignedIdentityKwargs
     from .resources.resourcegroup import ResourceGroup, ResourceGroupKwargs
     from .resources.storage import StorageAccount, StorageAccountKwargs
+    from .resources.ai import AIServices, AIServicesKwargs
 
     from .resources.storage.tables import TableServiceParams, TableStorageKwargs
     from .resources.storage.blobs import BlobServiceParams, BlobStorageKwargs
@@ -28,7 +29,6 @@ if TYPE_CHECKING:
     from .resources.eventgrid.systemtopic.subscription import SystemTopicSubscriptionParams, SystemTopicSubscriptionKwargs
     from. resources.keyvault._resource import KeyVaultParams, KeyVaultKwargs, KeyVault
     from .resources.ml._resource import MachineLearningServicesWorkspaceKwargs, AIHub, AIProject
-    from .resources.ai._resource import CognitiveServicesKwargs, AIServices
     from .resources.ai.deployment._resource import DeploymentKwargs, DeploymentParams, AIChatCompletions, AITextEmbeddings, AIDeployment
     from .resources.search._resource import SearchServiceParams, SearchServiceKwargs, SearchService
 
@@ -379,7 +379,7 @@ def reference(
         from .resources.keyvault._resource import KeyVault
         return KeyVault.reference(**kwargs)
     if resource == ResourceIdentifiers.ai_services:
-        from .resources.ai._resource import AIServices
+        from .resources.ai import AIServices
         return AIServices.reference(**kwargs)
     if resource == ResourceIdentifiers.ai_chat_deployment:
         from .resources.ai.deployment._resource import AIChatCompletions
@@ -564,7 +564,7 @@ def resource(
     name: Optional[Union[str, Parameter[str]]] = None,
     *,
     default: DefaultAction = DefaultAction.BUILD_DEFAULT,
-    **kwargs: Unpack['CognitiveServicesKwargs']
+    **kwargs: Unpack['AIServicesKwargs']
 ) -> 'AIServices':
     ...
 @overload
@@ -698,7 +698,7 @@ def resource(
         from .resources.keyvault._resource import KeyVault
         return KeyVault(None, *args, **kwargs)
     if resource == ResourceIdentifiers.ai_services:
-        from .resources.ai._resource import AIServices
+        from .resources.ai import AIServices
         return AIServices(None, *args, **kwargs)
     if resource == ResourceIdentifiers.ai_chat_deployment:
         from .resources.ai.deployment._resource import AIChatCompletions

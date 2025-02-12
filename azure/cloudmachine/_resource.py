@@ -305,7 +305,6 @@ class Resource(Generic[ResourcePropertiesType]):
     def _symbol(self) -> ResourceSymbol:
         if not self.resource:
             raise TypeError("Empty Resource object cannot be provisioned.")
-        # resource_ref = self.resource.split("/")[0].split(".")[1]
         resource_ref = self.resource.split("/")[-1].lower()
         if resource_ref.endswith("ies"):
             resource_ref = resource_ref.rstrip("ies") + "y"
@@ -535,7 +534,6 @@ class Resource(Generic[ResourcePropertiesType]):
             field.properties['location'] = LOCATION
         if 'tags' not in field.properties:
             field.properties['tags'] = AZD_TAGS
-        #field.name = field.properties['name']
 
     def __bicep__(
             self,
@@ -690,15 +688,15 @@ class Resource(Generic[ResourcePropertiesType]):
         raise TypeError(f"Unsupported type '{cls.__name__}' for resource '{self.__class__.__name__}'.")
 
 
-class _ClientResource(Resource):
+class _ClientResource(Resource[ResourcePropertiesType]):
     endpoint: PrioritizedSetting[str, str]
     client_options: PrioritizedSetting[Dict[str, Any], Dict[str, Any]]
     audience: PrioritizedSetting[str, str]
     credential: PrioritizedSetting[CredentialTypes, CredentialTypes]
     api_version: PrioritizedSetting[str, str]
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
+    def __init__(self, properties=None, /, **kwargs) -> None:
+        super().__init__(properties, **kwargs)
         self.audience = StoredPrioritizedSetting(
             name='audience',
             env_vars=_build_envs(self._prefixes, ['AUDIENCE']),
