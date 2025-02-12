@@ -3,6 +3,8 @@ param environmentName string
 param defaultName string
 param principalId string
 param azdTags object
+param managedIdentityId string
+param managedIdentityPrincipalId string
 
 resource account_aitest 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
   name: 'aitest'

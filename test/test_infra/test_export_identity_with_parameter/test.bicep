@@ -4,11 +4,13 @@ param defaultName string
 param principalId string
 param azdTags object
 param testLocation string
+var managedIdentityId = userassignedidentity.id
+var managedIdentityPrincipalId = userassignedidentity.properties.principalId
 
 resource userassignedidentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
   location: testLocation
-  name: defaultName
   tags: azdTags
+  name: defaultName
 }
 
 output AZURE_CLIENT_ID string = userassignedidentity.properties.clientId

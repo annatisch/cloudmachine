@@ -19,6 +19,12 @@ var azdTags = {
   'azd-env-name': environmentName
 }
 
+@sys.description('ID of the managed identity to assign application roles')
+param managedIdentityId string = ''
+
+@sys.description('Principal ID of the managed identity to assign application roles')
+param managedIdentityPrincipalId string = ''
+
 resource resourcegroup_aitest 'Microsoft.Resources/resourceGroups@2021-04-01' existing = {
   name: 'aitest'
 }
@@ -32,6 +38,8 @@ module test_module 'test.bicep' = {
     defaultName: defaultName
     principalId: principalId
     azdTags: azdTags
+    managedIdentityId: managedIdentityId
+    managedIdentityPrincipalId: managedIdentityPrincipalId
   }
 }
 output AZURE_AI_ID_AITEST string = test_module.outputs.AZURE_AI_ID_AITEST

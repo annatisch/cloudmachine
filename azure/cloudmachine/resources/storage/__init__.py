@@ -1,11 +1,12 @@
 from typing import TYPE_CHECKING, Dict, List, Literal, Self, TypedDict, Union, Unpack, Optional, overload
 from typing_extensions import TypeVar
+from collections import defaultdict
 
 from ..._resource import Resource, ExtensionResources, ResourceReference, FieldType
 from ..._bicep.expressions import Parameter
-from .._utils import _convert_managed_identities, ManagedIdentity, RoleAssignment, CustomerManagedKey
+from .._extension import convert_managed_identities, ManagedIdentity, RoleAssignment
 from ..resourcegroup import ResourceGroup
-from ..._parameters import AZD_TAGS, DEFAULT_NAME, LOCATION
+from ..._parameters import GLOBAL_PARAMS
 
 if TYPE_CHECKING:
     from .types import (
@@ -82,10 +83,10 @@ class StorageAccountKwargs(TypedDict, total=False):
     """Whether or not public network access is allowed for this resource. For security reasons it should be disabled. If not specified, it will be disabled by default if private endpoints are set and networkAcls are not set."""
     require_infrastructure_encryption: Union[bool, Parameter[bool]]
     """A Boolean indicating whether or not the service applies a secondary layer of encryption with platform managed keys for data at rest. For security reasons, it is recommended to set it to true."""
-    role_assignments: Union[Parameter[List[Union['RoleAssignment', str]]], List[Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', Literal['Contributor', 'Owner', 'Reader', 'Reader and Data Access', 'Role Based Access Control Administrator', 'Storage Account Backup Contributor', 'Storage Account Contributor', 'Storage Account Key Operator Service Role', 'Storage Blob Data Contributor', 'Storage Blob Data Owner', 'Storage Blob Data Reader', 'Storage Blob Delegator', 'Storage File Data Privileged Contributor', 'Storage File Data Privileged Reader', 'Storage File Data SMB Share Contributor', 'Storage File Data SMB Share Elevated Contributor', 'Storage File Data SMB Share Reader', 'Storage Queue Data Contributor', 'Storage Queue Data Message Processor', 'Storage Queue Data Message Sender', 'Storage Queue Data Reader', 'Storage Table Data Contributor', 'Storage Table Data Reader', 'User Access Administrator']]]]
+    roles: Union[Parameter[List[Union['RoleAssignment', str]]], List[Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', Literal['Contributor', 'Owner', 'Reader', 'Reader and Data Access', 'Role Based Access Control Administrator', 'Storage Account Backup Contributor', 'Storage Account Contributor', 'Storage Account Key Operator Service Role', 'Storage Blob Data Contributor', 'Storage Blob Data Owner', 'Storage Blob Data Reader', 'Storage Blob Delegator', 'Storage File Data Privileged Contributor', 'Storage File Data Privileged Reader', 'Storage File Data SMB Share Contributor', 'Storage File Data SMB Share Elevated Contributor', 'Storage File Data SMB Share Reader', 'Storage Queue Data Contributor', 'Storage Queue Data Message Processor', 'Storage Queue Data Message Sender', 'Storage Queue Data Reader', 'Storage Table Data Contributor', 'Storage Table Data Reader', 'User Access Administrator']]]]
     """Array of role assignments to create for user-assigned identity."""
-    user_role: Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', Literal['Contributor', 'Owner', 'Reader', 'Reader and Data Access', 'Role Based Access Control Administrator', 'Storage Account Backup Contributor', 'Storage Account Contributor', 'Storage Account Key Operator Service Role', 'Storage Blob Data Contributor', 'Storage Blob Data Owner', 'Storage Blob Data Reader', 'Storage Blob Delegator', 'Storage File Data Privileged Contributor', 'Storage File Data Privileged Reader', 'Storage File Data SMB Share Contributor', 'Storage File Data SMB Share Elevated Contributor', 'Storage File Data SMB Share Reader', 'Storage Queue Data Contributor', 'Storage Queue Data Message Processor', 'Storage Queue Data Message Sender', 'Storage Queue Data Reader', 'Storage Table Data Contributor', 'Storage Table Data Reader', 'User Access Administrator']]
-    """Role assignment to create for user principal ID"""
+    user_roles: Union[Parameter[List[Union['RoleAssignment', str]]], List[Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', Literal['Contributor', 'Owner', 'Reader', 'Reader and Data Access', 'Role Based Access Control Administrator', 'Storage Account Backup Contributor', 'Storage Account Contributor', 'Storage Account Key Operator Service Role', 'Storage Blob Data Contributor', 'Storage Blob Data Owner', 'Storage Blob Data Reader', 'Storage Blob Delegator', 'Storage File Data Privileged Contributor', 'Storage File Data Privileged Reader', 'Storage File Data SMB Share Contributor', 'Storage File Data SMB Share Elevated Contributor', 'Storage File Data SMB Share Reader', 'Storage Queue Data Contributor', 'Storage Queue Data Message Processor', 'Storage Queue Data Message Sender', 'Storage Queue Data Reader', 'Storage Table Data Contributor', 'Storage Table Data Reader', 'User Access Administrator']]]]
+    """Array or role assignments to create for user principal ID"""
     # TODO: support timedelta
     sas_expiration_period: Union[str, Parameter[str]]
     """The SAS expiration period. DD.HH:MM:SS."""
@@ -97,8 +98,24 @@ class StorageAccountKwargs(TypedDict, total=False):
     """Tags of the resource."""
 
 
-_DEFAULT_STORAGE_ACCOUNT: 'StorageAccountResource' = {}
 StorageAccountResourceType = TypeVar('StorageAccountResourceType', default='StorageAccountResource')
+_DEFAULT_STORAGE_ACCOUNT: 'StorageAccountResource' = {
+    'name': GLOBAL_PARAMS['defaultName'],
+    'location': GLOBAL_PARAMS['location'],
+    'tags': GLOBAL_PARAMS['azdTags'],
+    'kind': 'StorageV2',
+    'sku': {
+        'name': 'Standard_GRS'
+    },
+    'properties': {
+        'accessTier': 'Hot',
+        'allowCrossTenantReplication': False
+    },
+    'identity': {
+        'type': 'UserAssigned',
+        'userAssignedIdentities': {GLOBAL_PARAMS['managedIdentityId'].format(): {}}
+    }
+}
 
 
 class StorageAccount(Resource[StorageAccountResourceType]):
@@ -114,11 +131,11 @@ class StorageAccount(Resource[StorageAccountResourceType]):
             **kwargs: Unpack[StorageAccountKwargs]
     ) -> None:
         existing = kwargs.pop('existing', False)
-        extensions: ExtensionResources = {}
-        if 'role_assignments' in kwargs:
-            extensions['role_assignments'] = kwargs.pop('role_assignments')
-        if 'user_role' in kwargs:
-            extensions['user_role'] = kwargs.pop('user_role')
+        extensions: ExtensionResources = defaultdict(list)
+        if 'roles' in kwargs:
+            extensions['managed_identity_roles'] = kwargs.pop('roles')
+        if 'user_roles' in kwargs:
+            extensions['user_roles'] = kwargs.pop('user_roles')
         if not existing:
             properties = properties or {}
             if 'properties' not in properties:
@@ -160,7 +177,7 @@ class StorageAccount(Resource[StorageAccountResourceType]):
             if 'location' in kwargs:
                 properties['location'] = kwargs.pop('location')
             if 'managed_identities' in kwargs:
-                properties['identity'] = _convert_managed_identities(kwargs.pop('managed_identities'))
+                properties['identity'] = convert_managed_identities(kwargs.pop('managed_identities'))
             if 'minimum_tls_version' in kwargs:
                 properties['properties']['minimumTlsVersion'] = kwargs.pop('minimum_tls_version')
             if 'network_acls' in kwargs:
@@ -172,7 +189,7 @@ class StorageAccount(Resource[StorageAccountResourceType]):
                 properties['properties']['sasPolicy']['sasExpirationPeriod'] = kwargs.pop('sas_expiration_period')
                 properties['properties']['sasPolicy']['expirationAction'] = 'Block'
             if 'sku' in kwargs:
-                properties['sku'] = {}
+                properties['sku'] = properties.get('sku', {})
                 properties['sku']['name'] = kwargs.pop('sku')
             if 'supports_https_traffic_only' in kwargs:
                 properties['properties']['supportsHttpsTrafficOnly'] = kwargs.pop('supports_https_traffic_only')
@@ -219,22 +236,3 @@ class StorageAccount(Resource[StorageAccountResourceType]):
             resource_group=resource_group
         )
 
-    def _add_defaults(self, field: FieldType, parameters: Dict[str, Parameter]):
-        super()._add_defaults(field, parameters)
-        if 'kind' not in field.properties:
-            field.properties['kind'] = 'StorageV2'
-        if 'sku' not in field.properties:
-            field.properties['sku'] = {}
-        if 'name' not in field.properties['sku']:
-            field.properties['sku']['name'] = 'Standard_GRS'
-        if 'properties' not in field.properties:
-            field.properties['properties'] = {}
-        if 'accessTier' not in field.properties['properties']:
-            field.properties['properties']['accessTier'] = 'Hot'
-        if 'allowCrossTenantReplication' not in field.properties['properties']:
-            field.properties['properties']['allowCrossTenantReplication'] = False
-        # TODO: How to add default role assignments?
-        # if not 'role_assignments' in field.extensions:
-        #     field.extensions['role_assignments'] = ['Storage Blob Data Contributor']
-        # if parameters['__localAccess'].default != 'None' and 'local_access_role' not in field.extensions and field.outputs:
-        #     field.extensions['user_role'] = ['Blob Data Contributor']

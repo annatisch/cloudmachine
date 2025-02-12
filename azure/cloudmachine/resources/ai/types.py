@@ -163,10 +163,10 @@ class CognitiveServicesAccountResource(TypedDict, total=False):
     """The resource name."""
     properties:	'AccountProperties'
     """Properties of Cognitive Services account."""
-    sku: 'Sku'
+    sku: Union['Sku', Parameter['Sku']]
     """The resource model definition representing SKU"""
     tags: Union[Dict[str, Union[str, Parameter[str]]], Parameter[Dict[str, str]]]
-    """Resource tags	Dictionary of tag names and values. See Tags in templates"""
+    """Dictionary of tag names and values. See Tags in templates"""
 
 
 

@@ -3,11 +3,13 @@ param environmentName string
 param defaultName string
 param principalId string
 param azdTags object
+var managedIdentityId = userassignedidentity.id
+var managedIdentityPrincipalId = userassignedidentity.properties.principalId
 
 resource userassignedidentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
-  name: defaultName
   location: location
   tags: azdTags
+  name: defaultName
 }
 
 output AZURE_CLIENT_ID string = userassignedidentity.properties.clientId
@@ -15,24 +17,24 @@ output AZURE_CLIENT_ID string = userassignedidentity.properties.clientId
 
 resource storageaccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   properties: {
-    isHnsEnabled: true
-    allowBlobPublicAccess: true
     accessTier: 'Hot'
     allowCrossTenantReplication: false
+    isHnsEnabled: true
+    allowBlobPublicAccess: true
   }
   location: 'westus'
   sku: {
     name: 'Premium_LRS'
   }
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      userassignedidentity: {}
-    }
-  }
   name: defaultName
   tags: azdTags
   kind: 'StorageV2'
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${managedIdentityId}': {}
+    }
+  }
 }
 
 output AZURE_STORAGE_ID string = storageaccount.id

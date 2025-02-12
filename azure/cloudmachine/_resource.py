@@ -31,6 +31,7 @@ import inspect
 from itertools import takewhile, product, accumulate
 from enum import Enum
 from copy import deepcopy
+from collections import defaultdict
 import os
 import json
 from typing import (
@@ -118,6 +119,7 @@ def _build_envs(services: List[str], attributes: List[str]) -> List[str]:
 
 
 _EMPTY_DEFAULT = {}
+_EMPTY_DEFAULT_EXTENSIONS = {}
 
 
 class ResourceReference(TypedDict, total=False):
@@ -127,8 +129,8 @@ class ResourceReference(TypedDict, total=False):
 
 
 class ExtensionResources(TypedDict, total=False):
-    role_assignments: Union[Parameter[List[Union['SimpleRoleAssignment', str]]], List[Union[Parameter[Union[str, 'SimpleRoleAssignment']], 'SimpleRoleAssignment', str]]]
-    user_role: Union[Union['SimpleRoleAssignment', str], Parameter[Union['SimpleRoleAssignment', str]]]
+    managed_identity_roles: Union[Parameter[List[Union['SimpleRoleAssignment', str]]], List[Union[Parameter[Union[str, 'SimpleRoleAssignment']], 'SimpleRoleAssignment', str]]]
+    user_roles: Union[Parameter[List[Union['SimpleRoleAssignment', str]]], List[Union[Parameter[Union[str, 'SimpleRoleAssignment']], 'SimpleRoleAssignment', str]]]
     # lock
     # diagnostics
     # private endpoint
@@ -142,7 +144,7 @@ class FieldType(NamedTuple, Generic[ResourcePropertiesType]):
     version: str
     properties: ResourcePropertiesType
     symbol: ResourceSymbol
-    outputs: List[Output]
+    outputs: Dict[str, Output]
     resource_group: ResourceSymbol
     extensions: ExtensionResources
     existing: bool
@@ -154,6 +156,7 @@ FieldsType = Dict[str, FieldType]
 
 class Resource(Generic[ResourcePropertiesType]):
     DEFAULTS: Mapping[str, Any] = _EMPTY_DEFAULT
+    DEFAULT_EXTENSIONS = _EMPTY_DEFAULT_EXTENSIONS
     resource: str
     version: str
     name: PrioritizedSetting[str, str]
@@ -166,18 +169,20 @@ class Resource(Generic[ResourcePropertiesType]):
         """This constructor should not be used directly."""
         self.properties: ResourcePropertiesType = properties or {}
         self.extensions: ExtensionResources = kwargs.pop('extensions', {})
-        self._parent: Optional[Resource] = kwargs.pop('parent', None)
+        self.parent: Optional[Resource] = kwargs.pop('parent', None)
         self._resource: str = kwargs.pop('resource', "")
         self._subresource: Optional[str] = kwargs.pop('subresource', '')
         self._version: str = kwargs.pop('resource_version', "")
         self._suffix = ""
+        self._properties_to_merge = ['properties']
+        self._properties_to_update = ['tags']
         self._existing: bool = kwargs.pop('existing', False)
         self._prefixes: List[str] = kwargs.pop('service_prefix', [])
         self._default_action: DefaultAction = kwargs.pop('default_action', DefaultAction.BUILD_DEFAULT)
         self._supports_managed_identity: bool = False
         self._project_objects: List[Type] = []
         self._project_attr_names: List[str] = []
-        if self._parent and not self._subresource:
+        if self.parent and not self._subresource:
             raise ValueError('Parent must be specified with subresource.')
         if kwargs:
             raise TypeError(f"Resource {self.__class__.__name__} got unexpected kwargs: {list(kwargs.keys())}")
@@ -289,8 +294,8 @@ class Resource(Generic[ResourcePropertiesType]):
     def _build_resource_id(self) -> str:
         if not self._resource:
             raise ValueError("No resource specified.")
-        if self._parent:
-            return f"{self._parent._build_resource_id()}/{self._subresource}/{self.name()}"
+        if self.parent:
+            return f"{self.parent._build_resource_id()}/{self._subresource}/{self.name()}"
         prefix = f"/subscriptions/{self.subscription()}/resourceGroups/{self.resource_group()}/providers/"
         return prefix + f"{self._resource}/{self.name()}"
 
@@ -321,27 +326,34 @@ class Resource(Generic[ResourcePropertiesType]):
              *,
              symbol: ResourceSymbol,
              **kwargs
-    ) -> List[Output]:
-        outputs = [
-            Output(f"AZURE_{self._prefixes[0].upper()}_ID{self._suffix}", "id", symbol),
-            Output(f"AZURE_{self._prefixes[0].upper()}_NAME{self._suffix}", "name", symbol),
-        ]
+    ) -> Dict[str, Output]:
+        outputs = {
+            'resource_id': Output(f"AZURE_{self._prefixes[0].upper()}_ID{self._suffix}", "id", symbol),
+            'name': Output(f"AZURE_{self._prefixes[0].upper()}_NAME{self._suffix}", "name", symbol),
+        }
         rg_output = f"AZURE_{self._prefixes[0].upper()}_RESOURCE_GROUP{self._suffix}"
         if self._existing and self.properties.get('resource_group'):
-            outputs.append(Output(rg_output, self.properties['resource_group'].properties['name']))
+            outputs['resource_group'] = Output(rg_output, self.properties['resource_group'].properties['name'])
         else:
-            outputs.append(Output(rg_output, ResourceGroup().name))
+            outputs['resource_group'] = Output(rg_output, ResourceGroup().name)
         return outputs
     
     def _merge_properties(
             self,
-            properties: Dict[str, Any],
+            current_properties: Dict[str, Any],
+            new_properties: Dict[str, Any],
             **kwargs
         ) -> Dict[str, Any]:
-        for key, value in self.properties.items():
-            if properties.get(key) and properties[key] != value:
-                raise ValueError(f"{repr(self)} cannot set '{key}' to '{value}', already set to: '{properties[key]}'.")
-            properties[key] = value
+        for key, value in new_properties.items():
+            if current_properties.get(key):
+                if key in self._properties_to_merge:
+                    self._merge_properties(current_properties[key], value)
+                elif key in self._properties_to_update:
+                    current_properties[key].update(value)
+                elif current_properties[key] != value:
+                    raise ValueError(f"{repr(self)} cannot set '{key}' to '{value}', already set to: '{current_properties[key]}'.")
+            else:
+                current_properties[key] = value
         return {}
 
     def _find_last_resource_match(
@@ -372,7 +384,8 @@ class Resource(Generic[ResourcePropertiesType]):
             fields: FieldsType,
             parameters: Dict[str, Parameter],
             *,
-            name: Optional[str] = None
+            name: Optional[str] = None,
+            module_name: Optional[str] = None
     ) -> ResourceSymbol:
         match = self._find_last_resource_match(
             fields,
@@ -384,14 +397,16 @@ class Resource(Generic[ResourcePropertiesType]):
         from .resources.resourcegroup import ResourceGroup
         if name:
             existing_rg = ResourceGroup.reference(name=name)
-            return existing_rg.__bicep__(fields, parameters=parameters)
+            return existing_rg.__bicep__(fields, parameters=parameters, module_name=module_name)
         default_rg = ResourceGroup()
-        return default_rg.__bicep__(fields, parameters=parameters)
+        return default_rg.__bicep__(fields, parameters=parameters, module_name=module_name)
 
     def _find_identity(
             self,
             fields: FieldsType,
             parameters: Dict[str, Parameter],
+            *,
+            module_name: Optional[str] = None,
     ) -> Optional[ResourceSymbol]:
         match = self._find_last_resource_match(
             fields,
@@ -401,139 +416,39 @@ class Resource(Generic[ResourcePropertiesType]):
             return match.symbol
         from .resources.managedidentity import UserAssignedIdentity
         new_identity = UserAssignedIdentity()
-        return new_identity.__bicep__(fields, parameters=parameters)
-
-    def _build_role_assignment(
-            self,
-            role: Union[str, 'SimpleRoleAssignment'],
-            fields: FieldsType,
-            name: Union[str, Parameter[str]],
-            *,
-            parameters: Dict[str, Parameter],
-            symbol: ResourceSymbol,
-            principal_id: Expression,
-            principal_type: Literal['ServicePrincipal', 'User']
-    ) -> ResourceSymbol:
-        from .resources._extension.roles import RoleAssignment
-        if isinstance(role, str):
-            new_role = RoleAssignment(
-                {
-                    'name': Guid(self.__class__.__name__, name, principal_type, role),
-                    'properties': {
-                        'principalId': principal_id,
-                        'principalType': principal_type,
-                        'roleDefinitionId': role
-                    },
-                    'scope': symbol
-                }
-            )
-            return new_role.__bicep__(fields, parameters=parameters)
-        else:
-            new_role = RoleAssignment(
-                {
-                    'name': role.get(
-                        'name',
-                        Guid(
-                            self.__class__.__name__,
-                            name,
-                            role['principalId'],
-                            role['roleDefinitionIdOrName']
-                        )
-                    ),
-                    'properties': {
-                        'condition': role.get('condition'),
-                        'conditionVersion': role.get('conditionVersion'),
-                        'delegatedManagedIdentityResourceId': role.get('delegatedManagedIdentityResourceId'),
-                        'description': role.get('description'),
-                        'principalType': role.get('principalType'),
-                        'roleDefinitionId': role.get('roleDefinitionIdOrName')
-                    },
-                    'scope': symbol
-                }
-            )
-            return new_role.__bicep__(fields, parameters=parameters)
-    
-    def _add_role_assignments(
-            self,
-            fields: FieldsType,
-            properties: Dict[str, Any],
-            *,
-            extensions: Dict[str, Any],
-            parameters: Dict[str, Parameter],
-            symbol: ResourceSymbol,
-            identity: Optional[ResourceSymbol],
-            user_access: bool,
-    ) -> None:
-        if identity:
-            for role in self.extensions.get('role_assignments', []):
-                if not extensions.get('role_assignments'):
-                    extensions['role_assignments'] = []
-                role_symbol = self._build_role_assignment(
-                    role,
-                    fields,
-                    properties.get('name', parameters['defaultName']),
-                    parameters=parameters,
-                    symbol=symbol,
-                    principal_id=identity.principal_id,
-                    principal_type='ServicePrincipal'
-                )
-                if role_symbol not in extensions['role_assignments']:
-                    extensions['role_assignments'].append(role_symbol)
-                
-        if self.extensions.get('user_role') and user_access:
-            if not extensions.get('user_roles'):
-                extensions['user_roles'] = []
-            role_symbol = self._build_role_assignment(
-                self.extensions['user_role'],
-                fields,
-                properties.get('name', parameters['defaultName']),
-                parameters=parameters,
-                symbol=symbol,
-                principal_id=parameters['principalId'],
-                principal_type='User'
-            )
-            if role_symbol not in extensions['user_roles']:
-                extensions['user_roles'].append(role_symbol)
-
-    def _update_managed_identities(
-            self,
-            properties: Dict[str, Any],
-            *,
-            identity: Optional[ResourceSymbol] = None
-    ) -> None:
-        if identity and self._supports_managed_identity:
-            if 'identity' not in properties:
-                properties['identity'] = {
-                    'type': 'UserAssigned',
-                    'userAssignedIdentities': {identity: {}}
-                }
-            else:
-                identities = properties['identity'].get('userAssignedIdentities', {})
-                if identity not in identities:
-                    identities[identity] = {}
-                if properties['identity']['type'] == 'None':
-                    properties['identity']['type'] = 'UserAssigned'
-                elif properties['identity']['type'] == 'SystemAssigned':
-                    properties['identity']['type'] = 'SystemAssigned,UserAssigned'
-                properties['identity']['userAssignedIdentities'] = identities
+        return new_identity.__bicep__(fields, parameters=parameters, module_name=module_name)
 
     def _add_parameters(self, obj: Dict[str, Any], parameters):
         for value in obj.values():
             if isinstance(value, Parameter) and value.name:
                 parameters[value.name] = value
             else:
+                # TODO: Support lists
                 try:
                     self._add_parameters(value, parameters)
+                    continue
                 except (AttributeError, TypeError):
                     pass
-
+                        
     def _add_defaults(self, field: FieldType, parameters: Dict[str, Parameter]):
-        if 'name' not in field.properties:
-            field.properties['name'] = DEFAULT_NAME
-        if 'location' not in field.properties:
-            field.properties['location'] = LOCATION
-        if 'tags' not in field.properties:
-            field.properties['tags'] = AZD_TAGS
+        for key, value in self.DEFAULTS.items():
+            if field.properties.get(key):
+                if key in self._properties_to_merge or key in self._properties_to_update:
+                    try:
+                        updated_default = value.copy()
+                        updated_default.update(field.properties[key])
+                        field.properties[key] = updated_default
+                    except AttributeError:
+                        # We probably got an Expression
+                        # TODO: support union operation.
+                        pass
+            else:
+                field.properties[key] = value
+        self._add_parameters(field.properties, parameters)
+        if 'managed_identity_roles' not in field.extensions:
+            field.extensions['managed_identity_roles'] = self.DEFAULT_EXTENSIONS.get('managed_identity_roles', [])
+        if 'user_roles' not in field.extensions:
+            field.extensions['user_roles'] = self.DEFAULT_EXTENSIONS.get('user_roles', [])
 
     def __bicep__(
             self,
@@ -541,36 +456,35 @@ class Resource(Generic[ResourcePropertiesType]):
             *,
             parameters: Dict[str, Parameter],
             app_component: Optional[Type] = None,
-            attrname: Optional[str] = None
+            attrname: Optional[str] = None,
+            module_name: Optional[str] = None,
     ) -> ResourceSymbol:
         field_id = self._project_objects[0].__name__ if self._project_objects else '__main__'
         self._set_suffix(attrname or self.properties.get('name', ''))
+        extensions = defaultdict(list)
+        extensions.update(self.extensions)
 
-        # We only want to add user access and export the outputs if either this is a resource not nested inside a
+        # We only want to export the outputs if either this is a resource not nested inside a
         # project object, or if it's in the root project object.
         output_resource = False
         if not self._project_objects or (app_component and app_component in self._project_objects and attrname in self._project_attr_names):
             output_resource = True
-        
-        # If the resource has a parent - add that to the fields first.
-        parent: Optional[ResourceSymbol] = None
-        if self._parent:
-            parent = self._parent.__bicep__(
-                fields,
-                parameters=parameters,
-                app_component=app_component,
-                attrname=self._suffix
-            )
 
         if self._existing:
             properties = dict(self.properties)
-            if parent:
-                properties['scope'] = parent
+            if self.parent:
+                properties['scope'] = self.parent.__bicep__(
+                    fields,
+                    parameters=parameters,
+                    app_component=app_component,
+                    attrname=self._suffix,
+                    module_name=module_name
+                )
             if 'resource_group' in properties:
-                rg = properties.pop('resource_group').__bicep__(fields, parameters=parameters)
+                rg = properties.pop('resource_group').__bicep__(fields, parameters=parameters, module_name=module_name)
                 properties['scope'] = rg
             else:
-                rg = self._find_resource_group(fields, parameters)
+                rg = self._find_resource_group(fields, parameters, module_name=module_name)
                 properties['scope'] = rg
             symbol = self._symbol()
             outputs = self._outputs(
@@ -587,7 +501,7 @@ class Resource(Generic[ResourcePropertiesType]):
                 outputs=outputs,
                 resource_group=rg,
                 version=self.version,
-                extensions={},  # TODO: support adding role assignments to existing resources
+                extensions=extensions,
                 existing=True,
                 name=properties['name'],
                 add_defaults=None
@@ -595,8 +509,10 @@ class Resource(Generic[ResourcePropertiesType]):
             fields[f"{field_id}.{attrname if attrname else symbol.value}"] = field
             return symbol
 
-        rg = self._find_resource_group(fields, parameters)
-        identity = self._find_identity(fields, parameters)
+        rg = self._find_resource_group(fields, parameters, module_name=module_name)
+        identity = None
+        if self._supports_managed_identity:
+            identity = self._find_identity(fields, parameters, module_name=module_name)
         field = self._find_last_resource_match(fields, resource_group=rg, name=self.properties.get('name'))
         if not field and self._default_action == DefaultAction.MISSING:
             raise TypeError(f'Missing resource of type: {self.resource}')
@@ -604,10 +520,22 @@ class Resource(Generic[ResourcePropertiesType]):
             params = field.properties
             symbol = field.symbol
             outputs = field.outputs
+            if 'managed_identity_roles' in self.extensions:
+                field.extensions['managed_identity_roles'].extend(extensions['managed_identity_roles'])
+            if 'user_roles' in self.extensions:
+                field.extensions['user_roles'].extend(extensions['user_roles'])
         else:
-            params = dict(self.DEFAULTS)
+            params = {}
+            if self.parent:
+                params['parent'] = self.parent.__bicep__(
+                    fields,
+                    parameters=parameters,
+                    app_component=app_component,
+                    attrname=self._suffix,
+                    module_name=module_name
+                )
             symbol = self._symbol()
-            outputs = []
+            outputs = {}
             field = FieldType(
                 resource=self.resource,
                 properties=params,
@@ -615,7 +543,7 @@ class Resource(Generic[ResourcePropertiesType]):
                 outputs=outputs,
                 resource_group=rg,
                 version=self.version,
-                extensions={},
+                extensions=extensions,
                 existing=False,
                 name=self.properties.get('name'),
                 add_defaults=self._add_defaults
@@ -624,33 +552,26 @@ class Resource(Generic[ResourcePropertiesType]):
 
         output_config = self._merge_properties(
             params,
+            self.properties,
             fields=fields,
             parameters=parameters,
-            identity=identity,
             symbol=symbol,
             attrname=attrname,
-            resource_group=rg
-        )
-        self._add_role_assignments(
-            fields,
-            params,
-            parameters=parameters,
-            symbol=symbol,
+            resource_group=rg,
             identity=identity,
-            extensions=field.extensions,
-            user_access=(output_resource and parameters.get('principalId'))
         )
-        self._update_managed_identities(params, identity=identity)
         if not outputs and output_resource:
             resource_outputs = self._outputs(
                 symbol=symbol,
                 attrname=attrname,
                 resource_group=rg,
+                parent=params.get('parent'),
                 **output_config
             )
-            outputs.extend(resource_outputs)
+            outputs.update(resource_outputs)
         self._add_parameters(field.properties, parameters)
-        self._add_parameters(field.extensions, parameters)
+        # TODO: this wont really work yet
+        # self._add_parameters(field.extensions, parameters)
         return symbol
 
 

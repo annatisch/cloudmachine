@@ -1,5 +1,8 @@
+from collections import defaultdict
 from typing import TYPE_CHECKING, Dict, List, Literal, Self, Tuple, Type, TypedDict, Union, Unpack, Optional, Any, overload
 from typing_extensions import TypeVar
+
+from ..._parameters import GLOBAL_PARAMS
 from ..._bicep.expressions import (
     Expression,
     Output,
@@ -17,7 +20,11 @@ if TYPE_CHECKING:
     from .types import ResourceGroupResource
 
 
-_DEFAULT_RESOURCE_GROUP: 'ResourceGroupResource' = {}
+_DEFAULT_RESOURCE_GROUP: 'ResourceGroupResource' = {
+    'name': GLOBAL_PARAMS['defaultName'],
+    'location': GLOBAL_PARAMS['location'],
+    'tags': GLOBAL_PARAMS['azdTags'],
+}
 
 
 class ResourceGroupKwargs(TypedDict, total=False):
@@ -43,7 +50,7 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
             name: Optional[Union[str, Parameter[str]]] = None,
             **kwargs: Unpack['ResourceGroupKwargs']
     ) -> None:
-        extensions: ExtensionResources = {}
+        extensions: ExtensionResources = defaultdict(list)
         existing = kwargs.pop('existing', False)
         if not existing:
             properties = properties or {}
@@ -116,7 +123,7 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
                 resource=self.resource,
                 properties=properties,
                 symbol=symbol,
-                outputs=[],
+                outputs={},
                 resource_group=symbol,
                 version=self.version,
                 extensions={},
@@ -132,13 +139,13 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
             properties = field.properties
             symbol = field.symbol
         else:
-            properties = self.DEFAULTS.copy()
+            properties = {}
             symbol = self._symbol()
             field = FieldType(
                 resource=self.resource,
                 properties=properties,
                 symbol=symbol,
-                outputs=[],
+                outputs={},
                 resource_group=symbol,
                 version=self.version,
                 extensions={},
@@ -147,6 +154,6 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
                 add_defaults=self._add_defaults
             )
             fields[f"{field_id}.{attrname if attrname else symbol.value}"] = field
-        self._merge_properties(properties, symbol=symbol, resource_group=symbol)
+        self._merge_properties(properties, self.properties, symbol=symbol, resource_group=symbol)
         self._add_parameters(field.properties, parameters)
         return symbol

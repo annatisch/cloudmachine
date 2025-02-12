@@ -3,67 +3,66 @@ from uuid import uuid4
 import pytest
 from unittest.mock import ANY
 
-from azure.cloudmachine.resources._extension.roles import _BUILT_IN_ROLES, RoleAssignment
+from azure.cloudmachine.resources._extension import add_extensions
+from azure.cloudmachine.resources._extension.roles import BUILT_IN_ROLES, RoleAssignment
 from azure.cloudmachine.resources.storage import StorageAccount
 from azure.cloudmachine.resources.resourcegroup import ResourceGroup
 from azure.cloudmachine._parameters import GLOBAL_PARAMS
 from azure.cloudmachine._resource import FieldType
-from azure.cloudmachine._bicep.expressions import ResourceSymbol, Output, Guid
+from azure.cloudmachine._bicep.expressions import ResourceSymbol, Output, Guid, Variable, RoleDefinition
 from azure.cloudmachine import Parameter
 
 TEST_SUB = str(uuid4())
 RG = ResourceSymbol('resourcegroup')
-IDENTITY = ResourceSymbol("userassignedidentity", principal_id=True)
-CONTRIB_GUID = Guid("StorageAccount", "foo", "ServicePrincipal", 'Storage Blob Data Contributor')
-OWNER_GUID = Guid("StorageAccount", "foo", "ServicePrincipal", 'Storage Blob Data Owner')
+IDENTITY = Variable('managedIdentityPrincipalId', Output(None, 'properties.principalId', ResourceSymbol('userassignedidentity')))
+CONTRIB_GUID = Guid("MicrosoftStoragestorageAccounts", "foo", "ServicePrincipal", 'Storage Blob Data Contributor')
+OWNER_GUID = Guid("MicrosoftStoragestorageAccounts", "foo", "ServicePrincipal", 'Storage Blob Data Owner')
 
-def _get_outputs(suffix="", rg=None):
-    return [
-        Output(f"AZURE_STORAGE_ID{suffix.upper()}", "id", ResourceSymbol(f"storageaccount{suffix}")),
-        Output(f"AZURE_STORAGE_NAME{suffix.upper()}", "name", ResourceSymbol(f"storageaccount{suffix}")),
-        Output(f"AZURE_STORAGE_RESOURCE_GROUP{suffix.upper()}", (rg or RG).name),
-    ]
 
 def test_roles_properties():
-    r = StorageAccount(name='foo', role_assignments=['Storage Blob Data Contributor'], user_role='Storage Blob Data Contributor')
+    r = StorageAccount(name='foo', roles=['Storage Blob Data Contributor'], user_roles=['Storage Blob Data Contributor'])
     assert r.properties == {'name': 'foo', 'properties': {}}
     assert r.extensions == {
-        'role_assignments': ['Storage Blob Data Contributor'],
-        'user_role': 'Storage Blob Data Contributor'
+        'managed_identity_roles': ['Storage Blob Data Contributor'],
+        'user_roles': ['Storage Blob Data Contributor']
     }
     fields = {}
-    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    role_symbol = fields[f'__main__.storageaccount_foo'].extensions['role_assignments'][0]
-    assert fields[f'__main__.{role_symbol._value}'].resource == "Microsoft.Authorization/roleAssignments"
-    assert fields[f'__main__.{role_symbol._value}'].properties == {'name': CONTRIB_GUID, 'scope': symbol, 'properties': {'principalId': IDENTITY.principal_id, 'principalType': 'ServicePrincipal', 'roleDefinitionId': 'Storage Blob Data Contributor'}}
-    assert fields[f'__main__.{role_symbol._value}'].symbol == role_symbol
-    assert fields[f'__main__.{role_symbol._value}'].resource_group == RG
+    parameters = dict(GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=parameters)
 
-    r = StorageAccount(name='foo', role_assignments=['Storage Blob Data Owner'], user_role='Owner')
+    r = StorageAccount(name='foo', roles=['Storage Blob Data Owner'], user_roles=['Owner'])
     assert r.properties == {'name': 'foo', 'properties': {}}
     assert r.extensions == {
-        'role_assignments': ['Storage Blob Data Owner'],
-        'user_role': 'Owner'
+        'managed_identity_roles': ['Storage Blob Data Owner'],
+        'user_roles': ['Owner']
     }
-    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert len(fields[f'__main__.storageaccount_foo'].extensions['role_assignments']) == 2
+    symbol = r.__bicep__(fields, parameters=parameters)
+    add_extensions(fields, parameters)
+    assert len(fields[f'__main__.storageaccount_foo'].extensions['managed_identity_roles']) == 2
     assert len(fields[f'__main__.storageaccount_foo'].extensions['user_roles']) == 2
+    role_symbol = fields[f'__main__.storageaccount_foo'].extensions['managed_identity_roles'][0]
+    assert fields[f'__main__.{role_symbol._value}'].resource == "Microsoft.Authorization/roleAssignments"
+    assert fields[f'__main__.{role_symbol._value}'].properties == {'name': CONTRIB_GUID, 'scope': symbol, 'properties': {'principalId': IDENTITY, 'principalType': 'ServicePrincipal', 'roleDefinitionId': RoleDefinition('ba92f5b4-2d11-453d-a403-e96b0029c9fe')}}
+    assert fields[f'__main__.{role_symbol._value}'].symbol == role_symbol
+    assert fields[f'__main__.{role_symbol._value}'].resource_group == RG
 
 
 def test_roles_defaults():
     base = RoleAssignment({})
-    r = StorageAccount(name='foo', role_assignments=['Storage Blob Data Contributor'], user_role='Storage Blob Data Contributor')
+    r = StorageAccount(name='foo', roles=['Storage Blob Data Contributor'], user_roles=['Storage Blob Data Contributor'])
     assert r.properties == {'name': 'foo', 'properties': {}}
     assert r.extensions == {
-        'role_assignments': ['Storage Blob Data Contributor'],
-        'user_role': 'Storage Blob Data Contributor'
+        'managed_identity_roles': ['Storage Blob Data Contributor'],
+        'user_roles': ['Storage Blob Data Contributor']
     }
     fields = {}
-    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    role_symbol = fields[f'__main__.storageaccount_foo'].extensions['role_assignments'][0]
-    base._add_defaults(fields[f'__main__.{role_symbol._value}'], parameters=dict(GLOBAL_PARAMS))
+    parameters = dict(GLOBAL_PARAMS)
+    symbol = r.__bicep__(fields, parameters=parameters)
+    add_extensions(fields, parameters)
+    role_symbol = fields[f'__main__.storageaccount_foo'].extensions['managed_identity_roles'][0]
+    #base._add_defaults(fields[f'__main__.{role_symbol._value}'], parameters=dict(GLOBAL_PARAMS))
     assert fields[f'__main__.{role_symbol._value}'].properties == {
         'name': CONTRIB_GUID,
         'scope': symbol,
-        'properties': {'principalId': IDENTITY.principal_id, 'principalType': 'ServicePrincipal', 'roleDefinitionId': _BUILT_IN_ROLES['Storage Blob Data Contributor']}
+        'properties': {'principalId': IDENTITY, 'principalType': 'ServicePrincipal', 'roleDefinitionId': BUILT_IN_ROLES['Storage Blob Data Contributor']}
     }

@@ -129,6 +129,7 @@ ParameterType = TypeVar("ParameterType", str, int, bool, dict, list, None)
 class Parameter(Expression, Generic[ParameterType]):
     name: str
     type: str
+    module: str
     default: Union[ParameterType, Literal[ParameterDefault.MISSING]]
 
     def __init__(
@@ -145,9 +146,11 @@ class Parameter(Expression, Generic[ParameterType]):
             min_value: Optional[int] = None,
             max_length: Optional[int] = None,
             min_length: Optional[int] = None,
+            module: str = 'main'
     ):
         self.name = name
         self.default = default
+        self.module = module
         self._type = type
         self._secure = secure
         self._description = description
@@ -178,6 +181,8 @@ class Parameter(Expression, Generic[ParameterType]):
             raise TypeError(f"Unrecognized parameter type: '{self._type}'.")
 
     def __repr__(self) -> str:
+        if self.default not in (None, MISSING, ""):
+            return f"parameter({self.name}={self.default})"
         return f"parameter({self.name})"
 
     def __bicep__(self, default: Optional[ParameterType] = None, /) -> str:
@@ -213,7 +218,7 @@ class Parameter(Expression, Generic[ParameterType]):
     def __obj__(self) -> Dict[str, Dict[str, str]]:
         if not self._varname:
             return {}
-        if self.default is not MISSING:
+        if self.default not in (None, MISSING, ""):
             value = f"${{{self._varname}={self.default}}}"
         else:
             value =f"${{{self._varname}}}"
@@ -230,13 +235,15 @@ class Variable(Parameter[ParameterType]):
             name: str,
             value: ParameterType,
             *,
-            description: Optional[str] = None
+            description: Optional[str] = None,
+            module: str = 'main',
     ):
         self._value = value
         super().__init__(
             name=name,
             type=type(value),
-            description=description
+            description=description,
+            module=module
         )
 
     def __repr__(self) -> str:
@@ -286,8 +293,14 @@ class Output(Parameter[ParameterType]):
 
 
 class Guid(Parameter[str]):
-    def __init__(self, basestr: Union[Expression, str], *args: Union[Expression, str]) -> None:
+    def __init__(
+            self,
+            basestr: Union[Expression, str],
+            *args: Union[Expression, str],
+            module: str = 'main'
+    ) -> None:
         self._args = [basestr] + list(args)
+        self.module = module
 
     def __repr__(self):
         return self.value
@@ -307,8 +320,14 @@ class Guid(Parameter[str]):
 
 
 class UniqueString(Parameter[str]):
-    def __init__(self, basestr: Union[Expression, str], *args: Union[Expression, str]) -> None:
+    def __init__(
+            self,
+            basestr: Union[Expression, str],
+            *args: Union[Expression, str],
+            module: str = 'main'
+    ) -> None:
         self._args = [basestr] + list(args)
+        self.module = module
 
     def __repr__(self):
         return self.value

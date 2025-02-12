@@ -14,7 +14,7 @@ def test_resourcegroup_properties():
     assert r.properties == {}
     assert r.extensions == {}
     assert r._existing == False
-    assert not r._parent
+    assert not r.parent
     assert r.resource == "Microsoft.Resources/resourceGroups"
     assert r.version
     fields = {}
@@ -22,7 +22,7 @@ def test_resourcegroup_properties():
     assert list(fields.keys()) == ['__main__.resourcegroup']
     assert fields['__main__.resourcegroup'].resource == "Microsoft.Resources/resourceGroups"
     assert fields['__main__.resourcegroup'].properties == {}
-    assert fields['__main__.resourcegroup'].outputs == []
+    assert fields['__main__.resourcegroup'].outputs == {}
     assert fields['__main__.resourcegroup'].extensions == {}
     assert fields['__main__.resourcegroup'].existing == False
     assert fields['__main__.resourcegroup'].version
@@ -37,7 +37,7 @@ def test_resourcegroup_properties():
     assert list(fields.keys()) == ['__main__.resourcegroup']
     assert fields['__main__.resourcegroup'].resource == "Microsoft.Resources/resourceGroups"
     assert fields['__main__.resourcegroup'].properties == {'location': 'westus'}
-    assert fields['__main__.resourcegroup'].outputs == []
+    assert fields['__main__.resourcegroup'].outputs == {}
     assert fields['__main__.resourcegroup'].extensions == {}
     assert fields['__main__.resourcegroup'].existing == False
     assert fields['__main__.resourcegroup'].version
@@ -57,7 +57,7 @@ def test_resourcegroup_properties():
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.resourcegroup_foo']
     assert fields['__main__.resourcegroup_foo'].resource == "Microsoft.Resources/resourceGroups"
     assert fields['__main__.resourcegroup_foo'].properties == {'name': 'foo', 'tags': {'test': 'value'}}
-    assert fields['__main__.resourcegroup_foo'].outputs == []
+    assert fields['__main__.resourcegroup_foo'].outputs == {}
     assert fields['__main__.resourcegroup_foo'].extensions == {}
     assert fields['__main__.resourcegroup_foo'].existing == False
     assert fields['__main__.resourcegroup_foo'].version
@@ -71,7 +71,7 @@ def test_resourcegroup_reference():
     r = ResourceGroup.reference(name='foo')
     assert r.properties == {'name': 'foo'}
     assert r._existing == True
-    assert not r._parent
+    assert not r.parent
     assert r.extensions == {}
     assert r.name() == 'foo'
     with pytest.raises(RuntimeError):
@@ -86,7 +86,7 @@ def test_resourcegroup_reference():
     assert list(fields.keys()) == ['__main__.resourcegroup_foo']
     assert fields['__main__.resourcegroup_foo'].resource == "Microsoft.Resources/resourceGroups"
     assert fields['__main__.resourcegroup_foo'].properties == {'name': 'foo'}
-    assert fields['__main__.resourcegroup_foo'].outputs == []
+    assert fields['__main__.resourcegroup_foo'].outputs == {}
     assert fields['__main__.resourcegroup_foo'].extensions == {}
     assert fields['__main__.resourcegroup_foo'].existing == True
     assert fields['__main__.resourcegroup_foo'].version
@@ -103,7 +103,7 @@ def test_resourcegroup_reference():
     assert list(fields.keys()) == ['__main__.resourcegroup_foo', '__main__.resourcegroup_bar']
     assert fields['__main__.resourcegroup_bar'].resource == "Microsoft.Resources/resourceGroups"
     assert fields['__main__.resourcegroup_bar'].properties == {'name': 'bar', 'scope': Subscription(TEST_SUB)}
-    assert fields['__main__.resourcegroup_bar'].outputs == []
+    assert fields['__main__.resourcegroup_bar'].outputs == {}
     assert fields['__main__.resourcegroup_bar'].extensions == {}
     assert fields['__main__.resourcegroup_bar'].existing == True
     assert fields['__main__.resourcegroup_bar'].version

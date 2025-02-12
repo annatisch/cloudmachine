@@ -19,6 +19,12 @@ var azdTags = {
   'azd-env-name': environmentName
 }
 
+@sys.description('ID of the managed identity to assign application roles')
+param managedIdentityId string = ''
+
+@sys.description('Principal ID of the managed identity to assign application roles')
+param managedIdentityPrincipalId string = ''
+
 resource resourcegroup_foo 'Microsoft.Resources/resourceGroups@2021-04-01' existing = {
   name: 'foo'
   scope: subscription('6e441d6a-23ce-4450-a4a6-78f8d4f45ce9')

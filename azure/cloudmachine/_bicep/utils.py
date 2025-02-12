@@ -39,7 +39,8 @@ def generate_suffix(length: int = 5, /) -> str:
 
 
 def generate_name(seed: str, max_length: int = 20) -> str:
-    return ''.join([random.Random(c).choice(string.ascii_lowercase) for c in resolve_value(seed)])
+    random_gen = random.Random(resolve_value(seed))
+    return ''.join([random_gen.choice(string.ascii_lowercase) for _ in range(max_length)])
 
 
 def serialize(value: Any, indent: str = "", /, **params) -> str:

@@ -1,16 +1,14 @@
+from collections import defaultdict
 from typing import TYPE_CHECKING, List, Literal, Self, TypedDict, Union, Unpack, overload, Optional, Dict
 from typing_extensions import TypeVar
 
 from ...resources.resourcegroup import ResourceGroup
-from ..._bicep.expressions import Output, ResourceSymbol, Parameter
-from ..._parameters import DEFAULT_NAME, LOCATION, AZD_TAGS
+from ..._bicep.expressions import Output, ResourceSymbol, Parameter, Variable
+from ..._parameters import GLOBAL_PARAMS
 from ..._resource import FieldType, Resource, ResourceReference, ExtensionResources
 
 if TYPE_CHECKING:
     from .types import UserAssignedIdentityResource
-
-
-_DEFAULT_USER_ASSIGNED_IDENTITY: 'UserAssignedIdentityResource' = {}
 
 
 class UserAssignedIdentityKwargs(TypedDict, total=False):
@@ -23,6 +21,12 @@ class UserAssignedIdentityKwargs(TypedDict, total=False):
 
 
 UserAssignedIdentityResourceType = TypeVar('UserAssignedIdentityResourceType', default='UserAssignedIdentityResource')
+_DEFAULT_USER_ASSIGNED_IDENTITY: 'UserAssignedIdentityResource' = {
+    'location': GLOBAL_PARAMS['location'],
+    'tags': GLOBAL_PARAMS['azdTags'],
+    'name': GLOBAL_PARAMS['defaultName']
+}
+
 
 class UserAssignedIdentity(Resource[UserAssignedIdentityResourceType]):
     DEFAULTS: 'UserAssignedIdentityResource' = _DEFAULT_USER_ASSIGNED_IDENTITY
@@ -36,7 +40,7 @@ class UserAssignedIdentity(Resource[UserAssignedIdentityResourceType]):
             name: Optional[Union[str, Parameter[str]]] = None,
             **kwargs: Unpack['UserAssignedIdentityKwargs']
     ) -> None:
-        extensions: ExtensionResources = {}
+        extensions: ExtensionResources = defaultdict(list)
         existing = kwargs.pop('existing', False)
         if not existing:
             properties = properties or {}
@@ -94,23 +98,11 @@ class UserAssignedIdentity(Resource[UserAssignedIdentityResourceType]):
         symbol = f"{resource_ref}{self._suffix.lower()}" if self._suffix else resource_ref
         return ResourceSymbol(symbol, principal_id=True)
 
-    def _outputs(self, symbol, **kwargs) -> List[Output]:
-        return [Output("AZURE_CLIENT_ID", "properties.clientId", symbol)]
-    
-    def _find_identity(self, fields, parameters, index = 0):
-        return None
+    def _outputs(self, symbol, **kwargs) -> Dict[str, Output]:
+        return {'client_id': Output("AZURE_CLIENT_ID", "properties.clientId", symbol)}
 
-
-def _add_defaults(
-        field: FieldType,
-        *,
-        parameters: Dict[str, Parameter]
-):
-    if field.existing:
-        return
-    if 'name' not in field.properties:
-        field.properties['name'] = DEFAULT_NAME
-    if 'location' not in field.properties:
-        field.properties['location'] = LOCATION
-    if 'tags' not in field.properties:
-        field.properties['tags'] = AZD_TAGS
+    def __bicep__(self, fields, *, parameters, app_component = None, attrname = None, module_name):
+        symbol = super().__bicep__(fields, parameters=parameters, app_component=app_component, attrname=attrname, module_name=module_name)
+        parameters['managedIdentityId'] = Variable('managedIdentityId', Output(None, 'id', symbol), module=module_name)
+        parameters['managedIdentityPrincipalId'] = Variable('managedIdentityPrincipalId', Output(None, 'properties.principalId', symbol), module="")
+        return symbol

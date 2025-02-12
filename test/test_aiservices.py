@@ -13,30 +13,30 @@ TEST_SUB = str(uuid4())
 RG = ResourceSymbol('resourcegroup')
 IDENTITY = {
     'type': 'UserAssigned',
-    'userAssignedIdentities': {ResourceSymbol('userassignedidentity'): {}}
+    'userAssignedIdentities': {GLOBAL_PARAMS['managedIdentityId'].format(): {}}
 }
 
 def _get_outputs(suffix="", rg=None):
-    return [
-        Output(f"AZURE_AI_ID{suffix.upper()}", "id", ResourceSymbol(f"account{suffix}")),
-        Output(f"AZURE_AI_NAME{suffix.upper()}", "name", ResourceSymbol(f"account{suffix}")),
-        Output(f"AZURE_AI_RESOURCE_GROUP{suffix.upper()}", rg if rg else DefaultResourceGroup().name),
-        Output(f"AZURE_AI_ENDPOINT{suffix.upper()}", "properties.endpoint", ResourceSymbol(f"account{suffix}"))
-    ]
+    return {
+        'resource_id': Output(f"AZURE_AI_ID{suffix.upper()}", "id", ResourceSymbol(f"account{suffix}")),
+        'name': Output(f"AZURE_AI_NAME{suffix.upper()}", "name", ResourceSymbol(f"account{suffix}")),
+        'resource_group': Output(f"AZURE_AI_RESOURCE_GROUP{suffix.upper()}", rg if rg else DefaultResourceGroup().name),
+        'endpoint': Output(f"AZURE_AI_ENDPOINT{suffix.upper()}", "properties.endpoint", ResourceSymbol(f"account{suffix}"))
+    }
 
 def test_aiservices_properties():
     r = AIServices()
     assert r.properties == {'kind': 'AIServices', 'properties': {}}
     assert r.extensions == {}
     assert r._existing == False
-    assert not r._parent
+    assert not r.parent
     assert r.resource == "Microsoft.CognitiveServices/accounts"
     assert r.version
     fields = {}
     symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.account']
     assert fields['__main__.account'].resource == "Microsoft.CognitiveServices/accounts"
-    assert fields['__main__.account'].properties == {'kind': 'AIServices', 'properties': {}, 'identity': IDENTITY}
+    assert fields['__main__.account'].properties == {'kind': 'AIServices', 'properties': {}}
     assert fields['__main__.account'].outputs == _get_outputs()
     assert fields['__main__.account'].extensions == {}
     assert fields['__main__.account'].existing == False
@@ -51,7 +51,7 @@ def test_aiservices_properties():
     r2.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.account']
     assert fields['__main__.account'].resource == "Microsoft.CognitiveServices/accounts"
-    assert fields['__main__.account'].properties == {'kind': 'AIServices', 'location': 'westus', 'sku': {'name': 'F1'}, 'properties': {}, 'identity': IDENTITY}
+    assert fields['__main__.account'].properties == {'kind': 'AIServices', 'location': 'westus', 'sku': {'name': 'F1'}, 'properties': {}}
     assert fields['__main__.account'].outputs == _get_outputs()
     assert fields['__main__.account'].extensions == {}
     assert fields['__main__.account'].existing == False
@@ -71,7 +71,7 @@ def test_aiservices_properties():
     symbol = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.account', '__main__.account_foo']
     assert fields['__main__.account_foo'].resource == "Microsoft.CognitiveServices/accounts"
-    assert fields['__main__.account_foo'].properties == {'name': 'foo', 'kind': 'AIServices', 'tags': {'test': 'value'}, 'properties': {'publicNetworkAccess': 'Disabled'}, 'identity': IDENTITY}
+    assert fields['__main__.account_foo'].properties == {'name': 'foo', 'kind': 'AIServices', 'tags': {'test': 'value'}, 'properties': {'publicNetworkAccess': 'Disabled'}}
     assert fields['__main__.account_foo'].outputs == _get_outputs("_foo")
     assert fields['__main__.account_foo'].extensions == {}
     assert fields['__main__.account_foo'].existing == False
@@ -91,7 +91,7 @@ def test_aiservices_properties():
     symbol = r5.__bicep__(fields, parameters=params)
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.account_testa']
     assert fields['__main__.account_testa'].resource == "Microsoft.CognitiveServices/accounts"
-    assert fields['__main__.account_testa'].properties == {'name': param1, 'kind': 'AIServices', 'sku': {'name': param2}, 'properties': {'publicNetworkAccess': param3}, 'identity': IDENTITY}
+    assert fields['__main__.account_testa'].properties == {'name': param1, 'kind': 'AIServices', 'sku': {'name': param2}, 'properties': {'publicNetworkAccess': param3}}
     assert fields['__main__.account_testa'].outputs == _get_outputs("_testa")
     assert fields['__main__.account_testa'].extensions == {}
     assert fields['__main__.account_testa'].existing == False
@@ -109,7 +109,7 @@ def test_aiservices_reference():
     r = AIServices.reference(name='foo')
     assert r.properties == {'name': 'foo'}
     assert r._existing == True
-    assert not r._parent
+    assert not r.parent
     assert r.extensions == {}
     assert r.name() == 'foo'
     with pytest.raises(RuntimeError):
@@ -164,7 +164,7 @@ def test_aiservices_defaults():
     field = fields.popitem()[1]
     r._add_defaults(field, parameters=dict(GLOBAL_PARAMS))
     assert field.properties == {
-        'name': GLOBAL_PARAMS['defaultName'],
+        'name': GLOBAL_PARAMS['defaultName'].format("{}-aiservices"),
         'location': 'westus',
         'sku': {
             'name': sku_param

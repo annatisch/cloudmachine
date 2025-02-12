@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from .resources.resourcegroup import ResourceGroup, ResourceGroupKwargs
     from .resources.storage import StorageAccount, StorageAccountKwargs
     from .resources.ai import AIServices, AIServicesKwargs
+    from .resources.ai.deployment import DeploymentKwargs, DeploymentParams, AIChat, AIEmbeddings, AIDeployment
 
     from .resources.storage.tables import TableServiceParams, TableStorageKwargs
     from .resources.storage.blobs import BlobServiceParams, BlobStorageKwargs
@@ -29,7 +30,6 @@ if TYPE_CHECKING:
     from .resources.eventgrid.systemtopic.subscription import SystemTopicSubscriptionParams, SystemTopicSubscriptionKwargs
     from. resources.keyvault._resource import KeyVaultParams, KeyVaultKwargs, KeyVault
     from .resources.ml._resource import MachineLearningServicesWorkspaceKwargs, AIHub, AIProject
-    from .resources.ai.deployment._resource import DeploymentKwargs, DeploymentParams, AIChatCompletions, AITextEmbeddings, AIDeployment
     from .resources.search._resource import SearchServiceParams, SearchServiceKwargs, SearchService
 
 
@@ -382,10 +382,10 @@ def reference(
         from .resources.ai import AIServices
         return AIServices.reference(**kwargs)
     if resource == ResourceIdentifiers.ai_chat_deployment:
-        from .resources.ai.deployment._resource import AIChatCompletions
+        from .resources.ai.deployment import AIChatCompletions
         return AIChatCompletions.reference(**kwargs)
     if resource == ResourceIdentifiers.ai_embeddings_deployment:
-        from .resources.ai.deployment._resource import AITextEmbeddings
+        from .resources.ai.deployment import AITextEmbeddings
         return AITextEmbeddings.reference(**kwargs)
     if resource == ResourceIdentifiers.ai_hub:
         from .resources.ml._resource import AIHub
@@ -701,10 +701,10 @@ def resource(
         from .resources.ai import AIServices
         return AIServices(None, *args, **kwargs)
     if resource == ResourceIdentifiers.ai_chat_deployment:
-        from .resources.ai.deployment._resource import AIChatCompletions
+        from .resources.ai.deployment import AIChatCompletions
         return AIChatCompletions(None, *args, **kwargs)
     if resource == ResourceIdentifiers.ai_embeddings_deployment:
-        from .resources.ai.deployment._resource import AITextEmbeddings
+        from .resources.ai.deployment import AITextEmbeddings
         return AITextEmbeddings(None, *args, **kwargs)
     if resource == ResourceIdentifiers.ai_hub:
         from .resources.ml._resource import AIHub

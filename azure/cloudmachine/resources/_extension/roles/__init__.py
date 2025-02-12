@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 
 
 _DEFAULT_ROLE_ASSIGNMENT: 'RoleAssignmentResource' = {}
-
 RoleAssignmentResourceType = TypeVar('RoleAssignmentResourceType', default='RoleAssignmentResource')
 
 
@@ -51,22 +50,14 @@ class RoleAssignment(Resource[RoleAssignmentResourceType]):
     ) -> 'RoleAssignment[ResourceReference]':
         raise TypeError("Referenced Role Assignments not supported.")
 
-    def _outputs(self, **kwargs) -> List[Output]:
-        return []
+    def _outputs(self, **kwargs) -> Dict[str, Output]:
+        return {}
 
     def _set_suffix(self, name):
         return super()._set_suffix(generate_name(name.value))
 
-    def _add_defaults(self, field: FieldType, parameters: Dict[str, Parameter]):
-        try:
-            role_name = field.properties['properties']['roleDefinitionId']
-            field.properties['properties']['roleDefinitionId'] = _BUILT_IN_ROLES[role_name]
-            field.properties['properties']['roleDefinitionId'].description = role_name
-        except KeyError:
-            pass
 
-
-_BUILT_IN_ROLES: Dict[str, RoleDefinition] = {
+BUILT_IN_ROLES: Dict[str, RoleDefinition] = {
     'Contributor': RoleDefinition('b24988ac-6180-42a0-ab88-20f7382dd24c'),
     'Owner': RoleDefinition('8e3af657-a8ff-443c-a75c-2fe8c4bcb635'),
     'Reader': RoleDefinition('acdd72a7-3385-48ef-bd42-f606fba81ae7'),
@@ -91,4 +82,28 @@ _BUILT_IN_ROLES: Dict[str, RoleDefinition] = {
     'Storage Table Data Contributor': RoleDefinition('0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'),
     'Storage Table Data Reader': RoleDefinition('76199698-9eea-4c19-bc75-cec21354c6b6'),
     'User Access Administrator': RoleDefinition('18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'),
+    'Cognitive Services Contributor': RoleDefinition('25fbc0a9-bd7c-42a3-aa1a-3b75d497ee68'),
+    'Cognitive Services Custom Vision Contributor': RoleDefinition('c1ff6cc2-c111-46fe-8896-e0ef812ad9f3'),
+    'Cognitive Services Custom Vision Deployment': RoleDefinition('5c4089e1-6d96-4d2f-b296-c1bc7137275f'),
+    'Cognitive Services Custom Vision Labeler': RoleDefinition('88424f51-ebe7-446f-bc41-7fa16989e96c'),
+    'Cognitive Services Custom Vision Reader': RoleDefinition('93586559-c37d-4a6b-ba08-b9f0940c2d73'),
+    'Cognitive Services Custom Vision Trainer': RoleDefinition('0a5ae4ab-0d65-4eeb-be61-29fc9b54394b'),
+    'Cognitive Services Data Reader': RoleDefinition('b59867f0-fa02-499b-be73-45a86b5b3e1c'),
+    'Cognitive Services Face Recognizer': RoleDefinition('9894cab4-e18a-44aa-828b-cb588cd6f2d7'),
+    'Cognitive Services Immersive Reader User': RoleDefinition('b2de6794-95db-4659-8781-7e080d3f2b9d'),
+    'Cognitive Services Language Owner': RoleDefinition('f07febfe-79bc-46b1-8b37-790e26e6e498'),
+    'Cognitive Services Language Reader': RoleDefinition('7628b7b8-a8b2-4cdc-b46f-e9b35248918e'),
+    'Cognitive Services Language Writer': RoleDefinition('f2310ca1-dc64-4889-bb49-c8e0fa3d47a8'),
+    'Cognitive Services LUIS Owner': RoleDefinition('f72c8140-2111-481c-87ff-72b910f6e3f8'),
+    'Cognitive Services LUIS Reader': RoleDefinition('18e81cdc-4e98-4e29-a639-e7d10c5a6226'),
+    'Cognitive Services LUIS Writer': RoleDefinition('6322a993-d5c9-4bed-b113-e49bbea25b27'),
+    'Cognitive Services Metrics Advisor Administrator': RoleDefinition('cb43c632-a144-4ec5-977c-e80c4affc34a'),
+    'Cognitive Services Metrics Advisor User': RoleDefinition('3b20f47b-3825-43cb-8114-4bd2201156a8'),
+    'Cognitive Services OpenAI Contributor': RoleDefinition('a001fd3d-188f-4b5d-821b-7da978bf7442'),
+    'Cognitive Services OpenAI User': RoleDefinition('5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'),
+    'Cognitive Services QnA Maker Editor': RoleDefinition('f4cc2bf9-21be-47a1-bdf1-5c5804381025'),
+    'Cognitive Services QnA Maker Reader': RoleDefinition('466ccd10-b268-4a11-b098-b4849f024126'),
+    'Cognitive Services Speech Contributor': RoleDefinition('0e75ca1e-0464-4b4d-8b93-68208a576181'),
+    'Cognitive Services Speech User': RoleDefinition('f2dc8367-1007-4938-bd23-fe263f013447'),
+    'Cognitive Services User': RoleDefinition('a97b65f3-24c7-4388-baec-2e87135dc908'),
 }

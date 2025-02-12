@@ -14,8 +14,8 @@ from ._parameters import GLOBAL_PARAMS
 from ._bicep.utils import generate_name, resolve_value, serialize_dict, generate_suffix, serialize_list
 from ._bicep.expressions import Expression, Output, Parameter, ResourceSymbol, Subscription, UniqueString, Variable
 from ._resource import FieldType, Resource, FieldsType, _load_dev_environment
-from .resources.resourcegroup import ResourceGroup
-from .resources.managedidentity import UserAssignedIdentity
+from .resources._extension import add_extensions
+
 
 _BICEP_PARAMS = {
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
@@ -178,6 +178,7 @@ def export(
     if not deployment:
         print("No resources to deploy.")
         return
+    deployment_name = name or _get_filename()
     config = config or {}
     print("Building bicep...")
     working_dir = os.path.abspath(output_dir)
@@ -189,6 +190,28 @@ def export(
     if location:
         parameters['location'].default = location
 
+    fields: FieldsType = {}
+    for resource in deployment:
+        if isinstance(resource, Resource):
+            resource.__bicep__(
+                fields=fields,
+                parameters=parameters,
+                module_name=deployment_name
+            )
+        elif issubclass(resource, CloudMachine):
+            _parse_module(
+                parameters=parameters,
+                parent_component=resource,
+                component=resource,
+                component_resources=_get_component_resources(resource),
+                component_fields=fields,
+                module_name=deployment_name,
+            )
+    for field in fields.values():
+        if field.add_defaults:
+            field.add_defaults(field, parameters)
+    add_extensions(fields, parameters)
+
     try:
         os.makedirs(infra_dir)
     except FileExistsError:
@@ -196,28 +219,15 @@ def export(
     bicep_main = os.path.join(infra_dir, f"{main_bicep}.bicep")
     with open(bicep_main, 'w') as main:
         main.write("targetScope = 'subscription'\n\n")
-        fields: FieldsType = {}
-        for resource in deployment:
-            if isinstance(resource, Resource):
-                resource.__bicep__(
-                    fields=fields,
-                    parameters=parameters
-                )
-            elif issubclass(resource, CloudMachine):
-                _parse_module(
-                    parameters=parameters,
-                    parent_component=resource,
-                    component=resource,
-                    component_resources=_get_component_resources(resource),
-                    component_fields=fields,
-                )
-        for parameter in parameters.values():
+        module_params = {k: v for k,v in parameters.items() if v.module == 'main'}
+        for parameter in module_params.values():
             main.write(parameter.__bicep__(config.get(parameter.name)))
         _write_resources(
             bicep=main,
             fields=list(fields.values()),
             parameters=parameters,
-            deployment_name=name or _get_filename(),
+            module_parameters=module_params,
+            deployment_name=deployment_name,
             infra_dir=infra_dir,
             config=config
 
@@ -234,6 +244,7 @@ def export(
         json.dump(params_content, params_json, indent=4)
 
 
+
 def _parse_module(
         *,
         parameters: Dict[str, Parameter],
@@ -242,6 +253,7 @@ def _parse_module(
         component_resources: Dict[str, Resource],
         component_fields: FieldsType,
         attrname: Optional[str] = None,
+        module_name: str
 ) -> FieldsType:
     for name, r in component_resources.items():
         if r.component == component:
@@ -249,7 +261,8 @@ def _parse_module(
                 component_fields,
                 parameters=parameters,
                 app_component=parent_component,
-                attrname=attrname or name
+                attrname=attrname or name,
+                module_name=module_name
             )
         else:
             _parse_module(
@@ -259,6 +272,7 @@ def _parse_module(
                 component_resources=_get_component_resources(r.component),
                 component_fields=component_fields,
                 attrname=name,
+                module_name=module_name
             )
 
 
@@ -266,6 +280,7 @@ def _write_resources(
         bicep: IO[str],
         fields: List[FieldType],
         parameters: Dict[str, Parameter],
+        module_parameters: Dict[str, Parameter],
         infra_dir: str,
         deployment_name: str,
         config: Dict[str, Any],
@@ -273,8 +288,6 @@ def _write_resources(
 ) -> None:
     all_outputs = []
     for index, field in enumerate(fields):
-        if field.add_defaults:
-           field.add_defaults(field, parameters)
         if field.resource == "Microsoft.Resources/resourceGroups":
             if field.existing:
                 bicep.write(f"resource {field.symbol.value} '{field.resource}@{field.version}' existing = {{\n")
@@ -300,14 +313,18 @@ def _write_resources(
                 bicep.write(f"  name: '${{deployment().name}}_{deployment_name}'\n")
                 bicep.write(f"  scope: {field.symbol.value}\n")
                 bicep.write("  params: {\n")
-                for parameter in parameters.values():
+                for parameter in module_parameters.values():
                     bicep.write(f"    {parameter.value}: {parameter.value}\n")
                 bicep.write("  }\n")
                 bicep.write("}\n")
                 bicep_module = os.path.join(infra_dir, f"{deployment_name}.bicep")
                 with open(bicep_module, 'w') as module:
-                    for parameter in parameters.values():
+                    for parameter in module_parameters.values():
                         module.write(f"param {parameter.name} {parameter.type}\n")
+                    for name, parameter in parameters.items():
+                        if name not in module_parameters:
+                            module.write(parameter.__bicep__())
+                            
                     module.write("\n")
                     outputs = _write_resources(
                         bicep=module,
@@ -315,6 +332,7 @@ def _write_resources(
                         parameters=parameters,
                         infra_dir=infra_dir,
                         config=config,
+                        module_parameters=module_parameters,
                         resource_group_scope=field.symbol,
                         deployment_name=None # TODO: support submodules/resource groups
                     )
@@ -335,7 +353,7 @@ def _write_resources(
             bicep.write(serialize_dict(field.properties, "  ", **config))
             bicep.write("}\n")
         bicep.write("\n")
-        for output in field.outputs:
+        for output in field.outputs.values():
             all_outputs.append((output.name, output.type))
             bicep.write(output.__bicep__())
         bicep.write("\n\n")

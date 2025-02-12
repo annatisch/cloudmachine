@@ -2,33 +2,35 @@ param location string
 param environmentName string
 param defaultName string
 param azdTags object
+var managedIdentityId = userassignedidentity.id
+var managedIdentityPrincipalId = userassignedidentity.properties.principalId
 
 resource userassignedidentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
-  name: defaultName
   location: location
   tags: azdTags
+  name: defaultName
 }
 
 output AZURE_CLIENT_ID string = userassignedidentity.properties.clientId
 
 
 resource account 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
-  kind: 'AIServices'
   properties: {
     publicNetworkAccess: 'Enabled'
     disableLocalAuth: true
   }
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      userassignedidentity: {}
-    }
-  }
-  name: defaultName
+  kind: 'AIServices'
+  name: '${defaultName}-aiservices'
   location: location
   tags: azdTags
   sku: {
     name: 'S0'
+  }
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${managedIdentityId}': {}
+    }
   }
 }
 
@@ -38,12 +40,16 @@ output AZURE_AI_RESOURCE_GROUP string = resourceGroup().name
 output AZURE_AI_ENDPOINT string = account.properties.endpoint
 
 
-resource roleassignment_ejfkmzehinsmskpspemgmsnifztgifsmgensmskpsqmkjpkpizemgecxjjktkssgnsmskpspgepsjhigcxjtmkxftxmeme 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid('AIServices', defaultName, 'ServicePrincipal', 'Cognitive Services OpenAI Contributor')
+resource roleassignment_prmcdnytekaxfpxlctiu 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid('MicrosoftCognitiveServicesaccounts', '${defaultName}-aiservices', 'ServicePrincipal', 'Cognitive Services OpenAI Contributor')
   properties: {
-    principalId: userassignedidentity.properties.principalId
+    principalId: managedIdentityPrincipalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: 'Cognitive Services OpenAI Contributor'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      'a001fd3d-188f-4b5d-821b-7da978bf7442'
+    )
+
   }
   scope: account
 }
