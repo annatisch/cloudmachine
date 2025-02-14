@@ -10,7 +10,7 @@ from typing import (
 )
 
 from ._bicep.expressions import Parameter
-from ._resource import Resource, DefaultAction, _load_dev_environment
+from ._resource import Resource, DefaultAction, _load_dev_environment, ResourceReference
 from .resources._identifiers import ResourceIdentifiers
 
 if TYPE_CHECKING:
@@ -18,7 +18,8 @@ if TYPE_CHECKING:
     from .resources.resourcegroup import ResourceGroup, ResourceGroupKwargs
     from .resources.storage import StorageAccount, StorageAccountKwargs
     from .resources.ai import AIServices, AIServicesKwargs
-    from .resources.ai.deployment import DeploymentKwargs, DeploymentParams, AIChat, AIEmbeddings, AIDeployment
+    from .resources.ai.deployment import DeploymentKwargs, AIChat, AIEmbeddings, AIDeployment
+    from .resources.ai.deployment.types import DeploymentResource
 
     from .resources.storage.tables import TableServiceParams, TableStorageKwargs
     from .resources.storage.blobs import BlobServiceParams, BlobStorageKwargs
@@ -86,6 +87,8 @@ class AnnotationResource:
         self._attrname: Optional[str] = None
 
     def __set_name__(self, owner: Type, name: str) -> None:
+        self._owner = owner
+        self._attrname = name
         try:
             annotation = get_annotations(owner)[name]
         except KeyError:
@@ -107,7 +110,7 @@ class AnnotationResource:
         else:
             self._resource = reference(
                 self._annotation,
-                *self._resource_args,
+                # *self._resource_args,
                 **self._resource_kwargs
             )
         self._resource._project_objects.append(self._owner)
@@ -294,19 +297,21 @@ def reference(
 def reference(
     resource: Literal['ai:deployment:chat'],
     /,
-    name: Union[str, Parameter[str]],
+    model: Union[str, Parameter[str]],
+    account: Optional[Union[str, 'AIServices', Parameter[str]]] = None,
     resource_group: Optional[Union[str, Parameter[str]]] = None,
     subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'AIChatCompletions':
+) -> 'AIChat[ResourceReference]':
     ...
 @overload
 def reference(
     resource: Literal['ai:deployment:embeddings'],
     /,
-    name: Union[str, Parameter[str]],
+    model: Union[str, Parameter[str]],
+    account: Optional[Union[str, 'AIServices', Parameter[str]]] = None,
     resource_group: Optional[Union[str, Parameter[str]]] = None,
     subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'AITextEmbeddings':
+) -> 'AIEmbeddings[ResourceReference]':
     ...
 def reference(
         resource: Union[
@@ -340,10 +345,10 @@ def reference(
         **kwargs
 ) -> Resource:
     if resource == ResourceIdentifiers.resource_group:
-        from .resources.resourcegroup._resource import ResourceGroup
+        from .resources.resourcegroup import ResourceGroup
         return ResourceGroup.reference(**kwargs)
     if resource == ResourceIdentifiers.user_assigned_identity:
-        from .resources.managedidentity._resource import UserAssignedIdentity
+        from .resources.managedidentity import UserAssignedIdentity
         return UserAssignedIdentity.reference(**kwargs)
     if resource == ResourceIdentifiers.storage_account:
         from .resources.storage import StorageAccount
@@ -382,11 +387,11 @@ def reference(
         from .resources.ai import AIServices
         return AIServices.reference(**kwargs)
     if resource == ResourceIdentifiers.ai_chat_deployment:
-        from .resources.ai.deployment import AIChatCompletions
-        return AIChatCompletions.reference(**kwargs)
+        from .resources.ai.deployment import AIChat
+        return AIChat.reference(**kwargs)
     if resource == ResourceIdentifiers.ai_embeddings_deployment:
-        from .resources.ai.deployment import AITextEmbeddings
-        return AITextEmbeddings.reference(**kwargs)
+        from .resources.ai.deployment import AIEmbeddings
+        return AIEmbeddings.reference(**kwargs)
     if resource == ResourceIdentifiers.ai_hub:
         from .resources.ml._resource import AIHub
         return AIHub.reference(**kwargs)
@@ -601,21 +606,21 @@ def resource(
 def resource(
     resource: Literal['ai:deployment:chat'],
     /,
-    name: Optional[Union[str, Parameter[str]]] = None,
+    account: Optional[Union[str, 'AIServices', Parameter[str]]] = None,
     *,
     default: DefaultAction = DefaultAction.BUILD_DEFAULT,
     **kwargs: Unpack['DeploymentKwargs']
-) -> 'AIChatCompletions':
+) -> 'AIChat[DeploymentResource]':
     ...
 @overload
 def resource(
     resource: Literal['ai:deployment:embeddings'],
     /,
-    name: Optional[Union[str, Parameter[str]]] = None,
+    account: Optional[Union[str, 'AIServices', Parameter[str]]] = None,
     *,
     default: DefaultAction = DefaultAction.BUILD_DEFAULT,
     **kwargs: Unpack['DeploymentKwargs']
-) -> 'AITextEmbeddings':
+) -> 'AIEmbeddings[DeploymentResource]':
     ...
 def resource(
         resource: Union[
@@ -659,10 +664,10 @@ def resource(
         # TODO: update resource params from kwargs
         return resource
     if resource == ResourceIdentifiers.resource_group:
-        from .resources.resourcegroup._resource import ResourceGroup
+        from .resources.resourcegroup import ResourceGroup
         return ResourceGroup(None, *args, **kwargs)
     if resource == ResourceIdentifiers.user_assigned_identity:
-        from .resources.managedidentity._resource import UserAssignedIdentity
+        from .resources.managedidentity import UserAssignedIdentity
         return UserAssignedIdentity(None, *args, **kwargs)
     if resource == ResourceIdentifiers.storage_account:
         from .resources.storage import StorageAccount
@@ -701,11 +706,11 @@ def resource(
         from .resources.ai import AIServices
         return AIServices(None, *args, **kwargs)
     if resource == ResourceIdentifiers.ai_chat_deployment:
-        from .resources.ai.deployment import AIChatCompletions
-        return AIChatCompletions(None, *args, **kwargs)
+        from .resources.ai.deployment import AIChat
+        return AIChat(None, *args, **kwargs)
     if resource == ResourceIdentifiers.ai_embeddings_deployment:
-        from .resources.ai.deployment import AITextEmbeddings
-        return AITextEmbeddings(None, *args, **kwargs)
+        from .resources.ai.deployment import AIEmbeddings
+        return AIEmbeddings(None, *args, **kwargs)
     if resource == ResourceIdentifiers.ai_hub:
         from .resources.ml._resource import AIHub
         return AIHub(None, *args, **kwargs)

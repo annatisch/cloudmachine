@@ -75,6 +75,7 @@ from ._bicep.utils import serialize, generate_suffix, resolve_value, serialize_d
 if TYPE_CHECKING:
     from .resources.resourcegroup import ResourceGroup
     from .resources._utils import RoleAssignment as SimpleRoleAssignment
+    from ._component import CloudMachine
 
 
 
@@ -180,7 +181,7 @@ class Resource(Generic[ResourcePropertiesType]):
         self._prefixes: List[str] = kwargs.pop('service_prefix', [])
         self._default_action: DefaultAction = kwargs.pop('default_action', DefaultAction.BUILD_DEFAULT)
         self._supports_managed_identity: bool = False
-        self._project_objects: List[Type] = []
+        self._project_objects: List[Type['CloudMachine']] = []
         self._project_attr_names: List[str] = []
         if self.parent and not self._subresource:
             raise ValueError('Parent must be specified with subresource.')
@@ -227,14 +228,21 @@ class Resource(Generic[ResourcePropertiesType]):
     def version(self) -> str:
         return self._version
 
+    @property
+    def project(self) -> Type['CloudMachine']:
+        try:
+            return self._project_objects[0]
+        except IndexError:
+            raise TypeError(f"Resource {repr(self)} has not been declared in an AzureProject class.")
+
     @classmethod
     def reference(
             cls,
             resource: str,
             *,
-            name: str,
-            resource_group: Optional[Union[str, 'ResourceGroup']] = None,
-            subscription: Optional[str] = None,
+            name: Union[str, Parameter[str]],
+            resource_group: Optional[Union[str, Parameter[str], 'ResourceGroup']] = None,
+            subscription: Optional[Union[str, Parameter[str]]] = None,
             parent: Optional[Resource] = None,
     ) -> Self[ResourceReference]:
         if parent and resource_group:
@@ -242,12 +250,12 @@ class Resource(Generic[ResourcePropertiesType]):
         resource_type, resource_version = resource.split('@')
         properties = ResourceReference(name=name)
         if resource_group:
-            if isinstance(resource_group, str):
+            if isinstance(resource_group, (str, Parameter)):
                 from .resources.resourcegroup import ResourceGroup
                 resource_group = ResourceGroup.reference(name=resource_group, subscription=subscription)
             properties['resource_group'] = resource_group
         elif subscription:
-            properties['subscription'] = str(subscription)
+            properties['subscription'] = subscription
         resource_ref = cls(
             properties,
             resource=resource_type,
@@ -257,9 +265,9 @@ class Resource(Generic[ResourcePropertiesType]):
         )
         resource_ref._set_suffix(name)
         resource_ref.name.set_value(name)
-        if resource_group and isinstance(resource_group.properties['name'], str):
+        if resource_group and resource_group.properties.get('name'):
             resource_ref.resource_group.set_value(resource_group.properties['name'])
-        if subscription and isinstance(subscription, str):
+        if subscription and isinstance(subscription, (str, Parameter)):
             resource_ref.subscription.set_value(subscription)
         return resource_ref
 
@@ -277,12 +285,16 @@ class Resource(Generic[ResourcePropertiesType]):
         self._project_attr_names.append(value)
         self._set_suffix(value)
 
-    def _set_suffix(self, value: Union[str, Parameter]) -> None:
+    def _set_suffix(self, value: Union[str, Parameter] = None) -> None:
         if value:
             if isinstance(value, str):
                 self._suffix = '_' + clean_name(value).upper()
             else:
                 self._suffix = '_' + clean_name(value.value).upper()
+            for setting in self._settings.values():
+                setting.suffix = self._suffix
+        elif self._project_attr_names:
+            self._suffix = '_' + self._project_attr_names[0].upper()
             for setting in self._settings.values():
                 setting.suffix = self._suffix
 
@@ -299,13 +311,11 @@ class Resource(Generic[ResourcePropertiesType]):
         prefix = f"/subscriptions/{self.subscription()}/resourceGroups/{self.resource_group()}/providers/"
         return prefix + f"{self._resource}/{self.name()}"
 
-    def add_config_store(self, config: Mapping[str, Any], position: Literal['first', 'last'] = 'first') -> None:
-        if position == 'first':
-            for setting in self._settings.values():
-                setting.config_stores.insert(0, config)
-        else:
-            for setting in self._settings.values():
-                setting.config_stores.append(config)
+    def set_config_store(self, config: Mapping[str, Any]) -> None:
+        for setting in self._settings.values():
+            setting.config_store = config
+        if self.parent:
+            self.parent.set_config_store(config)
 
     def _symbol(self) -> ResourceSymbol:
         if not self.resource:
@@ -473,7 +483,7 @@ class Resource(Generic[ResourcePropertiesType]):
         if self._existing:
             properties = dict(self.properties)
             if self.parent:
-                properties['scope'] = self.parent.__bicep__(
+                properties['parent'] = self.parent.__bicep__(
                     fields,
                     parameters=parameters,
                     app_component=app_component,
@@ -590,16 +600,13 @@ class Resource(Generic[ResourcePropertiesType]):
     def __call__(self, *, config_store: Optional[Mapping[str, Any]] = None, env_name: Optional[str] = None) -> Self:
         ...
     def __call__(self, cls=None, /, *, options=None, config_store=None, env_name=None, **kwargs):
-        if not isinstance(self._default, DefaultAction):
-            raise NotImplementedError()
-        if self._default_factory:
-            return self._default_factory(self.properties)
-        if config_store:
-            self.add_config_store(config_store)
+        self._set_suffix(self._project_attr_names[0] if self._project_attr_names else self.properties.get('name', ''))
+        if config_store is not None:
+            self.set_config_store(config_store)
         elif env_name:
-           self.add_config_store(_load_dev_environment(env_name))
-        elif not self._settings['id'].config_stores:
-            self.add_config_store(_load_dev_environment())
+           self.set_config_store(_load_dev_environment(env_name))
+        elif not self._settings['resource_id'].config_store:
+            self.set_config_store(_load_dev_environment())
         if cls is None:
             return self
         elif hasattr(cls, 'from_resource'):

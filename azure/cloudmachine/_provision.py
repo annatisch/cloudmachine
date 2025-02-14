@@ -9,7 +9,7 @@ from collections import defaultdict
 from dotenv import dotenv_values
 
 from ._version import VERSION
-from ._component import CloudMachine
+from ._component import CloudMachine, AnnotationResource
 from ._parameters import GLOBAL_PARAMS
 from ._bicep.utils import generate_name, resolve_value, serialize_dict, generate_suffix, serialize_list
 from ._bicep.expressions import Expression, Output, Parameter, ResourceSymbol, Subscription, UniqueString, Variable
@@ -75,7 +75,7 @@ def _init_project(
 
 
 def _get_component_resources(component: Type[Resource]) -> Dict[str, Resource]:
-    return {k: getattr(component, k) for k, v in component.__dict__.items() if isinstance(v, Resource)}
+    return {k: getattr(component, k) for k, v in component.__dict__.items() if isinstance(v, (Resource, AnnotationResource))}
 
 def _get_filename() -> str:
     frame = inspect.stack()[2]
@@ -256,7 +256,7 @@ def _parse_module(
         module_name: str
 ) -> FieldsType:
     for name, r in component_resources.items():
-        if r.component == component:
+        if r.project == component:
             r.__bicep__(
                 component_fields,
                 parameters=parameters,
@@ -268,8 +268,8 @@ def _parse_module(
             _parse_module(
                 parameters=parameters,
                 parent_component=parent_component,
-                component=r.component,
-                component_resources=_get_component_resources(r.component),
+                component=r.project,
+                component_resources=_get_component_resources(r.project),
                 component_fields=component_fields,
                 attrname=name,
                 module_name=module_name

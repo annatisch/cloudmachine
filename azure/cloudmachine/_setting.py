@@ -25,14 +25,16 @@
 # --------------------------------------------------------------------------
 """Provide access to settings for globally used Azure configuration values.
 """
-from typing import Any, Awaitable, Callable, Literal, Mapping, Optional, Dict, Union, List, overload
+from typing import Any, Callable, Mapping, Optional, Union, List
 import os
 
 from azure.core.settings import _unset, _Unset, PrioritizedSetting, ValidInputType, ValueType
 
+from ._bicep.expressions import Parameter, MISSING
+
 
 class StoredPrioritizedSetting(PrioritizedSetting):
-    config_stores: List[Mapping[str, Any]]
+    config_store: Mapping[str, Any]
     suffix: str
 
     def __init__(
@@ -40,7 +42,6 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         name: str,
         *,
         suffix: str = "",
-        to_str: Optional[Callable[[ValidInputType], str]] = None,
         env_var: Optional[str] = None,
         env_vars: Optional[List[str]] = None,
         system_hook: Optional[Callable[[], ValidInputType]] = None,
@@ -52,12 +53,11 @@ class StoredPrioritizedSetting(PrioritizedSetting):
             env_var=env_var,
             system_hook=system_hook,
             default=default,
-            convert=convert
+            convert=convert,
         )
         self.suffix = suffix
-        self._tostr = to_str or str
         self._env_vars = env_vars or []
-        self.config_stores = []
+        self.config_store = {}
 
     def __call__(self, value: Optional[ValidInputType] = None) -> ValueType:
         """Return the setting value according to the standard precedence.
@@ -71,23 +71,34 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         settingvalue = self._raw_value(value)
         return self._convert(settingvalue)
 
+    def _convert_parameter(self, value: Parameter[ValidInputType]) -> ValidInputType:
+        varname = value._varname or value.name
+        if varname in self.config_store:
+            return self.config_store[varname]
+        if value.default is not MISSING:
+            return value.default
+        raise RuntimeError(f"No value for parameter {varname} found in config store.")
+
     def _raw_value(self, value: Optional[ValidInputType] = None) -> ValidInputType:
         # 5. immediate values
         if value is not None:
+            if isinstance(value, Parameter):
+                return self._convert_parameter(value)
             return value
 
         # 4. previously user-set value
         if not isinstance(self._user_value, _Unset):
+            if isinstance(self._user_value, Parameter):
+                return self._convert_parameter(self._user_value)
             return self._user_value
 
         # 3. check a config store
-        if self.config_stores:
-            for store in self.config_stores:
-                for env_var in self._env_vars:
-                    if env_var + self.suffix in store:
-                        return store[env_var + self.suffix]
-                if self._env_var and self._env_var in store:
-                    return store[self._env_var + self.suffix]
+        if self.config_store:
+            for env_var in self._env_vars:
+                if env_var + self.suffix in self.config_store:
+                    return self.config_store[env_var + self.suffix]
+            if self._env_var and self._env_var in self.config_store:
+                return self.config_store[self._env_var + self.suffix]
 
         # 2. environment variable
         for env_var in self._env_vars:
@@ -128,39 +139,3 @@ class StoredPrioritizedSetting(PrioritizedSetting):
             self._user_value = value._user_value
         else:
             self._user_value = value
-
-    def to_dict(self) -> Dict[str, Union[str, float, int, bool, None]]:
-        value = self._raw_value()
-        if isinstance(value, (str, int, float, bool)):
-            return {self._name: value}
-        return {self._name: self._tostr(value)}
-        
-    def to_config(self) -> Dict[str, Union[str, float, int, bool, None]]:
-        key: str
-        if self._env_var:
-            key = self._env_var
-        elif self._env_vars:
-            key = self._env_vars[0]
-        else:
-            key = self._name.upper()
-        value = self._raw_value()
-        if isinstance(value, (str, int, float, bool)):
-            return {key: value}
-        return {key: self._tostr(value)}
-
-    def dump(
-            self,
-            *,
-            read_env: bool = False,
-            include_sensitive: bool = False
-    ) -> Dict[str, str]:
-        try:
-            if self._user_value:
-                return {self._name: self._tostr(self._user_value, include_sensitive)}
-            if read_env and self.env_var and self.env_var in os.environ:
-                return {self._name: self._tostr(os.environ[self.env_var], include_sensitive)}
-            if not isinstance(self._default, (PrioritizedSetting, _Unset)):
-                return {self._name: self._tostr(self._default, include_sensitive)}
-        except RuntimeError:
-            pass
-        return {}

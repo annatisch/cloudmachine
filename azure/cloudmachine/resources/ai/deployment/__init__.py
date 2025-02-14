@@ -52,12 +52,12 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
             properties: Optional['DeploymentResource'] = None,
             /,
             name: Optional[str] = None,
-            parent: Optional[Union[str, AIServices]] = None,
+            account: Optional[Union[str, AIServices]] = None,
             **kwargs: Unpack['DeploymentKwargs']
     ) -> None:
         existing = kwargs.pop('existing', False)
         extensions: ExtensionResources = defaultdict(list)
-        parent = parent if isinstance(parent, AIServices) else AIServices(name=parent)
+        parent = account if isinstance(account, AIServices) else kwargs.pop('parent', AIServices(name=account))
         if not existing:
             properties = properties or {}
             if 'properties' not in properties:
@@ -78,7 +78,7 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
                 properties['sku']['name'] = kwargs.pop('sku')
             if 'capacity' in kwargs:
                 properties['sku'] = properties.get('sku', {})
-                properties['sku']['capacity'] = kwargs.pop('sku')
+                properties['sku']['capacity'] = kwargs.pop('capacity')
             if 'rai_policy' in kwargs:
                 properties['properties']['raiPolicyName'] = kwargs.pop('rai_policy')
             if 'tags' in kwargs:
@@ -92,27 +92,17 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
             service_prefix=kwargs.pop('service_prefix', ["ai_deployment"]),
             **kwargs
         )
-        # self.deployment_name = StoredPrioritizedSetting(
-        #     name='deployment_name',
-        #     env_vars=_build_envs(self._prefixes, ['DEPLOYMENT_NAME']),
-        # )
-        # self.deployment_endpoint = StoredPrioritizedSetting(
-        #     name='deployment_endpoint',
-        #     env_vars=_build_envs(self._prefixes, ['DEPLOYMENT_ENDPOINT']),
-        #     system_hook=self._build_deployment_endpoint
-        # )
-        # self.model_name = StoredPrioritizedSetting(
-        #     name='model_name',
-        #     env_vars=_build_envs(self._prefixes, ['MODEL_NAME']),
-        # )
-        # self.model_version = StoredPrioritizedSetting(
-        #     name='model_version',
-        #     env_vars=_build_envs(self._prefixes, ['MODEL_VERSION']),
-        # )
-        # self._settings['deployment_name'] = self.deployment_name
-        # self._settings['deployment_endpoint'] = self.deployment_endpoint
-        # self._settings['model_name'] = self.model_name
-        # self._settings['model_version'] = self.model_version
+        self._properties_to_merge.append('sku')
+        self.model_name = StoredPrioritizedSetting(
+            name='model_name',
+            env_vars=_build_envs(self._prefixes, ['MODEL_NAME']),
+        )
+        self.model_version = StoredPrioritizedSetting(
+            name='model_version',
+            env_vars=_build_envs(self._prefixes, ['MODEL_VERSION']),
+        )
+        self._settings['model_name'] = self.model_name
+        self._settings['model_version'] = self.model_version
 
     @property
     def resource(self) -> str:
@@ -134,14 +124,14 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
     def reference(
             cls,
             *,
-            name: str,
-            account: Union[str, AIServices],
-            resource_group: Optional[Union[str, 'ResourceGroup']] = None,
+            name: Union[str, Parameter[str]],
+            account: Union[str, Parameter[str], AIServices],
+            resource_group: Optional[Union[str, Parameter[str], 'ResourceGroup']] = None,
     ) -> 'AIDeployment[ResourceReference]':
 
         from .types import RESOURCE, VERSION
         resource = f"{RESOURCE}@{VERSION}"
-        if isinstance(account, str):
+        if isinstance(account, (str, Parameter)):
             parent = AIServices.reference(
                 name=account,
                 resource_group=resource_group,
@@ -202,18 +192,36 @@ class AIChat(AIDeployment):
             self,
             properties: Optional['DeploymentResource'] = None,
             /,
-            parent: Optional[Union[str, AIServices]] = None,
+            account: Optional[Union[str, AIServices]] = None,
             **kwargs: Unpack['DeploymentKwargs']
     ) -> None:
         super().__init__(
             properties,
             name=kwargs.get('model'),
-            parent=parent,
+            account=account,
             service_prefix=['ai_chat'],
             **kwargs
         )
 
+    @classmethod
+    def reference(
+            cls,
+            *,
+            model: Optional[str] = None,
+            account: Union[str, AIServices],
+            resource_group: Optional[Union[str, 'ResourceGroup']] = None,
+    ) -> 'AIChat[ResourceReference]':
+        model = model or cls.DEFAULTS['properties']['model']['name']
+        existing = super().reference(
+            name=model,
+            account=account,
+            resource_group=resource_group
+        )
+        existing.model_name.set_value(model)
+        return existing
+
     def _build_endpoint(self) -> str:
+        print("PARENT", self.parent, self.parent.name)
         return f"https://{self.parent.name()}.openai.azure.com/openai/deployments/{self.name()}/chat/completions"
 
     def _outputs(
@@ -258,13 +266,13 @@ class AIEmbeddings(AIDeployment[AIDeploymentResourceType]):
             self,
             properties: Optional['DeploymentResource'] = None,
             /,
-            parent: Optional[Union[str, AIServices]] = None,
+            account: Optional[Union[str, AIServices]] = None,
             **kwargs: Unpack['DeploymentKwargs']
     ) -> None:
         super().__init__(
             properties,
             name=kwargs.get('model'),
-            parent=parent,
+            account=account,
             service_prefix=['ai_embeddings'],
             **kwargs
         )

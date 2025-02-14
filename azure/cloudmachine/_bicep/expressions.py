@@ -1,13 +1,15 @@
 import json
-from typing import Dict, List, Type, TypeVar, Generic, Literal, Optional, Any, Union
+from typing import Dict, List, Type, Generic, Literal, Optional, Any, Union
+from typing_extensions import TypeVar
 from enum import StrEnum
 
 from .utils import resolve_value, serialize
 
 BicepDataTypes = Literal["string", "array", "object", "int", "bool"]
+_type = type
 
 class ParameterDefault(StrEnum):
-    MISSING = 'None'
+    MISSING = 'NoDefault'
 
 MISSING = ParameterDefault.MISSING
 
@@ -125,7 +127,7 @@ class ResourceSymbol(Expression):
         return Output(None, "properties.principalId", self)
 
 
-ParameterType = TypeVar("ParameterType", str, int, bool, dict, list, None)
+ParameterType = TypeVar("ParameterType", str, int, bool, dict, list, default=str)
 class Parameter(Expression, Generic[ParameterType]):
     name: str
     type: str
@@ -136,7 +138,7 @@ class Parameter(Expression, Generic[ParameterType]):
             self,
             name: str,
             *,
-            type: Type[ParameterType] = str,
+            type: Optional[Type[ParameterType]] = None,
             default: ParameterType = MISSING,
             secure: bool = False,
             description: Optional[str] = None,
@@ -151,7 +153,12 @@ class Parameter(Expression, Generic[ParameterType]):
         self.name = name
         self.default = default
         self.module = module
-        self._type = type
+        if type:
+            self._type = type
+        elif default and default is not MISSING:
+            self._type = _type(default)
+        else:
+            self._type = str
         self._secure = secure
         self._description = description
         self._varname = varname

@@ -136,8 +136,8 @@ class CognitiveServicesAccount(_ClientResource[CognitiveServicesAccountResourceT
     def reference(
             cls,
             *,
-            name: str,
-            resource_group: Optional[Union[str, ResourceGroup]] = None,
+            name: Union[str, Parameter[str]],
+            resource_group: Optional[Union[str, Parameter[str], ResourceGroup]] = None,
     ) -> 'CognitiveServicesAccount[ResourceReference]':
         from .types import RESOURCE, VERSION
         resource = f"{RESOURCE}@{VERSION}"
