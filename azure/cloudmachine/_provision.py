@@ -9,7 +9,7 @@ from collections import defaultdict
 from dotenv import dotenv_values
 
 from ._version import VERSION
-from ._component import CloudMachine, AnnotationResource
+from ._component import AzureInfrastructure, AnnotationResource
 from ._parameters import GLOBAL_PARAMS
 from ._bicep.utils import generate_name, resolve_value, serialize_dict, generate_suffix, serialize_list
 from ._bicep.expressions import Expression, Output, Parameter, ResourceSymbol, Subscription, UniqueString, Variable
@@ -198,7 +198,7 @@ def export(
                 parameters=parameters,
                 module_name=deployment_name
             )
-        elif issubclass(resource, CloudMachine):
+        elif issubclass(resource, AzureInfrastructure):
             _parse_module(
                 parameters=parameters,
                 parent_component=resource,
@@ -256,7 +256,7 @@ def _parse_module(
         module_name: str
 ) -> FieldsType:
     for name, r in component_resources.items():
-        if r.project == component:
+        if r.infrastructure == component:
             r.__bicep__(
                 component_fields,
                 parameters=parameters,
@@ -268,8 +268,8 @@ def _parse_module(
             _parse_module(
                 parameters=parameters,
                 parent_component=parent_component,
-                component=r.project,
-                component_resources=_get_component_resources(r.project),
+                component=r.infrastructure,
+                component_resources=_get_component_resources(r.infrastructure),
                 component_fields=component_fields,
                 attrname=name,
                 module_name=module_name

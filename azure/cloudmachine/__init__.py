@@ -1,7 +1,7 @@
 
 from ._resource import Resource, DefaultAction
 from ._provision import provision, export
-from ._component import resource, reference, CloudMachine
+from ._component import resource, AzureInfrastructure
 from ._bicep.expressions import Parameter
 from ._version import VERSION
 
@@ -12,9 +12,8 @@ __all__ = [
     'provision',
     'export',
     'resource',
-    'reference',
     'Resource',
-    'CloudMachine',
+    'AzureInfrastructure',
     'Parameter',
     'MISSING'
 ]

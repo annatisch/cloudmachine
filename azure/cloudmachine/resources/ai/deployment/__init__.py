@@ -221,7 +221,6 @@ class AIChat(AIDeployment):
         return existing
 
     def _build_endpoint(self) -> str:
-        print("PARENT", self.parent, self.parent.name)
         return f"https://{self.parent.name()}.openai.azure.com/openai/deployments/{self.name()}/chat/completions"
 
     def _outputs(

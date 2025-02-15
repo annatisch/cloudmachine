@@ -5,10 +5,11 @@ from azure.cloudmachine._resource import FieldType
 from azure.cloudmachine.resources.managedidentity import UserAssignedIdentity
 from azure.cloudmachine.resources.resourcegroup import ResourceGroup
 from azure.cloudmachine._parameters import GLOBAL_PARAMS
+from azure.cloudmachine.resources._identifiers import ResourceIdentifiers
 from azure.cloudmachine._bicep.expressions import ResourceSymbol, Output
-from azure.cloudmachine import Parameter
+from azure.cloudmachine import Parameter, export, AzureInfrastructure, resource
 
-TEST_SUB = str(uuid4())
+TEST_SUB = '6ceba549-5d9d-47da-a5bb-72816776ba40'
 
 def test_identity_properties():
     r = UserAssignedIdentity()
@@ -167,3 +168,53 @@ def test_identity_defaults():
         'location': GLOBAL_PARAMS['location'],
         'tags': GLOBAL_PARAMS['azdTags']
     }
+
+def test_identity_export(export_dir):
+    r = UserAssignedIdentity()
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+
+
+def test_identity_export_with_properties(export_dir):
+    r = UserAssignedIdentity(name='foo', location='westus', tags={'key': 'value'})
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+
+
+def test_identity_export_with_parameter(export_dir):
+    param = Parameter("testLocation")
+    r = UserAssignedIdentity(location=param)
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test", config={"testLocation": "eastus"})
+
+
+def test_identity_export_existing(export_dir):
+    r = UserAssignedIdentity.reference(name="exists")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+
+
+def test_identity_export_existing_with_resourcegroup(export_dir):
+    r = UserAssignedIdentity.reference(name="exists", resource_group="rgexists")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+
+
+def test_identity_export_existing_with_resourcegroup_and_subscription(export_dir):
+    r = UserAssignedIdentity.reference(name="exists", resource_group=ResourceGroup.reference(name='rgexists', subscription=TEST_SUB))
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+
+
+def test_identity_infra():
+    class TestInfra(AzureInfrastructure):
+        rg: UserAssignedIdentity = resource()
+    
+    assert isinstance(TestInfra.rg, UserAssignedIdentity)
+    assert TestInfra.rg.infrastructure == TestInfra
+    infra = TestInfra()
+    assert isinstance(infra.rg, UserAssignedIdentity)
+    assert infra.rg.properties == {}
+
+    infra = TestInfra(rg=UserAssignedIdentity(name='foo'))
+    assert infra.rg.name() == 'foo'
+
+    assert resource('userassignedidentity') == UserAssignedIdentity()
+    assert resource(ResourceIdentifiers.user_assigned_identity) == UserAssignedIdentity()
+
+    #TODO: Finish testing default behaviours
+    # assert resource(default=ResourceGroup.reference(name='foo'))

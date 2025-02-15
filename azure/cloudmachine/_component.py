@@ -77,8 +77,7 @@ RESOURCE_BY_ANNOTATION: Dict[str, ResourceIdentifiers] = {
 
 
 class AnnotationResource:
-    def __init__(self, annotation_type: Literal['resource', 'reference'], *args, **kwargs):
-        self._annotation_type = annotation_type
+    def __init__(self, *args, **kwargs):
         self._resource_args = args
         self._resource_kwargs = kwargs
         self._annotation: Optional[ResourceIdentifiers] = None
@@ -101,311 +100,14 @@ class AnnotationResource:
     def __get__(self, *args) -> Resource:
         if self._resource:
             return self._resource
-        if self._annotation_type == 'resource':
-            self._resource = resource(
-                self._annotation,
-                *self._resource_args,
-                **self._resource_kwargs
-            )
-        else:
-            self._resource = reference(
-                self._annotation,
-                # *self._resource_args,
-                **self._resource_kwargs
-            )
-        self._resource._project_objects.append(self._owner)
-        self._resource._project_attr_names.append(self._attrname)
-        return self._resource
-
-
-@overload
-def reference(
-    resource: Literal['resourcegroup'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'ResourceGroup':
-    ...
-@overload
-def reference(
-    resource: Literal['userassignedidentity'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'UserAssignedIdentity':
-    ...
-@overload
-def reference(
-    resource: Literal['storage'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-    **kwargs: Unpack['StorageAccountKwargs']
-) -> 'StorageAccount':
-    ...
-@overload
-def reference(
-    resource: Literal['storage:tables'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'TableStorage':
-    ...
-@overload
-def reference(
-    resource: Literal['storage:queues'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'QueueStorage':
-    ...
-@overload
-def reference(
-    resource: Literal['storage:blobs'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'BlobStorage':
-    ...
-@overload
-def reference(
-    resource: Literal['storage:blobs:container'],
-    /,
-    account_name: Union[str, Parameter[str]],
-    container_name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'BlobContainer':
-    ...
-@overload
-def reference(
-    resource: Literal['storage:datalake'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'DatalakeStorage':
-    ...
-@overload
-def reference(
-    resource: Literal['storage:datalake:filesystem'],
-    /,
-    account_name: Union[str, Parameter[str]],
-    container_name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'DatalakeStorage':
-    ...
-@overload
-def reference(
-    resource: Literal['storage:files'],
-    /,
-    name: Optional[Union[str, Parameter[str]]] = None,
-    **kwargs: Unpack['FileStorageKwargs']
-) -> 'FileShareStorage':
-    ...
-@overload
-def reference(
-    resource: Literal['storage:files:share'],
-    /,
-    account_name: Union[str, Parameter[str]],
-    share_name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'FileShare':
-    ...
-@overload
-def reference(
-    resource: Literal['events:systemtopic'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'EventSystemTopic':
-    ...
-@overload
-def reference(
-    resource: Literal['events:systemtopic:subscription'],
-    /,
-    systemtopic_name: Union[str, Parameter[str]],
-    subscription_name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'SystemTopicSubscription':
-    ...
-@overload
-def reference(
-    resource: Literal['keyvault'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'KeyVault':
-    ...
-@overload
-def reference(
-    resource: Literal['search'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'SearchService':
-    ...
-@overload
-def reference(
-    resource: Literal['ai'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'AIServices':
-    ...
-@overload
-def reference(
-    resource: Literal['ai:hub'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'AIHub':
-    ...
-@overload
-def reference(
-    resource: Literal['ai:project'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'AIProject':
-    ...
-@overload
-def reference(
-    resource: Literal['ai:deployment'],
-    /,
-    name: Union[str, Parameter[str]],
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'AIDeployment':
-    ...
-@overload
-def reference(
-    resource: Literal['ai:deployment:chat'],
-    /,
-    model: Union[str, Parameter[str]],
-    account: Optional[Union[str, 'AIServices', Parameter[str]]] = None,
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'AIChat[ResourceReference]':
-    ...
-@overload
-def reference(
-    resource: Literal['ai:deployment:embeddings'],
-    /,
-    model: Union[str, Parameter[str]],
-    account: Optional[Union[str, 'AIServices', Parameter[str]]] = None,
-    resource_group: Optional[Union[str, Parameter[str]]] = None,
-    subscription: Optional[Union[str, Parameter[str]]] = None,
-) -> 'AIEmbeddings[ResourceReference]':
-    ...
-def reference(
-        resource: Union[
-            Resource,
-            str,
-            Literal[
-                'resourcegroup',
-                'userassignedidentity',
-                'storage',
-                'storage:blobs',
-                'storage:datalake',
-                'storage:blobs:container',
-                'storage:datalake:filesystem',
-                'storage:tables',
-                'storage:queues',
-                'storage:files',
-                'storage:files:share',
-                'events:systemtopic',
-                'events:systemtopic:subscription'
-                'keyvault',
-                'search',
-                'ai',
-                'ai:project',
-                'ai:hub',
-                'ai:deployment',
-                'ai:deployment:chat',
-                'ai:deployment:embeddings',
-            ]
-        ] = "",
-        /,
-        **kwargs
-) -> Resource:
-    if resource == ResourceIdentifiers.resource_group:
-        from .resources.resourcegroup import ResourceGroup
-        return ResourceGroup.reference(**kwargs)
-    if resource == ResourceIdentifiers.user_assigned_identity:
-        from .resources.managedidentity import UserAssignedIdentity
-        return UserAssignedIdentity.reference(**kwargs)
-    if resource == ResourceIdentifiers.storage_account:
-        from .resources.storage import StorageAccount
-        return StorageAccount.reference(**kwargs)
-    if resource == ResourceIdentifiers.table_storage:
-        from .resources.storage.tables._resource import TableStorage
-        return TableStorage.reference(**kwargs)
-    if resource == ResourceIdentifiers.blob_storage:
-        from .resources.storage.blobs._resource import BlobStorage
-        return BlobStorage.reference(**kwargs)
-    if resource == ResourceIdentifiers.blob_container:
-        from .resources.storage.blobs.container._resource import BlobContainer
-        return BlobContainer.reference(**kwargs)
-    if resource == ResourceIdentifiers.datalake_storage:
-        from .resources.storage.blobs._resource import DatalakeStorage
-        return DatalakeStorage.reference(**kwargs)
-    if resource == ResourceIdentifiers.queue_storage:
-        from .resources.storage.queues._resource import QueueStorage
-        return QueueStorage.reference(**kwargs)
-    if resource == ResourceIdentifiers.file_storage:
-        from .resources.storage.files._resource import FileShareStorage
-        return FileShareStorage.reference(**kwargs)
-    if resource == ResourceIdentifiers.file_share:
-        from .resources.storage.files.share._resource import FileShare
-        return FileShare.reference(**kwargs)
-    if resource == ResourceIdentifiers.system_topic:
-        from .resources.eventgrid.systemtopic._resource import EventSystemTopic
-        return EventSystemTopic.reference(**kwargs)
-    if resource == ResourceIdentifiers.system_topic_subscription:
-        from .resources.eventgrid.systemtopic.subscription._resource import SystemTopicSubscription
-        return SystemTopicSubscription.reference(**kwargs)
-    if resource == ResourceIdentifiers.keyvault:
-        from .resources.keyvault._resource import KeyVault
-        return KeyVault.reference(**kwargs)
-    if resource == ResourceIdentifiers.ai_services:
-        from .resources.ai import AIServices
-        return AIServices.reference(**kwargs)
-    if resource == ResourceIdentifiers.ai_chat_deployment:
-        from .resources.ai.deployment import AIChat
-        return AIChat.reference(**kwargs)
-    if resource == ResourceIdentifiers.ai_embeddings_deployment:
-        from .resources.ai.deployment import AIEmbeddings
-        return AIEmbeddings.reference(**kwargs)
-    if resource == ResourceIdentifiers.ai_hub:
-        from .resources.ml._resource import AIHub
-        return AIHub.reference(**kwargs)
-    if resource == ResourceIdentifiers.ai_project:
-        from .resources.ml._resource import AIProject
-        return AIProject.reference(**kwargs)
-    if resource.startswith("Microsoft."):
-        raise NotImplementedError("Raw resources not supported yet.")
-    else:
-        return AnnotationResource(
-            "reference",
-            resource,
-            **kwargs
+        self._resource = resource(
+            self._annotation,
+            *self._resource_args,
+            **self._resource_kwargs
         )
+        self._resource._infra_objects.append(self._owner)
+        self._resource._infra_attr_names.append(self._attrname)
+        return self._resource
 
 
 @overload
@@ -721,7 +423,6 @@ def resource(
         raise NotImplementedError("Raw resources not supported yet.")
     else:
         return AnnotationResource(
-            "resource",
             resource,
             *args,
             **kwargs
@@ -737,13 +438,13 @@ def _parameter(*, default = None, default_factory = None, **kwargs):
     return None
 
 
-@dataclass_transform(field_specifiers=(resource, reference, _parameter, Resource), kw_only_default=True)
+@dataclass_transform(field_specifiers=(resource, _parameter, Resource), kw_only_default=True)
 class CloudMachineComponent(type):
 
     def __call__(cls, **kwargs):
         if kwargs.get('env_name'):
             kwargs['config_store'] = _load_dev_environment(kwargs['env_name'])
-        if issubclass(cls, CloudMachine):
+        if issubclass(cls, AzureInfrastructure):
             instance_kwargs = {}
             annotations = get_annotations(cls)
             required_params = [k for k in annotations.keys() if k not in cls.__dict__]
@@ -762,7 +463,7 @@ class CloudMachineComponent(type):
         return super().__call__(**kwargs)
 
 
-class CloudMachine(metaclass=CloudMachineComponent):
+class AzureInfrastructure(metaclass=CloudMachineComponent):
     _config_store: Mapping[str, Any] = _parameter(alias="config_store", default_factory=dict)
     _env_name: Optional[str] = _parameter(alias="env_name", default=None)
 

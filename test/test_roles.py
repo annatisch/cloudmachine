@@ -10,7 +10,7 @@ from azure.cloudmachine.resources.resourcegroup import ResourceGroup
 from azure.cloudmachine._parameters import GLOBAL_PARAMS
 from azure.cloudmachine._resource import FieldType
 from azure.cloudmachine._bicep.expressions import ResourceSymbol, Output, Guid, Variable, RoleDefinition
-from azure.cloudmachine import Parameter
+from azure.cloudmachine import Parameter, export
 
 TEST_SUB = str(uuid4())
 RG = ResourceSymbol('resourcegroup')
@@ -60,9 +60,20 @@ def test_roles_defaults():
     symbol = r.__bicep__(fields, parameters=parameters)
     add_extensions(fields, parameters)
     role_symbol = fields[f'__main__.storageaccount_foo'].extensions['managed_identity_roles'][0]
-    #base._add_defaults(fields[f'__main__.{role_symbol._value}'], parameters=dict(GLOBAL_PARAMS))
     assert fields[f'__main__.{role_symbol._value}'].properties == {
         'name': CONTRIB_GUID,
         'scope': symbol,
         'properties': {'principalId': IDENTITY, 'principalType': 'ServicePrincipal', 'roleDefinitionId': BUILT_IN_ROLES['Storage Blob Data Contributor']}
     }
+
+@pytest.mark.skip("TODO: Parameterization of roles doesn't work yet")
+def test_roles_export_with_parameters(export_dir):
+    user_role = Parameter("userRole", default={})
+    roles = Parameter("allRoles", default=[])
+    r = StorageAccount(name='foo', roles=roles, user_roles=[user_role])
+    assert r.properties == {'name': 'foo', 'properties': {}}
+    assert r.extensions == {
+        'managed_identity_roles': roles,
+        'user_roles': [user_role]
+    }
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")

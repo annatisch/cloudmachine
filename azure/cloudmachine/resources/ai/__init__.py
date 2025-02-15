@@ -9,13 +9,11 @@ from ..._bicep.expressions import Output, Expression, ResourceSymbol, Parameter
 from ..._resource import _ClientResource, FieldsType, FieldType, ResourceReference, ExtensionResources
 
 if TYPE_CHECKING:
-    from .types import CognitiveServicesAccountResource
+    from .types import CognitiveServicesAccountResource, ApiProperties, NetworkRuleSet
 
 
 class CognitiveServicesKwargs(TypedDict, total=False):
     """"""
-    kind: Union[Parameter[str], Literal['AIServices', 'AnomalyDetector', 'CognitiveServices', 'ComputerVision', 'ContentModerator', 'ContentSafety', 'ConversationalLanguageUnderstanding', 'CustomVision.Prediction', 'CustomVision.Training', 'Face', 'FormRecognizer', 'HealthInsights', 'ImmersiveReader', 'Internal.AllInOne', 'LanguageAuthoring', 'LUIS', 'LUIS.Authoring', 'MetricsAdvisor', 'OpenAI', 'Personalizer', 'QnAMaker.v2', 'SpeechServices', 'TextAnalytics', 'TextTranslation']]
-    """Kind of the Cognitive Services account. Use 'Get-AzCognitiveServicesAccountSku' to determine a valid combinations of 'kind' and 'SKU' for your Azure region."""
     custom_subdomain_name: Union[str, Parameter[str]]
     """Subdomain name used for token-based authentication. Required if 'networkAcls' or 'privateEndpoints' are set."""
     allowed_fqdn_list: Union[List[Union[str, Parameter[str]]], Parameter[List[str]]]
@@ -75,25 +73,23 @@ class CognitiveServicesAccount(_ClientResource[CognitiveServicesAccountResourceT
             properties: Optional['CognitiveServicesAccountResource'] = None,
             /,
             name: Optional[str] = None,
-            kind: Optional[str] = None,
+            *,
+            kind: Union[Parameter[str], Literal['AIServices', 'AnomalyDetector', 'CognitiveServices', 'ComputerVision', 'ContentModerator', 'ContentSafety', 'ConversationalLanguageUnderstanding', 'CustomVision.Prediction', 'CustomVision.Training', 'Face', 'FormRecognizer', 'HealthInsights', 'ImmersiveReader', 'Internal.AllInOne', 'LanguageAuthoring', 'LUIS', 'LUIS.Authoring', 'MetricsAdvisor', 'OpenAI', 'Personalizer', 'QnAMaker.v2', 'SpeechServices', 'TextAnalytics', 'TextTranslation']],
             **kwargs: Unpack[CognitiveServicesKwargs]
     ) -> None:
         existing = kwargs.pop('existing', False)
         extensions: ExtensionResources = defaultdict(list)
+        properties = properties or {}
+        properties['kind'] = kind
         if 'roles' in kwargs:
             extensions['managed_identity_roles'] = kwargs.pop('roles')
         if 'user_roles' in kwargs:
             extensions['user_roles'] = kwargs.pop('user_roles')
         if not existing:
-            properties = properties or {}
             if 'properties' not in properties:
                 properties['properties'] = {}
             if name:
                 properties['name'] = name
-            if kind:
-                properties['kind'] = kind
-            if 'kind' in kwargs:
-                properties['kind'] = kwargs.pop('kind')
             if 'custom_subdomain_name' in kwargs:
                 properties['properties']['customSubDomainName'] = kwargs.pop('custom_subdomain_name')
             if 'allowed_fqdn_list' in kwargs:
@@ -126,7 +122,7 @@ class CognitiveServicesAccount(_ClientResource[CognitiveServicesAccountResourceT
         super().__init__(
             properties,
             extensions=extensions,
-            service_prefix=["ai"],
+            service_prefix=[f"ai_{kind}"],
             existing=existing,
             **kwargs
         )
@@ -163,6 +159,11 @@ class CognitiveServicesAccount(_ClientResource[CognitiveServicesAccountResourceT
         self._version = VERSION
         return self._version
 
+    def _symbol(self) -> ResourceSymbol:
+        symbol = super()._symbol()
+        symbol._value = f"{self.properties['kind'].lower()}_" + symbol._value
+        return symbol
+
     def _find_last_resource_match(
             self,
             fields: FieldsType,
@@ -198,7 +199,7 @@ class CognitiveServicesAccount(_ClientResource[CognitiveServicesAccountResourceT
             **kwargs
     ) -> Dict[str, Output]:
         outputs = super()._outputs(symbol=symbol, attrname=attrname, **kwargs)
-        outputs['endpoint'] = Output(f"AZURE_AI_ENDPOINT{self._suffix}", "properties.endpoint", symbol)
+        outputs['endpoint'] = Output(f"AZURE_{self._prefixes[0].upper()}_ENDPOINT{self._suffix}", "properties.endpoint", symbol)
         return outputs
 
 

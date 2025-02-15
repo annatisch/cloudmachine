@@ -72,8 +72,8 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
     def reference(
             cls,
             *,
-            name: str,
-            subscription: Optional[str] = None,
+            name: Union[str, Parameter[str]],
+            subscription: Optional[Union[str, Parameter[str]]] = None,
     ) -> 'ResourceGroup[ResourceReference]':
         from .types import RESOURCE, VERSION
         resource = f"{RESOURCE}@{VERSION}"
@@ -112,7 +112,7 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
             attrname: Optional[str] = None,
             **kwargs
     ) -> FieldType:
-        field_id = self._project_objects[0].__name__ if self._project_objects else '__main__'
+        field_id = self._infra_objects[0].__name__ if self._infra_objects else '__main__'
         self._set_suffix(attrname or self.properties.get('name', ''))
         if self._existing:
             properties = {'name': self.properties['name']}

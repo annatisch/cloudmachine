@@ -74,8 +74,8 @@ from ._bicep.utils import serialize, generate_suffix, resolve_value, serialize_d
 
 if TYPE_CHECKING:
     from .resources.resourcegroup import ResourceGroup
-    from .resources._utils import RoleAssignment as SimpleRoleAssignment
-    from ._component import CloudMachine
+    from .resources._extension import RoleAssignment
+    from ._component import AzureInfrastructure
 
 
 
@@ -130,8 +130,8 @@ class ResourceReference(TypedDict, total=False):
 
 
 class ExtensionResources(TypedDict, total=False):
-    managed_identity_roles: Union[Parameter[List[Union['SimpleRoleAssignment', str]]], List[Union[Parameter[Union[str, 'SimpleRoleAssignment']], 'SimpleRoleAssignment', str]]]
-    user_roles: Union[Parameter[List[Union['SimpleRoleAssignment', str]]], List[Union[Parameter[Union[str, 'SimpleRoleAssignment']], 'SimpleRoleAssignment', str]]]
+    managed_identity_roles: Union[Parameter[List[Union['RoleAssignment', str]]], List[Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', str]]]
+    user_roles: Union[Parameter[List[Union['RoleAssignment', str]]], List[Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', str]]]
     # lock
     # diagnostics
     # private endpoint
@@ -181,8 +181,8 @@ class Resource(Generic[ResourcePropertiesType]):
         self._prefixes: List[str] = kwargs.pop('service_prefix', [])
         self._default_action: DefaultAction = kwargs.pop('default_action', DefaultAction.BUILD_DEFAULT)
         self._supports_managed_identity: bool = False
-        self._project_objects: List[Type['CloudMachine']] = []
-        self._project_attr_names: List[str] = []
+        self._infra_objects: List[Type['AzureInfrastructure']] = []
+        self._infra_attr_names: List[str] = []
         if self.parent and not self._subresource:
             raise ValueError('Parent must be specified with subresource.')
         if kwargs:
@@ -192,6 +192,8 @@ class Resource(Generic[ResourcePropertiesType]):
             'name',
             env_vars=_build_envs(self._prefixes, ['NAME']),
         )
+        if 'name' in self.properties:
+            self.name.set_value(properties['name'])
         self.resource_id = StoredPrioritizedSetting(
             name='resource_id',
             env_vars=_build_envs(self._prefixes, ['ID', 'RESOURCE_ID']),
@@ -229,11 +231,11 @@ class Resource(Generic[ResourcePropertiesType]):
         return self._version
 
     @property
-    def project(self) -> Type['CloudMachine']:
+    def infrastructure(self) -> Type['AzureInfrastructure']:
         try:
-            return self._project_objects[0]
+            return self._infra_objects[0]
         except IndexError:
-            raise TypeError(f"Resource {repr(self)} has not been declared in an AzureProject class.")
+            raise TypeError(f"Resource {repr(self)} has not been declared in an AzureInfrastructure class.")
 
     @classmethod
     def reference(
@@ -264,7 +266,6 @@ class Resource(Generic[ResourcePropertiesType]):
             existing=True
         )
         resource_ref._set_suffix(name)
-        resource_ref.name.set_value(name)
         if resource_group and resource_group.properties.get('name'):
             resource_ref.resource_group.set_value(resource_group.properties['name'])
         if subscription and isinstance(subscription, (str, Parameter)):
@@ -276,13 +277,13 @@ class Resource(Generic[ResourcePropertiesType]):
         return f"{self.__class__.__name__}('{name}')"
 
     def __set_name__(self, owner: Type, name: str) -> None:
-        self._project_objects.append(owner)
-        self._project_attr_names.append(name)
+        self._infra_objects.append(owner)
+        self._infra_attr_names.append(name)
 
     def _add_attr(self, value: str) -> None:
-        if value in self._project_attr_names:
+        if value in self._infra_attr_names:
             return
-        self._project_attr_names.append(value)
+        self._infra_attr_names.append(value)
         self._set_suffix(value)
 
     def _set_suffix(self, value: Union[str, Parameter] = None) -> None:
@@ -293,8 +294,8 @@ class Resource(Generic[ResourcePropertiesType]):
                 self._suffix = '_' + clean_name(value.value).upper()
             for setting in self._settings.values():
                 setting.suffix = self._suffix
-        elif self._project_attr_names:
-            self._suffix = '_' + self._project_attr_names[0].upper()
+        elif self._infra_attr_names:
+            self._suffix = '_' + self._infra_attr_names[0].upper()
             for setting in self._settings.values():
                 setting.suffix = self._suffix
 
@@ -355,7 +356,7 @@ class Resource(Generic[ResourcePropertiesType]):
             **kwargs
         ) -> Dict[str, Any]:
         for key, value in new_properties.items():
-            if current_properties.get(key):
+            if key in current_properties:
                 if key in self._properties_to_merge:
                     self._merge_properties(current_properties[key], value)
                 elif key in self._properties_to_update:
@@ -469,15 +470,15 @@ class Resource(Generic[ResourcePropertiesType]):
             attrname: Optional[str] = None,
             module_name: Optional[str] = None,
     ) -> ResourceSymbol:
-        field_id = self._project_objects[0].__name__ if self._project_objects else '__main__'
+        field_id = self._infra_objects[0].__name__ if self._infra_objects else '__main__'
         self._set_suffix(attrname or self.properties.get('name', ''))
         extensions = defaultdict(list)
         extensions.update(self.extensions)
 
-        # We only want to export the outputs if either this is a resource not nested inside a
-        # project object, or if it's in the root project object.
+        # We only want to export the outputs if either this is a resource not nested inside an
+        # infrastructure object, or if it's in the root infrastructure object.
         output_resource = False
-        if not self._project_objects or (app_component and app_component in self._project_objects and attrname in self._project_attr_names):
+        if not self._infra_objects or (app_component and app_component in self._infra_objects and attrname in self._infra_attr_names):
             output_resource = True
 
         if self._existing:
@@ -558,7 +559,7 @@ class Resource(Generic[ResourcePropertiesType]):
                 name=self.properties.get('name'),
                 add_defaults=self._add_defaults
             )
-            fields[f"{field_id}.{self._project_attr_names[-1] if self._project_attr_names else symbol.value}"] = field
+            fields[f"{field_id}.{self._infra_attr_names[-1] if self._infra_attr_names else symbol.value}"] = field
 
         output_config = self._merge_properties(
             params,
@@ -600,14 +601,14 @@ class Resource(Generic[ResourcePropertiesType]):
     def __call__(self, *, config_store: Optional[Mapping[str, Any]] = None, env_name: Optional[str] = None) -> Self:
         ...
     def __call__(self, cls=None, /, *, options=None, config_store=None, env_name=None, **kwargs):
-        self._set_suffix(self._project_attr_names[0] if self._project_attr_names else self.properties.get('name', ''))
+        self._set_suffix(self._infra_attr_names[0] if self._infra_attr_names else self.properties.get('name', ''))
         if config_store is not None:
             self.set_config_store(config_store)
         elif env_name:
            self.set_config_store(_load_dev_environment(env_name))
         elif not self._settings['resource_id'].config_store:
             self.set_config_store(_load_dev_environment())
-        if cls is None:
+        if cls in [None, self.__class__]:
             return self
         elif hasattr(cls, 'from_resource'):
             return cls.from_resource(self, **options or {})
