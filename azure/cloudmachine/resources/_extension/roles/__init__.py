@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Self, TypedDict, Union, Unpack, Optional, overload
 from typing_extensions import TypeVar
 
+from ..._identifiers import ResourceIdentifiers
 from ...._resource import FieldType, Resource, ResourceReference
 from ...._bicep.utils import generate_suffix, generate_name
 from ...._bicep.expressions import Output, RoleDefinition, Parameter
@@ -20,7 +21,7 @@ class RoleAssignment(Resource[RoleAssignmentResourceType]):
     properties: RoleAssignmentResourceType
 
     def __init__(self, properties: 'RoleAssignmentResource', /, **kwargs) -> None:
-        super().__init__(properties, **kwargs)
+        super().__init__(properties, identifier=ResourceIdentifiers.role_assignment, **kwargs)
 
     @property
     def resource(self) -> Literal["Microsoft.Authorization/roleAssignments"]:

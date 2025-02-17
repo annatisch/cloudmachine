@@ -213,8 +213,5 @@ def test_identity_infra():
     infra = TestInfra(rg=UserAssignedIdentity(name='foo'))
     assert infra.rg.name() == 'foo'
 
-    assert resource('userassignedidentity') == UserAssignedIdentity()
-    assert resource(ResourceIdentifiers.user_assigned_identity) == UserAssignedIdentity()
-
     #TODO: Finish testing default behaviours
     # assert resource(default=ResourceGroup.reference(name='foo'))

@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, Tuple, TypedDict, Union, Unpack, overload, Optional, Any, Type
 from typing_extensions import TypeVar
 
+from ..._identifiers import ResourceIdentifiers
 from ...resourcegroup import ResourceGroup
 from ...._parameters import GLOBAL_PARAMS
 from ...._bicep.expressions import Expression, Output, Parameter, ResourceSymbol
@@ -90,6 +91,7 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
             parent=parent,
             subresource="deployments",
             service_prefix=kwargs.pop('service_prefix', ["ai_deployment"]),
+            identifier=kwargs.pop('identifier', ResourceIdentifiers.ai_deployment)
             **kwargs
         )
         self._properties_to_merge.append('sku')
@@ -125,10 +127,9 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
             cls,
             *,
             name: Union[str, Parameter[str]],
-            account: Union[str, Parameter[str], AIServices],
+            account: Optional[Union[str, Parameter[str], AIServices]] = None,
             resource_group: Optional[Union[str, Parameter[str], 'ResourceGroup']] = None,
     ) -> 'AIDeployment[ResourceReference]':
-
         from .types import RESOURCE, VERSION
         resource = f"{RESOURCE}@{VERSION}"
         if isinstance(account, (str, Parameter)):
@@ -138,13 +139,11 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
             )
         else:
             parent = account
-        existing = super().reference(
+        return super().reference(
             resource=resource,
             name=name,
             parent=parent
         )
-        existing.name.set_value(name)
-        return existing
 
     def _build_endpoint(self) -> str:
         return f"https://{self.parent.name()}.openai.azure.com/openai/deployments/{self.name()}"
@@ -200,6 +199,7 @@ class AIChat(AIDeployment):
             name=kwargs.get('model'),
             account=account,
             service_prefix=['ai_chat'],
+            identifier=ResourceIdentifiers.ai_chat_deployment,
             **kwargs
         )
 
@@ -208,7 +208,7 @@ class AIChat(AIDeployment):
             cls,
             *,
             model: Optional[str] = None,
-            account: Union[str, AIServices],
+            account: Optional[Union[str, AIServices]] = None,
             resource_group: Optional[Union[str, 'ResourceGroup']] = None,
     ) -> 'AIChat[ResourceReference]':
         model = model or cls.DEFAULTS['properties']['model']['name']
@@ -273,8 +273,26 @@ class AIEmbeddings(AIDeployment[AIDeploymentResourceType]):
             name=kwargs.get('model'),
             account=account,
             service_prefix=['ai_embeddings'],
+            identifier=ResourceIdentifiers.ai_embeddings_deployment,
             **kwargs
         )
+
+    @classmethod
+    def reference(
+            cls,
+            *,
+            model: Optional[str] = None,
+            account: Optional[Union[str, AIServices]] = None,
+            resource_group: Optional[Union[str, 'ResourceGroup']] = None,
+    ) -> 'AIEmbeddings[ResourceReference]':
+        model = model or cls.DEFAULTS['properties']['model']['name']
+        existing = super().reference(
+            name=model,
+            account=account,
+            resource_group=resource_group
+        )
+        existing.model_name.set_value(model)
+        return existing
 
     def _build_endpoint(self) -> str:
         return f"https://{self.parent.name()}.openai.azure.com/openai/deployments/{self.name()}/embeddings"

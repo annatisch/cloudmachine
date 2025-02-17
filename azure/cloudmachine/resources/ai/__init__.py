@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Type, Type
 from typing_extensions import TypeVar
 
 from ..resourcegroup import ResourceGroup
+from .._identifiers import ResourceIdentifiers
 from .._extension import convert_managed_identities, ManagedIdentity, RoleAssignment
 from ..._parameters import GLOBAL_PARAMS
 from ..._bicep.expressions import Output, Expression, ResourceSymbol, Parameter
@@ -124,6 +125,7 @@ class CognitiveServicesAccount(_ClientResource[CognitiveServicesAccountResourceT
             extensions=extensions,
             service_prefix=[f"ai_{kind}"],
             existing=existing,
+            identifier=kwargs.pop('identifier', ResourceIdentifiers.cognitive_services),
             **kwargs
         )
         self._supports_managed_identity = True
@@ -277,6 +279,7 @@ class AIServices(CognitiveServicesAccount[CognitiveServicesAccountResourceType])
             properties,
             name=name,
             kind='AIServices',
+            identifier=ResourceIdentifiers.ai_services,
             **kwargs
         )
 

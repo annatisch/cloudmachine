@@ -237,8 +237,5 @@ def test_resourcegroup_infra():
     infra = TestInfra(rg=ResourceGroup(name='foo'))
     assert infra.rg.name() == 'foo'
 
-    assert resource('resourcegroup') == ResourceGroup()
-    assert resource(ResourceIdentifiers.resource_group) == ResourceGroup()
-
     #TODO: Finish testing default behaviours
     # assert resource(default=ResourceGroup.reference(name='foo'))

@@ -6,10 +6,11 @@ from azure.cloudmachine.resources.storage import StorageAccount
 from azure.cloudmachine.resources.resourcegroup import ResourceGroup
 from azure.cloudmachine._parameters import GLOBAL_PARAMS
 from azure.cloudmachine._resource import FieldType
+from azure.cloudmachine.resources._identifiers import ResourceIdentifiers
 from azure.cloudmachine._bicep.expressions import ResourceSymbol, Output, ResourceGroup as DefaultResourceGroup
-from azure.cloudmachine import Parameter
+from azure.cloudmachine import Parameter, AzureInfrastructure, export, resource, AzureApp, client
 
-TEST_SUB = str(uuid4())
+TEST_SUB = '6e441d6a-23ce-4450-a4a6-78f8d4f45ce9'
 RG = ResourceSymbol('resourcegroup')
 IDENTITY = {
     'type': 'UserAssigned',
@@ -176,3 +177,67 @@ def test_storage_defaults():
         'identity': IDENTITY,
         'tags': GLOBAL_PARAMS['azdTags']
     }
+
+
+def test_storage_export(export_dir):
+    r = StorageAccount()
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+
+
+def test_storage_export_existing(export_dir):
+    r = StorageAccount.reference(name='storagetest', resource_group='testrg')
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+
+
+#def test_export_storage_multiple(export_dir):
+#def test_export_storage_with_parameters(export_dir):
+
+
+def test_storage_export_with_properties(export_dir):
+    r = StorageAccount(enable_hierarchical_namespace=True, allow_blob_public_access=True, sku='Premium_LRS', location="westus")
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+
+
+def test_storage_export_with_role_assignments(export_dir):
+    r = StorageAccount(roles=['Storage Blob Data Owner'], user_roles=['Storage Blob Data Contributor'])
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+
+
+def test_storage_export_with_no_user_access(export_dir):
+    r = StorageAccount(roles=['Storage Blob Data Owner'], user_roles=['Storage Blob Data Contributor'])
+    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test", user_access=False)
+
+
+def test_storage_client():
+    from azure.storage.blob import BlobServiceClient
+    r = StorageAccount()
+    with pytest.raises(TypeError):
+        r.get_client(BlobServiceClient)
+
+def test_storage_infra():
+    class TestInfra(AzureInfrastructure):
+        rg: StorageAccount = resource()
+    
+    assert isinstance(TestInfra.rg, StorageAccount)
+    assert TestInfra.rg.infrastructure == TestInfra
+    infra = TestInfra()
+    assert isinstance(infra.rg, StorageAccount)
+    assert infra.rg.properties == {'properties': {}}
+
+    infra = TestInfra(rg=StorageAccount(name='foo'))
+    assert infra.rg.name() == 'foo'
+
+
+def test_storage_app():
+    from azure.storage.blob import BlobServiceClient
+    r = StorageAccount.reference(name='test', resource_group='test')
+
+    class TestApp(AzureApp):
+        client: BlobServiceClient = client()
+
+    with pytest.raises(TypeError):
+        app = TestApp()
+
+    with pytest.raises(TypeError):
+        app = TestApp(client=r)
+ 

@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, List, Literal, Self, TypedDict, Union, Unpack, overload, Optional, Dict
 from typing_extensions import TypeVar
 
+from .._identifiers import ResourceIdentifiers
 from ...resources.resourcegroup import ResourceGroup
 from ..._bicep.expressions import Output, ResourceSymbol, Parameter, Variable
 from ..._parameters import GLOBAL_PARAMS
@@ -55,6 +56,7 @@ class UserAssignedIdentity(Resource[UserAssignedIdentityResourceType]):
             extensions=extensions,
             service_prefix=["identity"],
             existing=existing,
+            identifier=ResourceIdentifiers.user_assigned_identity,
             **kwargs
         )
 

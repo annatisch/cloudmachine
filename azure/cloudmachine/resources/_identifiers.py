@@ -6,6 +6,7 @@ from enum import Enum
 class ResourceIdentifiers(str, Enum):
     resource_group: Literal['resourcegroup'] = 'resourcegroup'
     user_assigned_identity: Literal['userassignedidentity'] = 'userassignedidentity'
+    role_assignment: Literal['roleassignment'] = 'roleassignment'
     storage_account: Literal['storage'] = 'storage'
     blob_storage: Literal['storage:blobs'] = 'storage:blobs'
     datalake_storage: Literal['storage:datalake'] = 'storage:datalake'
@@ -23,6 +24,7 @@ class ResourceIdentifiers(str, Enum):
     keyvault_key: Literal['keyvault:key'] = 'keyvault:key'
     keyvault_secret: Literal['keyvault:secret'] = 'keyvault:secret'
     search: Literal['search'] = 'search'
+    cognitive_services: Literal['cognitive_services'] = 'cognitive_services'
     ai_services: Literal['ai'] = 'ai'
     ai_project: Literal['ai:project'] = 'ai:project'
     ai_hub: Literal['ai:hub'] = 'ai:hub'

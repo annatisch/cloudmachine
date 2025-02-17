@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Dict, List, Literal, Self, TypedDict, Union, U
 from typing_extensions import TypeVar
 from collections import defaultdict
 
+from .._identifiers import ResourceIdentifiers
 from ..._resource import Resource, ExtensionResources, ResourceReference, FieldType
 from ..._bicep.expressions import Parameter
 from .._extension import convert_managed_identities, ManagedIdentity, RoleAssignment
@@ -201,6 +202,7 @@ class StorageAccount(Resource[StorageAccountResourceType]):
             extensions=extensions,
             service_prefix=["storage"],
             existing=existing,
+            identifier=ResourceIdentifiers.storage_account,
             **kwargs
         )
         self._supports_managed_identity = True

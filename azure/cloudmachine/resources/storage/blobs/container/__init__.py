@@ -1,62 +1,29 @@
-from typing import TYPE_CHECKING, TypedDict, Literal, List, Dict, Union, overload, Optional
-from typing_extensions import Required
+
+from collections import defaultdict
+import inspect
+from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, TypedDict, Union, Unpack, overload, Optional, Any, Type
+from typing_extensions import TypeVar
+
+from ...._identifiers import ResourceIdentifiers
+from ....._bicep.expressions import Output, Parameter, ResourceSymbol, Expression
+from ....._resource import (
+    Resource,
+    _ClientResource,
+    _build_envs,
+    ExtensionResources,
+    ResourceReference
+)
+from .. import BlobStorage
+
 
 if TYPE_CHECKING:
-    from .immutability_policy import ImmutabilityPolicy
+    from ...._extension import RoleAssignment
+    from ....resourcegroup import ResourceGroup
+    from .types import ContainerResource
+    from azure.storage.blob import ContainerClient
 
-MODULE = "br/public:avm/res/storage/storage-account"
-MODULE_RESOURCE = "Microsoft.Storage/storageAccounts/blobServices/containers"
-MODULE_VERSION = "2022-09-01"
-MODULE_TAG = "0.14.0"
-
-
-class RoleAssignment(TypedDict, total=False):
-    """Array of role assignments to create."""
-    principalId: Required[str]
-    """The principal ID of the principal (user/group/identity) to assign the role to."""
-    roleDefinitionIdOrName: Required[Union[str, Literal['Contributor', 'Owner', 'Reader', 'Reader and Data Access', 'Role Based Access Control Administrator', 'Storage Account Backup Contributor', 'Storage Account Contributor', 'Storage Account Key Operator Service Role', 'Storage Blob Data Contributor', 'Storage Blob Data Owner', 'Storage Blob Data Reader', 'Storage Blob Delegator', 'User Access Administrator']]]
-    """The role to assign. You can provide either the display name of the role definition, the role definition GUID, or its fully qualified ID in the following format: '/providers/Microsoft.Authorization/roleDefinitions/c2f4ef07-c644-48eb-af81-4b1b4947fb11'."""
-    condition: str
-    """The conditions on the role assignment. This limits the resources it can be assigned to. e.g.: @Resource[Microsoft.Storage/storageAccounts/blobServices/containers:ContainerName] StringEqualsIgnoreCase "foo_storage_container"."""
-    conditionVersion: Literal['2.0']
-    """Version of the condition."""
-    delegatedManagedIdentityResourceId: str
-    """The Resource Id of the delegated managed identity resource."""
-    description: str
-    """The description of the role assignment."""
-    name: str
-    """The name (as GUID) of the role assignment. If not provided, a GUID will be generated."""
-    principalType: Literal['Device', 'ForeignGroup', 'Group', 'ServicePrincipal', 'User']
-    """The principal type of the assigned principal ID."""
-
-
-class ContainerParams(TypedDict, total=False):
-    """"""
-    name: str
-    """The name of the storage container to deploy."""
-    defaultEncryptionScope: str
-    """Default the container to use specified encryption scope for all writes."""
-    denyEncryptionScopeOverride: bool
-    """Block override of encryption scope from the container default."""
-    enableNfsV3AllSquash: bool
-    """Enable NFSv3 all squash on blob container."""
-    enableNfsV3RootSquash: bool
-    """Enable NFSv3 root squash on blob container."""
-    immutabilityPolicyName: str
-    """Name of the immutable policy."""
-    immutabilityPolicyProperties: 'ImmutabilityPolicy'
-    """Configure immutability policy."""
-    immutableStorageWithVersioningEnabled: bool
-    """This is an immutable property, when set to true it enables object level immutability at the container level. The property is immutable and can only be set to true at the container creation time. Existing containers must undergo a migration process."""
-    metadata: Dict[str, object]
-    """A name-value pair to associate with the container as metadata."""
-    publicAccess: Literal['Blob', 'Container', 'None']
-    """Specifies whether data in the container may be accessed publicly and the level of access."""
-    roleAssignments: List['RoleAssignment']
-    """Array of role assignments to create."""
 
 class ContainerKwargs(TypedDict, total=False):
-    """"""
     default_encryption_scope: str
     """Default the container to use specified encryption scope for all writes."""
     deny_encryption_scope_override: bool
@@ -65,15 +32,160 @@ class ContainerKwargs(TypedDict, total=False):
     """Enable NFSv3 all squash on blob container."""
     enable_nfsv3_root_squash: bool
     """Enable NFSv3 root squash on blob container."""
-    immutability_policy_name: str
-    """Name of the immutable policy."""
-    immutability_policy_properties: Dict[str, object]
-    """Configure immutability policy."""
+    # immutability_policy_name: str
+    # """Name of the immutable policy."""
+    # immutability_policy_properties: Dict[str, object]
+    # """Configure immutability policy."""
     immutable_storage_with_versioning_enabled: bool
     """This is an immutable property, when set to true it enables object level immutability at the container level. The property is immutable and can only be set to true at the container creation time. Existing containers must undergo a migration process."""
     metadata: Dict[str, object]
     """A name-value pair to associate with the container as metadata."""
     public_access: Literal['Blob', 'Container', 'None']
     """Specifies whether data in the container may be accessed publicly and the level of access."""
-    role_assignments: List['RoleAssignment']
-    """Array of role assignments to create."""
+    roles: Union[Parameter[List[Union['RoleAssignment', str]]], List[Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', Literal['Contributor', 'Owner', 'Reader', 'Reader and Data Access', 'Role Based Access Control Administrator', 'Storage Account Backup Contributor', 'Storage Account Contributor', 'Storage Account Key Operator Service Role', 'Storage Blob Data Contributor', 'Storage Blob Data Owner', 'Storage Blob Data Reader', 'Storage Blob Delegator', 'User Access Administrator']]]]
+    """Array of role assignments to create for user-assigned identity."""
+    user_roles: Union[Parameter[List[Union['RoleAssignment', str]]], List[Union[Parameter[Union[str, 'RoleAssignment']], 'RoleAssignment', Literal['Contributor', 'Owner', 'Reader', 'Reader and Data Access', 'Role Based Access Control Administrator', 'Storage Account Backup Contributor', 'Storage Account Contributor', 'Storage Account Key Operator Service Role', 'Storage Blob Data Contributor', 'Storage Blob Data Owner', 'Storage Blob Data Reader', 'Storage Blob Delegator', 'User Access Administrator']]]]
+    """Array or role assignments to create for user principal ID"""
+
+
+_DEFAULT_CONTAINER: 'ContainerResource' = {}
+_DEFAULT_CONTAINER_EXTENSIONS: ExtensionResources = {}
+ContainerResourceType = TypeVar('ContainerResourceType', default='ContainerResource')
+ClientType = TypeVar("ClientType", default='ContainerClient')
+
+
+class BlobContainer(_ClientResource[ContainerResourceType]):
+    DEFAULTS: 'ContainerResource' = _DEFAULT_CONTAINER
+    DEFAULT_EXTENSIONS: ExtensionResources = _DEFAULT_CONTAINER_EXTENSIONS
+    resource: Literal["Microsoft.Storage/storageAccounts/blobServices/containers"]
+    properties: ContainerResourceType
+
+    def __init__(
+            self,
+            properties: Optional['ContainerResource'] = None,
+            /,
+            name: Optional[str] = None,
+            account: Optional[Union[str, BlobStorage]] = None,
+            **kwargs: Unpack['ContainerKwargs']
+    ) -> None:
+        existing = kwargs.pop('existing', False)
+        extensions: ExtensionResources = defaultdict(list)
+        if 'roles' in kwargs:
+            extensions['managed_identity_roles'] = kwargs.pop('roles')
+        if 'user_roles' in kwargs:
+            extensions['user_roles'] = kwargs.pop('user_roles')
+        parent = account if isinstance(account, BlobStorage) else kwargs.pop('parent', BlobStorage(name=account))
+        if not existing:
+            properties = properties or {}
+            if 'properties' not in properties:
+                properties['properties'] = {}
+            if name:
+                properties['name'] = name
+            if 'default_encryption_scope' in kwargs:
+                properties['properties']['defaultEncryptionScope'] = kwargs.pop('default_encryption_scope')
+            if 'deny_encryption_scope_override' in kwargs:
+                properties['properties']['denyEncryptionScopeOverride'] = kwargs.pop('deny_encryption_scope_override')
+            if 'enable_nfsv3_all_squash' in kwargs:
+                properties['properties']['enableNfsV3AllSquash'] = kwargs.pop('enable_nfsv3_all_squash')
+            if 'enable_nfsv3_root_squash' in kwargs:
+                properties['properties']['enableNfsV3RootSquash'] = kwargs.pop('enable_nfsv3_root_squash')
+            if 'immutable_storage_with_versioning_enabled' in kwargs:
+                properties['properties']['immutableStorageWithVersioning'] = {}
+                properties['properties']['immutableStorageWithVersioning']['enabled'] = kwargs.pop('immutable_storage_with_versioning_enabled')
+            if 'metadata' in kwargs:
+                properties['properties']['metadata'] = kwargs.pop('metadata')
+            if 'public_access' in kwargs:
+                properties['properties']['publicAccess'] = kwargs.pop('public_access')
+
+        super().__init__(
+            properties,
+            extensions=extensions,
+            existing=existing,
+            parent=parent,
+            subresource='container',
+            service_prefix=["blob_container"],
+            identifier=ResourceIdentifiers.blob_container
+            **kwargs
+        )
+
+    @property
+    def resource(self) -> str:
+        if self._resource:
+            return self._resource
+        from .types import RESOURCE
+        self._resource = RESOURCE
+        return self._resource
+
+    @property
+    def version(self) -> str:
+        if self._version:
+            return self._version
+        from .types import VERSION
+        self._version = VERSION
+        return self._version
+
+    @classmethod
+    def reference(
+            cls,
+            *,
+            name: Union[str, Parameter[str]],
+            account: Optional[Union[str, Parameter[str], BlobStorage]] = None,
+            resource_group: Optional[Union[str, Parameter[str], 'ResourceGroup']] = None,
+    ) -> 'BlobContainer[ResourceReference]':
+        from .types import RESOURCE, VERSION
+        resource = f"{RESOURCE}@{VERSION}"
+        if isinstance(account, (str, Parameter)):
+            parent = BlobStorage.reference(
+                account=account,
+                resource_group=resource_group,
+            )
+        else:
+            parent = account
+
+        return super().reference(resource=resource, name=name, parent=parent)
+
+    def _build_endpoint(self) -> str:
+        return f"https://{self.name()}.blob.core.windows.net/{self.container_name()}"
+
+    def _outputs(
+            self,
+            *,
+            symbol: ResourceSymbol,
+            attrname: Optional[str],
+            resource_group: Union[str, ResourceSymbol],
+            parent: Optional[ResourceSymbol] = None,
+            **kwargs
+    ) -> Dict[str, Output]:
+        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)
+        outputs['endpoint'] = Output(
+            f"AZURE_BLOB_CONTAINER_ENDPOINT{self._suffix}",
+            Output("", "properties.primaryEndpoints.blob", parent).format() + outputs['name'].format()
+        )
+        return outputs
+
+    def get_client(
+            self,
+            cls: Optional[Callable[..., ClientType]] = None,
+            /,
+            *,
+            transport: Any = None,
+            api_version: Optional[str] = None,
+            audience: Optional[str] = None,
+            config_store: Optional[Mapping[str, Any]] = None,
+            env_name: Optional[str] = None,
+            **client_options,
+    ) -> ClientType:
+        if cls is None:
+            from azure.storage.blob import ContainerClient
+            cls = ContainerClient.from_container_url
+        elif cls.__name__ == 'ContainerClient':
+            cls = cls.from_container_url
+        return super().get_client(
+            cls,
+            transport=transport,
+            api_version=api_version,
+            audience=audience,
+            config_store=config_store,
+            env_name=env_name,
+            **client_options
+        )

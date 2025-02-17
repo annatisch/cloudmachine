@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Dict, List, Literal, Self, Tuple, Type, TypedDict, Union, Unpack, Optional, Any, overload
 from typing_extensions import TypeVar
 
+from .._identifiers import ResourceIdentifiers
 from ..._parameters import GLOBAL_PARAMS
 from ..._bicep.expressions import (
     Expression,
@@ -65,6 +66,7 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
             extensions=extensions,
             service_prefix=["resource_group"],
             existing=existing,
+            identifier=ResourceIdentifiers.resource_group,
             **kwargs
         )
 

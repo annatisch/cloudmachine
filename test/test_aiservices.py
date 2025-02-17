@@ -1,4 +1,5 @@
 
+from dataclasses import dataclass
 from uuid import uuid4
 
 import pytest
@@ -6,9 +7,9 @@ from azure.cloudmachine.resources.ai import AIServices, CognitiveServicesAccount
 from azure.cloudmachine.resources.resourcegroup import ResourceGroup
 from azure.cloudmachine._parameters import GLOBAL_PARAMS
 from azure.cloudmachine.resources._identifiers import ResourceIdentifiers
-from azure.cloudmachine._resource import FieldType
+from azure.cloudmachine._component import CLIENT_BY_ANNOTATION
 from azure.cloudmachine._bicep.expressions import ResourceSymbol, Output, ResourceGroup as DefaultResourceGroup
-from azure.cloudmachine import Parameter, resource, AzureInfrastructure, export
+from azure.cloudmachine import Parameter, resource, client, AzureInfrastructure, export, AzureApp
 
 TEST_SUB = str(uuid4())
 RG = ResourceSymbol('resourcegroup')
@@ -16,6 +17,17 @@ IDENTITY = {
     'type': 'UserAssigned',
     'userAssignedIdentities': {GLOBAL_PARAMS['managedIdentityId'].format(): {}}
 }
+CLIENT_BY_ANNOTATION['EmptyClient'] = "ai"
+
+
+class EmptyClient:
+    def __init__(self, endpoint, **kwargs):
+        self.endpoint = endpoint
+        self.__dict__.update(kwargs)
+
+    def close(self):
+        pass
+
 
 def _get_outputs(suffix="", rg=None):
     return {
@@ -123,7 +135,7 @@ def test_aiservices_reference():
     symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.aiservices_account_foo']
     assert fields['__main__.aiservices_account_foo'].resource == "Microsoft.CognitiveServices/accounts"
-    assert fields['__main__.aiservices_account_foo'].properties == {'name': 'foo', 'scope': RG, 'kind': 'AIServices'}
+    assert fields['__main__.aiservices_account_foo'].properties == {'name': 'foo', 'scope': RG}
     assert fields['__main__.aiservices_account_foo'].outputs == _get_outputs("_foo")
     assert fields['__main__.aiservices_account_foo'].extensions == {}
     assert fields['__main__.aiservices_account_foo'].existing == True
@@ -141,7 +153,7 @@ def test_aiservices_reference():
     symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup_bar', '__main__.aiservices_account_foo']
     assert fields['__main__.aiservices_account_foo'].resource == "Microsoft.CognitiveServices/accounts"
-    assert fields['__main__.aiservices_account_foo'].properties == {'name': 'foo', 'scope': rg, 'kind': 'AIServices'}
+    assert fields['__main__.aiservices_account_foo'].properties == {'name': 'foo', 'scope': rg}
     assert fields['__main__.aiservices_account_foo'].outputs == _get_outputs("_foo", 'bar')
     assert fields['__main__.aiservices_account_foo'].extensions == {}
     assert fields['__main__.aiservices_account_foo'].existing == True
@@ -221,3 +233,102 @@ def test_aiservices_export_multiple_ai(export_dir):
 
 # TODO:
 # def test_aiservices_export_with_parameters(export_dir):
+
+
+def test_aiservices_client():
+    r = AIServices.reference(name='test', resource_group='test')
+    assert r.name() == 'test'
+    r.api_version.set_value("v1.0")
+    r.audience.set_value("noone")
+    r.client_options.set_value({'foo': 'bar'})
+    client = r.get_client(EmptyClient, test_attr="test")
+    assert client.endpoint == "https://test.openai.azure.com/"
+    assert client.credential
+    assert client.test_attr == "test"
+    assert client.api_version == "v1.0"
+    assert client.audience == "noone"
+    assert client.foo == "bar"
+
+
+def test_aiservices_infra():
+    class TestInfra(AzureInfrastructure):
+        rg: AIServices = resource()
+    
+    assert isinstance(TestInfra.rg, AIServices)
+    assert TestInfra.rg.infrastructure == TestInfra
+    infra = TestInfra()
+    assert isinstance(infra.rg, AIServices)
+    assert infra.rg.properties == {'properties': {}, 'kind': 'AIServices'}
+
+    infra = TestInfra(rg=AIServices(name='foo'))
+    assert infra.rg.name() == 'foo'
+
+
+def test_aiservices_app():
+    r = AIServices.reference(name='test', resource_group='test')
+
+    class TestApp(AzureApp):
+        client: EmptyClient = client()
+
+    with pytest.raises(TypeError):
+        app = TestApp()
+
+    app = TestApp(client=r)
+    assert isinstance(app.client, EmptyClient)
+    assert app.client.endpoint == "https://test.openai.azure.com/"
+    assert app.client.credential
+
+    override_client = EmptyClient("foobar", test_one="one", api_version="v2.0")
+    app = TestApp(client=override_client)
+    assert app.client.endpoint == "foobar"
+    assert app.client.test_one == "one"
+    assert app.client.api_version == "v2.0"
+
+    class TestApp(AzureApp):
+        client: EmptyClient = client(default=r, api_version="v1.0")
+
+    app = TestApp()
+    assert isinstance(app.client, EmptyClient)
+    assert app.client.endpoint == "https://test.openai.azure.com/"
+    assert app.client.credential
+    assert app.client.api_version == "v1.0"
+
+    app = TestApp(client=override_client)
+    assert app.client.endpoint == "foobar"
+    assert app.client.test_one == "one"
+    assert app.client.api_version == "v2.0"
+
+    class TestApp(AzureApp):
+        client: EmptyClient = client(default=override_client, api_version="v1.0")
+
+    app = TestApp()
+    assert app.client.endpoint == "foobar"
+    assert app.client.test_one == "one"
+    assert app.client.api_version == "v2.0"
+
+    app = TestApp(client=r)
+    assert isinstance(app.client, EmptyClient)
+    assert app.client.endpoint == "https://test.openai.azure.com/"
+    assert app.client.credential
+    assert app.client.api_version == "v1.0"
+
+    class TestApp(AzureApp):
+        client: EmptyClient = client(default_factory=lambda options: EmptyClient("fake-endpoint", **options), test_attr="foobar")
+
+    app = TestApp()
+    assert app.client.endpoint == "fake-endpoint"
+    assert app.client.test_attr == "foobar"
+
+
+    class TestInfra(AzureInfrastructure):
+        ai: AIServices = resource()
+
+    class TestApp(AzureApp):
+        client: EmptyClient = client()
+
+    infra = TestInfra(ai=r)
+    app = TestApp.from_infra(infra)
+    assert isinstance(app.client, EmptyClient)
+    assert app.client.endpoint == "https://test.openai.azure.com/"
+    assert app.client.credential
+    assert app.client.api_version == "v1.0"
