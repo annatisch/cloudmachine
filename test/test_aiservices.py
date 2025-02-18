@@ -324,7 +324,7 @@ def test_aiservices_app():
         ai: AIServices = resource()
 
     class TestApp(AzureApp):
-        client: EmptyClient = client()
+        client: EmptyClient = client(api_version="v1.0")
 
     infra = TestInfra(ai=r)
     app = TestApp.from_infra(infra)

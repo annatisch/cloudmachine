@@ -18,6 +18,7 @@ from .. import AIServices
 
 if TYPE_CHECKING:
     from .types import DeploymentResource
+    from azure.ai.inference import ChatCompletionsClient
 
 
 class DeploymentKwargs(TypedDict, total=False):
@@ -39,7 +40,6 @@ class DeploymentKwargs(TypedDict, total=False):
 
 _DEFAULT_DEPLOYMENT: 'DeploymentResource' = {'name': GLOBAL_PARAMS['defaultName']}
 AIDeploymentResourceType = TypeVar('AIDeploymentResourceType', default='DeploymentResource')
-ClientType = TypeVar("ClientType")
 
 
 class AIDeployment(_ClientResource[AIDeploymentResourceType]):
@@ -91,7 +91,7 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
             parent=parent,
             subresource="deployments",
             service_prefix=kwargs.pop('service_prefix', ["ai_deployment"]),
-            identifier=kwargs.pop('identifier', ResourceIdentifiers.ai_deployment)
+            identifier=kwargs.pop('identifier', ResourceIdentifiers.ai_deployment),
             **kwargs
         )
         self._properties_to_merge.append('sku')
@@ -127,7 +127,7 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
             cls,
             *,
             name: Union[str, Parameter[str]],
-            account: Optional[Union[str, Parameter[str], AIServices]] = None,
+            account: Union[str, Parameter[str], AIServices],
             resource_group: Optional[Union[str, Parameter[str], 'ResourceGroup']] = None,
     ) -> 'AIDeployment[ResourceReference]':
         from .types import RESOURCE, VERSION
@@ -167,12 +167,11 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
         return outputs
 
 
-ai_chat_model_param = Parameter("aiChatModel", type=str, default='gpt-4o-mini')
 _DEFAULT_AI_CHAT: 'DeploymentResource' = {
-    'name': ai_chat_model_param,
+    'name': GLOBAL_PARAMS['defaultName'].format('{}-chat-deployment'),
     'properties': {
         'model': {
-            'name': ai_chat_model_param,
+            'name': Parameter("aiChatModel", type=str, default='gpt-4o-mini'),
             'format': Parameter("aiChatModelFormat", type=str, default='OpenAI'),
             'version': Parameter("aiChatModelVersion", type=str, default='2024-07-18')
         }
@@ -184,6 +183,7 @@ _DEFAULT_AI_CHAT: 'DeploymentResource' = {
 }
 
 
+ChatClientType = TypeVar("ChatClientType", default='ChatCompletionsClient')
 class AIChat(AIDeployment):
     DEFAULTS: 'DeploymentResource' = _DEFAULT_AI_CHAT
 
@@ -192,36 +192,43 @@ class AIChat(AIDeployment):
             properties: Optional['DeploymentResource'] = None,
             /,
             account: Optional[Union[str, AIServices]] = None,
+            *,
+            deployment_name: Optional[Union[str, Parameter[str]]] = None,
             **kwargs: Unpack['DeploymentKwargs']
     ) -> None:
         super().__init__(
             properties,
-            name=kwargs.get('model'),
+            name=deployment_name or kwargs.get('model'),
             account=account,
             service_prefix=['ai_chat'],
             identifier=ResourceIdentifiers.ai_chat_deployment,
             **kwargs
         )
+        self.api_version.set_value("2024-08-01-preview")
 
     @classmethod
     def reference(
             cls,
             *,
-            model: Optional[str] = None,
-            account: Optional[Union[str, AIServices]] = None,
+            name: Union[str, Parameter[str]],
+            account: Union[str, Parameter[str], AIServices],
             resource_group: Optional[Union[str, 'ResourceGroup']] = None,
     ) -> 'AIChat[ResourceReference]':
-        model = model or cls.DEFAULTS['properties']['model']['name']
         existing = super().reference(
-            name=model,
+            name=name,
             account=account,
             resource_group=resource_group
         )
-        existing.model_name.set_value(model)
+        #existing.model_name.set_value(model)
         return existing
 
     def _build_endpoint(self) -> str:
         return f"https://{self.parent.name()}.openai.azure.com/openai/deployments/{self.name()}/chat/completions"
+
+    def _symbol(self) -> ResourceSymbol:
+        symbol = super()._symbol()
+        symbol._value = f"chat_" + symbol._value
+        return symbol
 
     def _outputs(
             self,
@@ -241,13 +248,89 @@ class AIChat(AIDeployment):
         )
         return outputs
 
+    def get_client(
+            self,
+            cls: Optional[Callable[..., ChatClientType]] = None,
+            /,
+            *,
+            transport: Any = None,
+            api_version: Optional[str] = None,
+            audience: Optional[str] = None,
+            config_store: Optional[Mapping[str, Any]] = None,
+            env_name: Optional[str] = None,
+            **client_options,
+    ) -> ChatClientType:
+        if cls is None:
+            from azure.ai.inference import ChatCompletionsClient
+            cls = ChatCompletionsClient
+        api_version = api_version or self.api_version()
+        try:
+            audience = audience or self.audience()
+        except RuntimeError:
+            audience = "https://cognitiveservices.azure.com"
+        if cls.__name__ in ['AzureOpenAI', 'Chat', 'Completions']:
+            from openai import AzureOpenAI
+            from azure.identity import get_bearer_token_provider
+            credential = self._build_credential(False)
+            token_provider = get_bearer_token_provider(credential, f"{audience}/.default")
+            kwargs = {}
+            kwargs.update(self.client_options())
+            kwargs.update(client_options)
+            client = AzureOpenAI(
+                api_version=api_version,
+                azure_endpoint=self.endpoint(),
+                azure_ad_token_provider=token_provider,
+                azure_deployment=self.name(),
+                http_client=kwargs.pop('http_client', transport),
+                **kwargs
 
-ai_embeddings_model_param = Parameter("aiEmbeddingsModel", type=str, default='text-embedding-ada-002')
+            )
+            if cls.__name__ == 'Chat':
+                client = client.chat
+            elif cls.__name__ == 'Completions':
+                client = client.chat.completions
+            client.__resource_settings__ = self
+            return client
+        if cls.__name__ in ['AsyncAzureOpenAI', 'AsyncChat', 'AsyncCompletions']:
+            from openai import AsyncAzureOpenAI
+            from azure.identity.aio import get_bearer_token_provider
+            credential = self._build_credential(True)
+            token_provider = get_bearer_token_provider(credential, f"{audience}/.default")
+            kwargs = {}
+            kwargs.update(self.client_options())
+            kwargs.update(client_options)
+            client = AsyncAzureOpenAI(
+                api_version=api_version,
+                azure_endpoint=self.endpoint(),
+                azure_ad_token_provider=token_provider,
+                azure_deployment=self.name(),
+                http_client=kwargs.pop('http_client', transport),
+                **kwargs
+
+            )
+            if cls.__name__ == 'AsyncChat':
+                client = client.chat
+            elif cls.__name__ == 'AsyncCompletions':
+                client = client.chat.completions
+            client.__resource_settings__ = self
+            return client
+
+        return super().get_client(
+            cls,
+            transport=transport,
+            api_version=api_version,
+            audience=audience,
+            config_store=config_store,
+            env_name=env_name,
+            **client_options
+        )
+
+
 _DEFAULT_AI_TEXT_EMBEDDINGS: 'DeploymentResource' = {
-    'name': ai_embeddings_model_param,
+    'name': GLOBAL_PARAMS['defaultName'].format('{}-embeddings-deployment'),
     'properties': {
         'model': {
-            'name': ai_embeddings_model_param,
+            'name': Parameter("aiEmbeddingsModel", type=str, default='text-embedding-ada-002'),
             'format': Parameter("aiEmbeddingsModelFormat", type=str, default='OpenAI'),
             'version': Parameter("aiEmbeddingsModelVersion", type=str, default='2')
         }
@@ -258,6 +341,7 @@ _DEFAULT_AI_TEXT_EMBEDDINGS: 'DeploymentResource' = {
     }
 }
 
+EmbeddingsClientType = TypeVar("EmbeddingsClientType", default='EmbeddingsClient')
 class AIEmbeddings(AIDeployment[AIDeploymentResourceType]):
     DEFAULTS: 'DeploymentResource' = _DEFAULT_AI_TEXT_EMBEDDINGS
 
@@ -266,36 +350,44 @@ class AIEmbeddings(AIDeployment[AIDeploymentResourceType]):
             properties: Optional['DeploymentResource'] = None,
             /,
             account: Optional[Union[str, AIServices]] = None,
+            *,
+            deployment_name: Optional[Union[str, Parameter[str]]] = None,
             **kwargs: Unpack['DeploymentKwargs']
     ) -> None:
         super().__init__(
             properties,
-            name=kwargs.get('model'),
+            name=deployment_name or kwargs.get('model'),
             account=account,
             service_prefix=['ai_embeddings'],
             identifier=ResourceIdentifiers.ai_embeddings_deployment,
             **kwargs
         )
+        self.api_version.set_value("2023-05-15")
+        
 
     @classmethod
     def reference(
             cls,
             *,
-            model: Optional[str] = None,
+            name: Union[str, Parameter[str]],
             account: Optional[Union[str, AIServices]] = None,
             resource_group: Optional[Union[str, 'ResourceGroup']] = None,
     ) -> 'AIEmbeddings[ResourceReference]':
-        model = model or cls.DEFAULTS['properties']['model']['name']
         existing = super().reference(
-            name=model,
+            name=name,
             account=account,
             resource_group=resource_group
         )
-        existing.model_name.set_value(model)
+        #existing.model_name.set_value(model)
         return existing
 
     def _build_endpoint(self) -> str:
         return f"https://{self.parent.name()}.openai.azure.com/openai/deployments/{self.name()}/embeddings"
+
+    def _symbol(self) -> ResourceSymbol:
+        symbol = super()._symbol()
+        symbol._value = f"embeddings_" + symbol._value
+        return symbol
 
     def _outputs(
             self,

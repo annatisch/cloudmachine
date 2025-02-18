@@ -4,6 +4,7 @@ import inspect
 from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, TypedDict, Union, Unpack, overload, Optional, Any, Type
 from typing_extensions import TypeVar
 
+from ....._parameters import GLOBAL_PARAMS
 from ...._identifiers import ResourceIdentifiers
 from ....._bicep.expressions import Output, Parameter, ResourceSymbol, Expression
 from ....._resource import (
@@ -48,7 +49,7 @@ class ContainerKwargs(TypedDict, total=False):
     """Array or role assignments to create for user principal ID"""
 
 
-_DEFAULT_CONTAINER: 'ContainerResource' = {}
+_DEFAULT_CONTAINER: 'ContainerResource' = {'name': GLOBAL_PARAMS['defaultName']}
 _DEFAULT_CONTAINER_EXTENSIONS: ExtensionResources = {}
 ContainerResourceType = TypeVar('ContainerResourceType', default='ContainerResource')
 ClientType = TypeVar("ClientType", default='ContainerClient')
@@ -74,7 +75,7 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
             extensions['managed_identity_roles'] = kwargs.pop('roles')
         if 'user_roles' in kwargs:
             extensions['user_roles'] = kwargs.pop('user_roles')
-        parent = account if isinstance(account, BlobStorage) else kwargs.pop('parent', BlobStorage(name=account))
+        parent = account if isinstance(account, BlobStorage) else kwargs.pop('parent', BlobStorage(account=account))
         if not existing:
             properties = properties or {}
             if 'properties' not in properties:
@@ -104,7 +105,7 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
             parent=parent,
             subresource='container',
             service_prefix=["blob_container"],
-            identifier=ResourceIdentifiers.blob_container
+            identifier=ResourceIdentifiers.blob_container,
             **kwargs
         )
 

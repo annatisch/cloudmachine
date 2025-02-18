@@ -752,7 +752,8 @@ class _ClientResource(Resource[ResourcePropertiesType]):
             return cls._from_resource(self, transport=transport, **client_options)
 
         endpoint = self.endpoint()
-        client_kwargs = self.client_options()
+        client_kwargs = {}
+        client_kwargs.update(self.client_options())
         client_kwargs.update(client_options)
         if api_version:
             client_kwargs['api_version'] = api_version
