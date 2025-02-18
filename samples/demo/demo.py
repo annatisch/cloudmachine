@@ -17,9 +17,8 @@ from azure.cloudmachine import (
 )
 
 
-# Simple scenario, provisioning a single resource
+# Simple scenario, using a single resource
 data = BlobStorage.reference(account="foo", resource_group="bar")
-provision(data)
 client = data.get_client()  # Default client type for BlobStorage is azure.storage.blob.BlobServiceClient
 client.list_containers()
 
