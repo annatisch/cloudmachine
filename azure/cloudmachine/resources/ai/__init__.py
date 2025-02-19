@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Type, TypedDict, Union, Unpack, Optional, overload
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Mapping, Type, TypedDict, Union, Unpack, Optional, overload
 from typing_extensions import TypeVar
 
 from ..resourcegroup import ResourceGroup
@@ -283,5 +283,5 @@ class AIServices(CognitiveServicesAccount[CognitiveServicesAccountResourceType])
             **kwargs
         )
 
-    def _build_endpoint(self) -> str:
-        return f"https://{self.name()}.openai.azure.com/"
+    def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
+        return f"https://{self.name(config_store=config_store)}.openai.azure.com/"

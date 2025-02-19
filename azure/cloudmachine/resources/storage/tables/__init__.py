@@ -1,131 +1,165 @@
-from typing import TYPE_CHECKING, TypedDict, Literal, List, Dict, Union
-from typing_extensions import Required
+from collections import defaultdict
+from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Tuple, Union, Unpack, Optional, Any
+from typing_extensions import TypeVar
 
+from ..._identifiers import ResourceIdentifiers
+from ...resourcegroup import ResourceGroup
+from ...._bicep.expressions import Output, ResourceSymbol, Parameter
+from ...._resource import _ClientResource, ExtensionResources, ResourceReference
+from .. import StorageAccount, StorageAccountKwargs
 
 if TYPE_CHECKING:
-    from .table import Table
-    from .. import (
-        ManagedIdentity,
-        SecretsExportConfiguration,
-        DiagnosticSetting,
-        CustomerManagedKey,
-        Lock,
-        NetworkAcl,
-        PrivateEndpoint,
-        RoleAssignment
-    )
-
-MODULE = "br/public:avm/res/storage/storage-account"
-MODULE_RESOURCE = "Microsoft.Storage/storageAccounts/tableServices"
-MODULE_VERSION = "2023-04-01"
-MODULE_TAG = "0.14.0"
+    from .types import TableServiceResource, CorsRule
+    from azure.data.tables import TableServiceClient
 
 
-class LogCategoriesAndGroup(TypedDict, total=False):
-    """The name of logs that will be streamed. "allLogs" includes all possible logs for the resource. Set to """
-    category: str
-    """Name of a Diagnostic Log category for a resource type this setting is applied to. Set the specific logs to collect here."""
-    categoryGroup: str
-    """Name of a Diagnostic Log category group for a resource type this setting is applied to. Set to """
-    enabled: bool
-    """Enable or disable the category explicitly. Default is """
+class TableStorageKwargs(StorageAccountKwargs):
+    cors_rules: Union[List[Union['CorsRule', Parameter['CorsRule']]], Parameter[List['CorsRule']]]
+    """Specifies CORS rules for the Blob service. You can include up to five CorsRule elements in the request. If no CorsRule elements are included in the request body, all CORS rules will be deleted, and CORS will be disabled for the Blob service."""
 
 
-class MetricCategory(TypedDict, total=False):
-    """The name of metrics that will be streamed. "allMetrics" includes all possible metrics for the resource. Set to """
-    category: Required[str]
-    """Name of a Diagnostic Metric category for a resource type this setting is applied to. Set to """
-    enabled: bool
-    """Enable or disable the category explicitly. Default is """
+_DEFAULT_TABLE_SERVICE: 'TableServiceResource' = {'name': 'default'}
+_DEFAULT_TABLE_SERVICE_EXTENSIONS: ExtensionResources = {
+    'managed_identity_roles': ['Storage Table Data Contributor'],
+    'user_roles': ['Storage Table Data Contributor']
+}
+TableServiceResourceType = TypeVar('TableServiceResourceType', default='TableServiceResource')
+ClientType = TypeVar("ClientType", default='TableServiceClient')
+ 
 
 
-class DiagnosticSetting(TypedDict, total=False):
-    """The diagnostic settings of the service."""
-    eventHubAuthorizationRuleResourceId: str
-    """Resource ID of the diagnostic event hub authorization rule for the Event Hubs namespace in which the event hub should be created or streamed to."""
-    eventHubName: str
-    """Name of the diagnostic event hub within the namespace to which logs are streamed. Without this, an event hub is created for each log category. For security reasons, it is recommended to set diagnostic settings to send data to either storage account, log analytics workspace or event hub."""
-    logAnalyticsDestinationType: Literal['AzureDiagnostics', 'Dedicated']
-    """A string indicating whether the export to Log Analytics should use the default destination type, i.e. AzureDiagnostics, or use a destination type."""
-    logCategoriesAndGroups: List['LogCategoriesAndGroup']
-    """The name of logs that will be streamed. "allLogs" includes all possible logs for the resource. Set to """
-    marketplacePartnerResourceId: str
-    """The full ARM resource ID of the Marketplace resource to which you would like to send Diagnostic Logs."""
-    metricCategories: List['MetricCategory']
-    """The name of metrics that will be streamed. "allMetrics" includes all possible metrics for the resource. Set to """
-    name: str
-    """The name of the diagnostic setting."""
-    storageAccountResourceId: str
-    """Resource ID of the diagnostic storage account. For security reasons, it is recommended to set diagnostic settings to send data to either storage account, log analytics workspace or event hub."""
-    workspaceResourceId: str
-    """Resource ID of the diagnostic log analytics workspace. For security reasons, it is recommended to set diagnostic settings to send data to either storage account, log analytics workspace or event hub."""
+class TableStorage(_ClientResource[TableServiceResourceType]):
+    DEFAULTS: 'TableServiceResource' = _DEFAULT_TABLE_SERVICE
+    DEFAULT_EXTENSIONS: ExtensionResources = _DEFAULT_TABLE_SERVICE_EXTENSIONS
+    resource: Literal["Microsoft.Storage/storageAccounts/tableServices"]
+    properties: TableServiceResourceType
+
+    def __init__(
+            self,
+            properties: Optional['TableServiceResource'] = None,
+            /,
+            account: Optional[Union[str, StorageAccount, Parameter[str]]] = None,
+            **kwargs: Unpack['TableStorageKwargs']
+    ) -> None:
+        existing = kwargs.pop('existing', False)
+        extensions: ExtensionResources = defaultdict(list)
+        if 'roles' in kwargs:
+            extensions['managed_identity_roles'] = kwargs.pop('roles')
+        if 'user_roles' in kwargs:
+            extensions['user_roles'] = kwargs.pop('user_roles')
+        if not existing:
+            properties = properties or {}
+            if 'properties' not in properties:
+                properties['properties'] = {}
+            if 'cors_rules' in kwargs:
+                properties['properties']['cors'] = {}
+                properties['properties']['cors']['corsRules'] = kwargs.pop('cors_rules')
+
+        parent = kwargs.pop('parent', None)
+        if account and 'parent' in kwargs:
+            raise ValueError("Cannot specify both 'account' and 'parent'.")
+        if not parent:
+            parent = account if isinstance(account, StorageAccount) else StorageAccount(name=account, **kwargs)
+            for key in StorageAccountKwargs.__optional_keys__:
+                kwargs.pop(key, None)
+
+        super().__init__(
+            properties,
+            extensions=extensions,
+            existing=existing,
+            parent=parent,
+            subresource="tableServices",
+            service_prefix=["tables", "storage"],
+            identifier=ResourceIdentifiers.table_storage,
+            **kwargs
+        )
+        self._supports_managed_identity = True
+
+    @property
+    def resource(self) -> str:
+        if self._resource:
+            return self._resource
+        from .types import RESOURCE
+        self._resource = RESOURCE
+        return self._resource
+
+    @property
+    def version(self) -> str:
+        if self._version:
+            return self._version
+        from .types import VERSION
+        self._version = VERSION
+        return self._version
+
+    @classmethod
+    def reference(
+            cls,
+            *,
+            account: Union[str, Parameter[str], StorageAccount],
+            resource_group: Optional[Union[str, Parameter[str], ResourceGroup]] = None,
+    ) -> 'TableStorage[ResourceReference]':
+        from .types import RESOURCE, VERSION
+        resource = f"{RESOURCE}@{VERSION}"
+        if isinstance(account, (str, Parameter)):
+            parent = StorageAccount.reference(
+                name=account,
+                resource_group=resource_group,
+            )
+        elif isinstance(account, StorageAccount) and resource_group:
+            raise ValueError("Cannot provide a 'StorageAccount' instance with 'resource_group' value.")
+        else:
+            parent = account
+        existing = super().reference(
+            resource=resource,
+            parent=parent,
+        )
+        existing.name.set_value('default')
+        return existing
+
+    def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
+        return f"https://{self.parent.name(config_store=config_store)}.table.core.windows.net/"
 
 
-class TableServiceParams(TypedDict, total=False):
-    """"""
-    diagnosticSettings: List['DiagnosticSetting']
-    """The diagnostic settings of the service."""
-    tables: List['Table']
-    """tables to create."""
+    def _outputs(
+            self,
+            *,
+            symbol: ResourceSymbol,
+            attrname: Optional[str],
+            resource_group: ResourceSymbol,
+            parents: Tuple[ResourceSymbol, ...],
+            **kwargs
+    ) -> Dict[str, Output]:
+        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)
+        outputs['endpoint'] = Output(f"AZURE_TABLES_ENDPOINT{self.parent._suffix}", "properties.primaryEndpoints.table", parents[0])
+        return outputs
 
-
-class TableStorageKwargs(TypedDict, total=False):
-    """"""
-    tables: List['Table']
-    """tables to create."""
-    allow_cross_tenant_replication: bool
-    """Allow or disallow cross AAD tenant object replication."""
-    allowed_copy_scope: Literal['', 'AAD', 'PrivateLink']
-    """Restrict copy to and from Storage Accounts within an AAD tenant or with Private Links to the same VNet."""
-    allow_shared_key_access: bool
-    """Indicates whether the storage account permits requests to be authorized with the account access key via Shared Key. If false, then all requests, including shared access signatures, must be authorized with Azure Active Directory (Azure AD). The default value is null, which is equivalent to true."""
-    custom_domain_name: str
-    """Sets the custom domain name assigned to the storage account. Name is the CNAME source."""
-    custom_domain_use_subdomain_name: bool
-    """Indicates whether indirect CName validation is enabled. This should only be set on updates."""
-    customer_managed_key: 'CustomerManagedKey'
-    """The customer managed key definition."""
-    default_to_oauth_authentication: bool
-    """A boolean flag which indicates whether the default authentication is OAuth or not."""
-    diagnostic_settings: List['DiagnosticSetting']
-    """The diagnostic settings of the service."""
-    dns_endpoint_type: Literal['', 'AzureDnsZone', 'Standard']
-    """Allows you to specify the type of endpoint. Set this to AzureDNSZone to create a large number of accounts in a single subscription, which creates accounts in an Azure DNS Zone and the endpoint URL will have an alphanumeric DNS Zone identifier."""
-    enable_telemetry: bool
-    """Enable/Disable usage telemetry for module."""
-    is_local_user_enabled: bool
-    """Enables local users feature, if set to true."""
-    key_type: Literal['Account', 'Service']
-    """The keyType to use with Queue & Table services."""
-    kind: Literal['BlobStorage', 'BlockBlobStorage', 'FileStorage', 'Storage', 'StorageV2']
-    """Type of Storage Account to create."""
-    location: str
-    """Location for all resources."""
-    lock: 'Lock'
-    """The lock settings of the service."""
-    managed_identities: 'ManagedIdentity'
-    """The managed identity definition for this resource."""
-    management_policy_rules: List[object]
-    """The Storage Account ManagementPolicies Rules."""
-    minimum_tls_version: Literal['TLS1_2', 'TLS1_3']
-    """Set the minimum TLS version on request to storage. The TLS versions 1.0 and 1.1 are deprecated and not supported anymore."""
-    network_acls: 'NetworkAcl'
-    """Networks ACLs, this value contains IPs to whitelist and/or Subnet information. If in use, bypass needs to be supplied. For security reasons, it is recommended to set the DefaultAction Deny."""
-    private_endpoints: List['PrivateEndpoint']
-    """Configuration details for private endpoints. For security reasons, it is recommended to use private endpoints whenever possible."""
-    public_network_access: Literal['', 'Disabled', 'Enabled']
-    """Whether or not public network access is allowed for this resource. For security reasons it should be disabled. If not specified, it will be disabled by default if private endpoints are set and networkAcls are not set."""
-    require_infrastructure_encryption: bool
-    """A Boolean indicating whether or not the service applies a secondary layer of encryption with platform managed keys for data at rest. For security reasons, it is recommended to set it to true."""
-    role_assignments: List['RoleAssignment']
-    """Array of role assignments to create."""
-    sas_expiration_period: str
-    """The SAS expiration period. DD.HH:MM:SS."""
-    secrets_export_configuration: 'SecretsExportConfiguration'
-    """Key vault reference and secret settings for the module's secrets export."""
-    sku_name: Literal['Premium_LRS', 'Premium_ZRS', 'Standard_GRS', 'Standard_GZRS', 'Standard_LRS', 'Standard_RAGRS', 'Standard_RAGZRS', 'Standard_ZRS']
-    """Storage Account Sku Name."""
-    supports_https_traffic_only: bool
-    """Allows HTTPS traffic only to storage service if sets to true."""
-    tags: Dict[str, object]
-    """Tags of the resource."""
+    def get_client(
+            self,
+            cls: Optional[Callable[..., ClientType]] = None,
+            /,
+            *,
+            transport: Any = None,
+            api_version: Optional[str] = None,
+            audience: Optional[str] = None,
+            config_store: Optional[Mapping[str, Any]] = None,
+            env_name: Optional[str] = None,
+            use_async: Optional[bool] = None,
+            **client_options,
+    ) -> ClientType:
+        if cls is None:
+            if use_async:
+                from azure.data.tables.aio import TableServiceClient
+                cls = TableServiceClient
+            else:
+                from azure.data.tables import TableServiceClient
+                cls = TableServiceClient
+                use_async = False
+        return super().get_client(
+            cls,
+            transport=transport,
+            api_version=api_version,
+            audience=audience,
+            config_store=config_store,
+            env_name=env_name,
+            **client_options
+        )

@@ -82,7 +82,7 @@ def _build_role_assignment(
                 'scope': symbol
             }
         )
-        return new_role.__bicep__(fields, parameters=parameters)
+        return new_role.__bicep__(fields, parameters=parameters)[0]
     else:
         new_role = RoleResource(
             {
@@ -107,7 +107,7 @@ def _build_role_assignment(
                 'scope': symbol
             }
         )
-        return new_role.__bicep__(fields, parameters=parameters)
+        return new_role.__bicep__(fields, parameters=parameters)[0]
 
 
 def add_extensions(fields: 'FieldsType', parameters: Dict[str, 'Parameter']):

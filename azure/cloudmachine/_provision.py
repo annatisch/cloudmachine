@@ -163,7 +163,7 @@ def provision(
 
 
 def export(
-        *__r: Union[Resource, Type[AppType]],
+        *__r: Union[Resource, AzureInfrastructure],
         infra_dir: str = "infra",
         main_bicep: str = "main",
         output_dir: str = ".",

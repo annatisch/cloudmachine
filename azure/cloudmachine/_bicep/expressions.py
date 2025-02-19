@@ -299,26 +299,16 @@ class Output(Parameter[ParameterType]):
         return declaration
 
 
-class Guid(Parameter[str]):
+class Guid(Expression):
     def __init__(
             self,
             basestr: Union[Expression, str],
             *args: Union[Expression, str],
-            module: str = 'main'
     ) -> None:
         self._args = [basestr] + list(args)
-        self.module = module
 
     def __repr__(self):
         return self.value
-
-    @property
-    def type(self) -> str:
-        return "string"
-
-    @property
-    def name(self) -> None:
-        return None
 
     @property
     def value(self) -> str:
@@ -326,26 +316,16 @@ class Guid(Parameter[str]):
         return f"guid({arg_str})"
 
 
-class UniqueString(Parameter[str]):
+class UniqueString(Expression):
     def __init__(
             self,
             basestr: Union[Expression, str],
             *args: Union[Expression, str],
-            module: str = 'main'
     ) -> None:
         self._args = [basestr] + list(args)
-        self.module = module
 
     def __repr__(self):
         return self.value
-
-    @property
-    def type(self) -> str:
-        return "string"
-
-    @property
-    def name(self) -> None:
-        return None
 
     @property
     def value(self) -> str:

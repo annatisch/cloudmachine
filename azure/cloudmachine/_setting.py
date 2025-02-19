@@ -30,11 +30,10 @@ import os
 
 from azure.core.settings import _unset, _Unset, PrioritizedSetting, ValidInputType, ValueType
 
-from ._bicep.expressions import Parameter, MISSING
+from ._bicep.expressions import Parameter, MISSING, ParameterDefault, Expression
 
 
 class StoredPrioritizedSetting(PrioritizedSetting):
-    config_store: Mapping[str, Any]
     suffix: str
 
     def __init__(
@@ -57,9 +56,8 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         )
         self.suffix = suffix
         self._env_vars = env_vars or []
-        self.config_store = {}
 
-    def __call__(self, value: Optional[ValidInputType] = None) -> ValueType:
+    def __call__(self, value: Optional[ValidInputType] = None, *, config_store: Optional[Mapping[str, Any]] = None) -> ValueType:
         """Return the setting value according to the standard precedence.
 
         :param value: value
@@ -68,37 +66,37 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         :rtype: str or int or float
         :raises: RuntimeError if no value can be determined
         """
-        settingvalue = self._raw_value(value)
+        settingvalue = self._raw_value(value, config_store=config_store or {})
         return self._convert(settingvalue)
 
-    def _convert_parameter(self, value: Parameter[ValidInputType]) -> ValidInputType:
+    def _convert_parameter(self, value: Parameter[ValidInputType], *, config_store) -> ValidInputType:
         varname = value._varname or value.name
-        if varname in self.config_store:
-            return self.config_store[varname]
-        if value.default is not MISSING:
+        if varname in config_store:
+            return config_store[varname]
+        if not isinstance(value.default, (ParameterDefault, Expression)):
             return value.default
         raise RuntimeError(f"No value for parameter {varname} found in config store.")
 
-    def _raw_value(self, value: Optional[ValidInputType] = None) -> ValidInputType:
+    def _raw_value(self, value: Optional[ValidInputType] = None, *, config_store) -> ValidInputType:
         # 5. immediate values
         if value is not None:
             if isinstance(value, Parameter):
-                return self._convert_parameter(value)
+                return self._convert_parameter(value, config_store=config_store)
             return value
 
         # 4. previously user-set value
         if not isinstance(self._user_value, _Unset):
             if isinstance(self._user_value, Parameter):
-                return self._convert_parameter(self._user_value)
+                return self._convert_parameter(self._user_value, config_store=config_store)
             return self._user_value
 
         # 3. check a config store
-        if self.config_store:
+        if config_store:
             for env_var in self._env_vars:
-                if env_var + self.suffix in self.config_store:
-                    return self.config_store[env_var + self.suffix]
-            if self._env_var and self._env_var in self.config_store:
-                return self.config_store[self._env_var + self.suffix]
+                if env_var + self.suffix in config_store:
+                    return config_store[env_var + self.suffix]
+            if self._env_var and self._env_var in config_store:
+                return config_store[self._env_var + self.suffix]
 
         # 2. environment variable
         for env_var in self._env_vars:
@@ -110,7 +108,10 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         # 1. system setting
         if self._system_hook:
             try:
-                return self._system_hook()
+                value = self._system_hook(config_store=config_store)
+                if isinstance(value, Parameter):
+                    return self._convert_parameter(value, config_store=config_store)
+                return value
             except RuntimeError:
                 pass
 

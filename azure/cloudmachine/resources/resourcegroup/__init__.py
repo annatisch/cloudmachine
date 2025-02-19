@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, List, Literal, Self, Tuple, Type, TypedDict, Union, Unpack, Optional, Any, overload
+from typing import TYPE_CHECKING, Dict, List, Literal, Mapping, Self, Tuple, Type, TypedDict, Union, Unpack, Optional, Any, overload
 from typing_extensions import TypeVar
 
 from .._identifiers import ResourceIdentifiers
@@ -102,9 +102,9 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
         self._version = VERSION
         return self._version
 
-    def _build_resource_id(self) -> str:
-        prefix = f"/subscriptions/{self.subscription()}/providers/"
-        return prefix + f"{self._resource}/{self.name()}"
+    def _build_resource_id(self, *, config_store: Mapping[str, Any]) -> str:
+        prefix = f"/subscriptions/{self.subscription(config_store=config_store)}/providers/"
+        return prefix + f"{self._resource}/{self.name(config_store=config_store)}"
 
     def __bicep__(
             self,
@@ -113,7 +113,7 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
             parameters: Dict[str, Parameter],
             attrname: Optional[str] = None,
             **kwargs
-    ) -> FieldType:
+    ) -> Tuple[ResourceSymbol, ...]:
         field_id = self._infra_objects[0].__name__ if self._infra_objects else '__main__'
         self._set_suffix(attrname or self.properties.get('name', ''))
         if self._existing:
@@ -134,7 +134,7 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
                 add_defaults=None,
             )
             fields[f"{field_id}.{attrname if attrname else symbol.value}"] = field
-            return symbol
+            return (symbol,)
 
         field = self._find_last_resource_match(fields, name=self.properties.get('name'))
         if field:
@@ -158,4 +158,4 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
             fields[f"{field_id}.{attrname if attrname else symbol.value}"] = field
         self._merge_properties(properties, self.properties, symbol=symbol, resource_group=symbol)
         self._add_parameters(field.properties, parameters)
-        return symbol
+        return (symbol,)

@@ -3,7 +3,7 @@ from typing_extensions import Required
 
 from ...._bicep.expressions import Parameter
 
-
+# TODO: Finish populating these properties and update API version
 RESOURCE = "Microsoft.Storage/storageAccounts/blobServices"
 VERSION = "2022-09-01"
 

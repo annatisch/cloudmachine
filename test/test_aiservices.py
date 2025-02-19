@@ -46,7 +46,7 @@ def test_aiservices_properties():
     assert r.resource == "Microsoft.CognitiveServices/accounts"
     assert r.version
     fields = {}
-    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
+    symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.aiservices_account']
     assert fields['__main__.aiservices_account'].resource == "Microsoft.CognitiveServices/accounts"
     assert fields['__main__.aiservices_account'].properties == {'kind': 'AIServices', 'properties': {}}
@@ -54,7 +54,7 @@ def test_aiservices_properties():
     assert fields['__main__.aiservices_account'].extensions == {}
     assert fields['__main__.aiservices_account'].existing == False
     assert fields['__main__.aiservices_account'].version
-    assert fields['__main__.aiservices_account'].symbol == symbol
+    assert fields['__main__.aiservices_account'].symbol == symbols[0]
     assert fields['__main__.aiservices_account'].resource_group == RG
     assert not fields['__main__.aiservices_account'].name
     assert fields['__main__.aiservices_account'].add_defaults
@@ -69,7 +69,7 @@ def test_aiservices_properties():
     assert fields['__main__.aiservices_account'].extensions == {}
     assert fields['__main__.aiservices_account'].existing == False
     assert fields['__main__.aiservices_account'].version
-    assert fields['__main__.aiservices_account'].symbol == symbol
+    assert fields['__main__.aiservices_account'].symbol == symbols[0]
     assert fields['__main__.aiservices_account'].resource_group == RG
     assert not fields['__main__.aiservices_account'].name
     assert fields['__main__.aiservices_account'].add_defaults
@@ -81,7 +81,7 @@ def test_aiservices_properties():
 
     r4 = AIServices(name='foo', tags={'test': 'value'}, public_network_access='Disabled')
     assert r4.properties == {'name': 'foo', 'kind': 'AIServices', 'tags': {'test': 'value'}, 'properties': {'publicNetworkAccess': 'Disabled'}}
-    symbol = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
+    symbols = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.aiservices_account', '__main__.aiservices_account_foo']
     assert fields['__main__.aiservices_account_foo'].resource == "Microsoft.CognitiveServices/accounts"
     assert fields['__main__.aiservices_account_foo'].properties == {'name': 'foo', 'kind': 'AIServices', 'tags': {'test': 'value'}, 'properties': {'publicNetworkAccess': 'Disabled'}}
@@ -89,7 +89,7 @@ def test_aiservices_properties():
     assert fields['__main__.aiservices_account_foo'].extensions == {}
     assert fields['__main__.aiservices_account_foo'].existing == False
     assert fields['__main__.aiservices_account_foo'].version
-    assert fields['__main__.aiservices_account_foo'].symbol == symbol
+    assert fields['__main__.aiservices_account_foo'].symbol == symbols[0]
     assert fields['__main__.aiservices_account_foo'].resource_group == RG
     assert fields['__main__.aiservices_account_foo'].name == 'foo'
     assert fields['__main__.aiservices_account_foo'].add_defaults
@@ -101,7 +101,7 @@ def test_aiservices_properties():
     assert r5.properties == {'name': param1, 'kind': 'AIServices', 'sku': {'name': param2}, 'properties': {'publicNetworkAccess': param3}}
     params = dict(GLOBAL_PARAMS)
     fields = {}
-    symbol = r5.__bicep__(fields, parameters=params)
+    symbols = r5.__bicep__(fields, parameters=params)
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.aiservices_account_testa']
     assert fields['__main__.aiservices_account_testa'].resource == "Microsoft.CognitiveServices/accounts"
     assert fields['__main__.aiservices_account_testa'].properties == {'name': param1, 'kind': 'AIServices', 'sku': {'name': param2}, 'properties': {'publicNetworkAccess': param3}}
@@ -109,7 +109,7 @@ def test_aiservices_properties():
     assert fields['__main__.aiservices_account_testa'].extensions == {}
     assert fields['__main__.aiservices_account_testa'].existing == False
     assert fields['__main__.aiservices_account_testa'].version
-    assert fields['__main__.aiservices_account_testa'].symbol == symbol
+    assert fields['__main__.aiservices_account_testa'].symbol == symbols[0]
     assert fields['__main__.aiservices_account_testa'].resource_group == RG
     assert fields['__main__.aiservices_account_testa'].name == param1
     assert fields['__main__.aiservices_account_testa'].add_defaults
@@ -132,7 +132,7 @@ def test_aiservices_reference():
     with pytest.raises(RuntimeError):
         r.resource_id()
     fields = {}
-    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
+    symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.aiservices_account_foo']
     assert fields['__main__.aiservices_account_foo'].resource == "Microsoft.CognitiveServices/accounts"
     assert fields['__main__.aiservices_account_foo'].properties == {'name': 'foo', 'scope': RG}
@@ -140,7 +140,7 @@ def test_aiservices_reference():
     assert fields['__main__.aiservices_account_foo'].extensions == {}
     assert fields['__main__.aiservices_account_foo'].existing == True
     assert fields['__main__.aiservices_account_foo'].version
-    assert fields['__main__.aiservices_account_foo'].symbol == symbol
+    assert fields['__main__.aiservices_account_foo'].symbol == symbols[0]
     assert fields['__main__.aiservices_account_foo'].resource_group == RG
     assert fields['__main__.aiservices_account_foo'].name == 'foo'
     assert not fields['__main__.aiservices_account_foo'].add_defaults
@@ -150,7 +150,7 @@ def test_aiservices_reference():
     assert r.properties == {'name': 'foo', 'resource_group': ResourceGroup(name='bar'), 'kind': 'AIServices'}
     assert r.resource_group() == 'bar'
     fields = {}
-    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
+    symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup_bar', '__main__.aiservices_account_foo']
     assert fields['__main__.aiservices_account_foo'].resource == "Microsoft.CognitiveServices/accounts"
     assert fields['__main__.aiservices_account_foo'].properties == {'name': 'foo', 'scope': rg}
@@ -158,7 +158,7 @@ def test_aiservices_reference():
     assert fields['__main__.aiservices_account_foo'].extensions == {}
     assert fields['__main__.aiservices_account_foo'].existing == True
     assert fields['__main__.aiservices_account_foo'].version
-    assert fields['__main__.aiservices_account_foo'].symbol == symbol
+    assert fields['__main__.aiservices_account_foo'].symbol == symbols[0]
     assert fields['__main__.aiservices_account_foo'].resource_group == rg
     assert fields['__main__.aiservices_account_foo'].name == 'foo'
     assert not fields['__main__.aiservices_account_foo'].add_defaults

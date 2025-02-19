@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Mapping, Self, Union, Unpack, overload, Optional, Any, Type
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Mapping, Self, Tuple, Union, Unpack, overload, Optional, Any, Type
 from typing_extensions import TypeVar
 from collections import defaultdict
 
@@ -173,8 +173,8 @@ class BlobStorage(_ClientResource[BlobServiceResourceType]):
         existing.name.set_value('default')
         return existing
 
-    def _build_endpoint(self) -> str:
-        return f"https://{self.parent.name()}.blob.core.windows.net/"
+    def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
+        return f"https://{self.parent.name(config_store=config_store)}.blob.core.windows.net/"
 
     def _outputs(
             self,
@@ -182,11 +182,11 @@ class BlobStorage(_ClientResource[BlobServiceResourceType]):
              symbol: ResourceSymbol,
              attrname: Optional[str],
              resource_group: ResourceSymbol,
-             parent: Optional[ResourceSymbol] = None,
+             parents: Tuple[ResourceSymbol, ...],
              **kwargs
     ) -> Dict[str, Output]:
         outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)
-        outputs['endpoint'] = Output(f"AZURE_BLOBS_ENDPOINT{self.parent._suffix}", "properties.primaryEndpoints.blob", parent)
+        outputs['endpoint'] = Output(f"AZURE_BLOBS_ENDPOINT{self.parent._suffix}", "properties.primaryEndpoints.blob", parents[0])
         return outputs
 
 
@@ -200,11 +200,17 @@ class BlobStorage(_ClientResource[BlobServiceResourceType]):
             audience: Optional[str] = None,
             config_store: Optional[Mapping[str, Any]] = None,
             env_name: Optional[str] = None,
+            use_async: Optional[bool] = None,
             **client_options,
     ) -> ClientType:
         if cls is None:
-            from azure.storage.blob import BlobServiceClient
-            cls = BlobServiceClient
+            if use_async:
+                from azure.storage.blob.aio import BlobServiceClient
+                cls = BlobServiceClient
+            else:
+                from azure.storage.blob import BlobServiceClient
+                cls = BlobServiceClient
+                use_async = False
         return super().get_client(
             cls,
             transport=transport,

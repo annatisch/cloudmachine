@@ -1,7 +1,7 @@
 
 from collections import defaultdict
 import inspect
-from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, TypedDict, Union, Unpack, overload, Optional, Any, Type
+from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, Tuple, TypedDict, Union, Unpack, overload, Optional, Any, Type
 from typing_extensions import TypeVar
 
 from ....._parameters import GLOBAL_PARAMS
@@ -103,7 +103,7 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
             extensions=extensions,
             existing=existing,
             parent=parent,
-            subresource='container',
+            subresource='containers',
             service_prefix=["blob_container"],
             identifier=ResourceIdentifiers.blob_container,
             **kwargs
@@ -145,8 +145,8 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
 
         return super().reference(resource=resource, name=name, parent=parent)
 
-    def _build_endpoint(self) -> str:
-        return f"https://{self.name()}.blob.core.windows.net/{self.container_name()}"
+    def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
+        return f"https://{self.parent.parent.name(config_store=config_store)}.blob.core.windows.net/{self.name(config_store=config_store)}"
 
     def _outputs(
             self,
@@ -154,13 +154,13 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
             symbol: ResourceSymbol,
             attrname: Optional[str],
             resource_group: Union[str, ResourceSymbol],
-            parent: Optional[ResourceSymbol] = None,
+            parents: Tuple[ResourceSymbol, ...],
             **kwargs
     ) -> Dict[str, Output]:
         outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)
         outputs['endpoint'] = Output(
             f"AZURE_BLOB_CONTAINER_ENDPOINT{self._suffix}",
-            Output("", "properties.primaryEndpoints.blob", parent).format() + outputs['name'].format()
+            Output("", "properties.primaryEndpoints.blob", parents[-1]).format() + outputs['name'].format()
         )
         return outputs
 
@@ -174,12 +174,20 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
             audience: Optional[str] = None,
             config_store: Optional[Mapping[str, Any]] = None,
             env_name: Optional[str] = None,
+            use_async: Optional[bool] = None,
             **client_options,
     ) -> ClientType:
         if cls is None:
-            from azure.storage.blob import ContainerClient
-            cls = ContainerClient.from_container_url
+            if use_async:
+                from azure.storage.blob.aio import ContainerClient
+                cls = ContainerClient.from_container_url
+            else:
+                from azure.storage.blob import ContainerClient
+                cls = ContainerClient.from_container_url
+                use_async = False
         elif cls.__name__ == 'ContainerClient':
+            if use_async is None:
+                use_async = inspect.iscoroutinefunction(getattr(cls, 'close'))
             cls = cls.from_container_url
         return super().get_client(
             cls,
@@ -188,5 +196,6 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
             audience=audience,
             config_store=config_store,
             env_name=env_name,
+            use_async=use_async,
             **client_options
         )

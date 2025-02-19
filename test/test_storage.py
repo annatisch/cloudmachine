@@ -33,7 +33,8 @@ def test_storage_properties():
     assert r.resource == "Microsoft.Storage/storageAccounts"
     assert r.version
     fields = {}
-    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
+    symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
+    assert len(symbols) == 1
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount']
     assert fields['__main__.storageaccount'].resource == "Microsoft.Storage/storageAccounts"
     assert fields['__main__.storageaccount'].properties == {'properties': {}}
@@ -41,7 +42,7 @@ def test_storage_properties():
     assert fields['__main__.storageaccount'].extensions == {}
     assert fields['__main__.storageaccount'].existing == False
     assert fields['__main__.storageaccount'].version
-    assert fields['__main__.storageaccount'].symbol == symbol
+    assert fields['__main__.storageaccount'].symbol == symbols[0]
     assert fields['__main__.storageaccount'].resource_group == RG
     assert not fields['__main__.storageaccount'].name
     assert fields['__main__.storageaccount'].add_defaults
@@ -56,7 +57,7 @@ def test_storage_properties():
     assert fields['__main__.storageaccount'].extensions == {}
     assert fields['__main__.storageaccount'].existing == False
     assert fields['__main__.storageaccount'].version
-    assert fields['__main__.storageaccount'].symbol == symbol
+    assert fields['__main__.storageaccount'].symbol == symbols[0]
     assert fields['__main__.storageaccount'].resource_group == RG
     assert not fields['__main__.storageaccount'].name
     assert fields['__main__.storageaccount'].add_defaults
@@ -68,7 +69,7 @@ def test_storage_properties():
 
     r4 = StorageAccount(name='foo', tags={'test': 'value'}, access_tier='Cool')
     assert r4.properties == {'name': 'foo', 'tags': {'test': 'value'}, 'properties': {'accessTier': 'Cool'}}
-    symbol = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
+    symbols = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount', '__main__.storageaccount_foo']
     assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
     assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'tags': {'test': 'value'}, 'properties': {'accessTier': 'Cool'}}
@@ -76,7 +77,7 @@ def test_storage_properties():
     assert fields['__main__.storageaccount_foo'].extensions == {}
     assert fields['__main__.storageaccount_foo'].existing == False
     assert fields['__main__.storageaccount_foo'].version
-    assert fields['__main__.storageaccount_foo'].symbol == symbol
+    assert fields['__main__.storageaccount_foo'].symbol == symbols[0]
     assert fields['__main__.storageaccount_foo'].resource_group == RG
     assert fields['__main__.storageaccount_foo'].name == 'foo'
     assert fields['__main__.storageaccount_foo'].add_defaults
@@ -88,7 +89,7 @@ def test_storage_properties():
     assert r5.properties == {'name': param1, 'sku': {'name': param2}, 'properties': {'accessTier': param3}}
     params = dict(GLOBAL_PARAMS)
     fields = {}
-    symbol = r5.__bicep__(fields, parameters=params)
+    symbols = r5.__bicep__(fields, parameters=params)
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount_testa']
     assert fields['__main__.storageaccount_testa'].resource == "Microsoft.Storage/storageAccounts"
     assert fields['__main__.storageaccount_testa'].properties == {'name': param1, 'sku': {'name': param2}, 'properties': {'accessTier': param3}}
@@ -96,7 +97,7 @@ def test_storage_properties():
     assert fields['__main__.storageaccount_testa'].extensions == {}
     assert fields['__main__.storageaccount_testa'].existing == False
     assert fields['__main__.storageaccount_testa'].version
-    assert fields['__main__.storageaccount_testa'].symbol == symbol
+    assert fields['__main__.storageaccount_testa'].symbol == symbols[0]
     assert fields['__main__.storageaccount_testa'].resource_group == RG
     assert fields['__main__.storageaccount_testa'].name == param1
     assert fields['__main__.storageaccount_testa'].add_defaults
@@ -119,7 +120,7 @@ def test_storage_reference():
     with pytest.raises(RuntimeError):
         r.resource_id()
     fields = {}
-    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
+    symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.storageaccount_foo']
     assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
     assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'scope': RG}
@@ -127,7 +128,7 @@ def test_storage_reference():
     assert fields['__main__.storageaccount_foo'].extensions == {}
     assert fields['__main__.storageaccount_foo'].existing == True
     assert fields['__main__.storageaccount_foo'].version
-    assert fields['__main__.storageaccount_foo'].symbol == symbol
+    assert fields['__main__.storageaccount_foo'].symbol == symbols[0]
     assert fields['__main__.storageaccount_foo'].resource_group == RG
     assert fields['__main__.storageaccount_foo'].name == 'foo'
     assert not fields['__main__.storageaccount_foo'].add_defaults
@@ -137,7 +138,7 @@ def test_storage_reference():
     assert r.properties == {'name': 'foo', 'resource_group': ResourceGroup(name='bar')}
     assert r.resource_group() == 'bar'
     fields = {}
-    symbol = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
+    symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['__main__.resourcegroup_bar', '__main__.storageaccount_foo']
     assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
     assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'scope': rg}
@@ -145,7 +146,7 @@ def test_storage_reference():
     assert fields['__main__.storageaccount_foo'].extensions == {}
     assert fields['__main__.storageaccount_foo'].existing == True
     assert fields['__main__.storageaccount_foo'].version
-    assert fields['__main__.storageaccount_foo'].symbol == symbol
+    assert fields['__main__.storageaccount_foo'].symbol == symbols[0]
     assert fields['__main__.storageaccount_foo'].resource_group == rg
     assert fields['__main__.storageaccount_foo'].name == 'foo'
     assert not fields['__main__.storageaccount_foo'].add_defaults

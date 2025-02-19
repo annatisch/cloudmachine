@@ -262,6 +262,9 @@ class Resource(Generic[ResourcePropertiesType]):
                 resource_group = ResourceGroup.reference(name=resource_group, subscription=subscription)
             properties['resource_group'] = resource_group
         elif subscription:
+            # We're assuming 'subscription' will only be passed in in the case of rg-agnostic
+            # resources, like a resourcegroup. Otherwise 'subscription' must be provided
+            # on the 'resource_group' parameter.
             properties['subscription'] = subscription
         resource_ref = cls(
             properties,
@@ -273,17 +276,19 @@ class Resource(Generic[ResourcePropertiesType]):
         resource_ref._set_suffix(name)
         if parent:
             try:
-                resource_ref.resource_group.set_value(parent.resource_group())
+                resource_ref.resource_group.set_value(parent.resource_group._user_value)
             except RuntimeError:
                 pass
             try:
-                resource_ref.subscription.set_value(parent.subscription())
+                resource_ref.subscription.set_value(parent.subscription._user_value)
             except RuntimeError:
                 pass
-        if resource_group and resource_group.properties.get('name'):
-            resource_ref.resource_group.set_value(resource_group.properties['name'])
-        if subscription and isinstance(subscription, (str, Parameter)):
-            resource_ref.subscription.set_value(subscription)
+        else:
+            if resource_group:
+                resource_ref.resource_group.set_value(resource_group.name._user_value)
+                resource_ref.subscription.set_value(resource_group.subscription._user_value)
+            if subscription and isinstance(subscription, (str, Parameter)):
+                resource_ref.subscription.set_value(subscription)
         return resource_ref
 
     def __repr__(self) -> str:
@@ -319,33 +324,30 @@ class Resource(Generic[ResourcePropertiesType]):
             for setting in self._settings.values():
                 setting.suffix = self._suffix
 
-    def _existing_subscription_id(self) -> str:
+    def _existing_subscription_id(self, *, config_store: Mapping[str, Any]) -> str:
         if self._existing and 'resource_group' in self.properties:
-            return self.properties['resource_group'].subscription()
+            return self.properties['resource_group'].subscription(config_store=config_store)
         raise RuntimeError("Existing resource group reference has no subscription specified.")
 
-    def _build_resource_id(self) -> str:
+    def _build_resource_id(self, *, config_store: Mapping[str, Any]) -> str:
         if not self._resource:
             raise ValueError("No resource specified.")
         if self.parent:
-            return f"{self.parent._build_resource_id()}/{self._subresource}/{self.name()}"
-        prefix = f"/subscriptions/{self.subscription()}/resourceGroups/{self.resource_group()}/providers/"
-        return prefix + f"{self._resource}/{self.name()}"
+            return f"{self.parent._build_resource_id(config_store=config_store)}/{self._subresource}/{self.name(config_store=config_store)}"
+        prefix = f"/subscriptions/{self.subscription(config_store=config_store)}/resourceGroups/{self.resource_group(config_store=config_store)}/providers/"
+        return prefix + f"{self._resource}/{self.name(config_store=config_store)}"
 
-    def _get_name_if_known(self) -> str:
-        name = self.properties.get('name')
-        if isinstance(name, str):
-            return name
-        if name is None and 'name' in self.DEFAULTS and isinstance(self.DEFAULTS['name'], str):
+    def _get_name_if_known(self, *, config_store: Mapping[str, Any]) -> str:
+        try:
+            return self.properties['name']
+        except KeyError:
+            pass
+        try:
             return self.DEFAULTS['name']
+        except KeyError:
+            pass
         raise RuntimeError("Resource name not known.")
    
-    def set_config_store(self, config: Mapping[str, Any]) -> None:
-        for setting in self._settings.values():
-            setting.config_store = config
-        if self.parent:
-            self.parent.set_config_store(config)
-
     def _symbol(self) -> ResourceSymbol:
         if not self.resource:
             raise TypeError("Empty Resource object cannot be provisioned.")
@@ -376,7 +378,7 @@ class Resource(Generic[ResourcePropertiesType]):
         outputs['resource_group'] = Output(rg_output, ResourceGroup().name)
         if self._existing:
             try:
-                rg_name = self.resource_group()
+                rg_name = self.resource_group()  # TODO: Is it a problem that there's no config?
                 outputs['resource_group'] = Output(rg_output, rg_name)
             except RuntimeError:
                 pass
@@ -448,9 +450,9 @@ class Resource(Generic[ResourcePropertiesType]):
         from .resources.resourcegroup import ResourceGroup
         if name:
             existing_rg = ResourceGroup.reference(name=name)
-            return existing_rg.__bicep__(fields, parameters=parameters, module_name=module_name)
+            return existing_rg.__bicep__(fields, parameters=parameters, module_name=module_name)[0]
         default_rg = ResourceGroup()
-        return default_rg.__bicep__(fields, parameters=parameters, module_name=module_name)
+        return default_rg.__bicep__(fields, parameters=parameters, module_name=module_name)[0]
 
     def _find_identity(
             self,
@@ -467,7 +469,7 @@ class Resource(Generic[ResourcePropertiesType]):
             return match.symbol
         from .resources.managedidentity import UserAssignedIdentity
         new_identity = UserAssignedIdentity()
-        return new_identity.__bicep__(fields, parameters=parameters, module_name=module_name)
+        return new_identity.__bicep__(fields, parameters=parameters, module_name=module_name)[0]
 
     def _get_field_id(self, attrname: Optional[str], symbol: ResourceSymbol, parent: Optional[ResourceSymbol] = None) -> str:
         if parent:
@@ -481,6 +483,16 @@ class Resource(Generic[ResourcePropertiesType]):
         for value in obj.values():
             if isinstance(value, Parameter) and value.name:
                 parameters[value.name] = value
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, Parameter) and item.name:
+                        parameters[item.name] = item
+                    else:
+                        try:
+                            self._add_parameters(item, parameters)
+                            continue
+                        except (AttributeError, TypeError):
+                            pass
             else:
                 # TODO: Support lists
                 try:
@@ -517,12 +529,12 @@ class Resource(Generic[ResourcePropertiesType]):
             app_component: Optional[Type] = None,
             attrname: Optional[str] = None,
             module_name: Optional[str] = None,
-    ) -> ResourceSymbol:
+    ) -> Tuple[ResourceSymbol, ...]:
         extensions = defaultdict(list)
         extensions.update(self.extensions)
-        parent: Optional[ResourceSymbol] = None
+        parents: Tuple[ResourceSymbol] = ()
         if self.parent:
-            parent = self.parent.__bicep__(
+            parents = self.parent.__bicep__(
                 fields,
                 parameters=parameters,
                 app_component=app_component,
@@ -541,11 +553,11 @@ class Resource(Generic[ResourcePropertiesType]):
             if 'name' not in self.properties and 'name' not in self.DEFAULTS:
                 raise ValueError(f"Reference to resource {repr(self)} is missing 'name'.")
             properties = {'name': self.properties.get('name', self.DEFAULTS['name'])}
-            if parent:
-                properties['parent'] = parent
+            if parents:
+                properties['parent'] = parents[0]
                 rg = None
             elif 'resource_group' in self.properties:
-                rg = self.properties['resource_group'].__bicep__(fields, parameters=parameters, module_name=module_name)
+                rg = self.properties['resource_group'].__bicep__(fields, parameters=parameters, module_name=module_name)[0]
                 properties['scope'] = rg
             else:
                 rg = self._find_resource_group(fields, parameters, module_name=module_name)
@@ -555,7 +567,8 @@ class Resource(Generic[ResourcePropertiesType]):
                 symbol=symbol,
                 attrname=self._suffix,
                 resource_group=rg,
-                **properties
+                parents=parents,
+                #**properties
             )
             self._add_parameters(properties, parameters)
             field = FieldType(
@@ -570,8 +583,8 @@ class Resource(Generic[ResourcePropertiesType]):
                 name=properties['name'],
                 add_defaults=None
             )
-            fields[self._get_field_id(attrname, symbol, parent)] = field
-            return symbol
+            fields[self._get_field_id(attrname, symbol, parents[0] if parents else None)] = field
+            return (symbol, *parents)
 
 
         identity = None
@@ -581,10 +594,10 @@ class Resource(Generic[ResourcePropertiesType]):
         if self._supports_managed_identity:
             identity = self._find_identity(fields, parameters, module_name=module_name)
         rg = self._find_resource_group(fields, parameters, module_name=module_name)
-        if not parent:
+        if not parents:
             field = self._find_last_resource_match(fields, resource_group=rg, name=self.properties.get('name'))
         else:
-            field = self._find_last_resource_match(fields, parent=parent, name=self.properties.get('name'))
+            field = self._find_last_resource_match(fields, parent=parents[0], name=self.properties.get('name'))
 
         # TODO: Not sure this is needed any more - must test.
         if not field and self._default_action == DefaultAction.MISSING:
@@ -600,7 +613,7 @@ class Resource(Generic[ResourcePropertiesType]):
         else:
             params = {}
             if self.parent:
-                params['parent'] = parent
+                params['parent'] = parents[0]
             symbol = self._symbol()
             outputs = {}
             field = FieldType(
@@ -615,7 +628,7 @@ class Resource(Generic[ResourcePropertiesType]):
                 name=self.properties.get('name'),
                 add_defaults=self._add_defaults
             )
-            fields[self._get_field_id(attrname, symbol, parent)] = field
+            fields[self._get_field_id(attrname, symbol, parents[0] if parents else None)] = field
 
         output_config = self._merge_properties(
             params,
@@ -632,14 +645,14 @@ class Resource(Generic[ResourcePropertiesType]):
                 symbol=symbol,
                 attrname=attrname,
                 resource_group=rg,
-                parent=params.get('parent'),
+                parents=parents,
                 **output_config
             )
             outputs.update(resource_outputs)
         self._add_parameters(field.properties, parameters)
         # TODO: this wont really work yet
         # self._add_parameters(field.extensions, parameters)
-        return symbol
+        return (symbol, *parents)
 
 
     def get_client(
@@ -691,10 +704,10 @@ class _ClientResource(Resource[ResourcePropertiesType]):
         self._settings['credential'] = self.credential
 
     def _build_endpoint(self) -> str:
-        raise NotImplementedError()
+        raise NotImplementedError("This must be implemented by child resources.")
 
-    def _build_credential(self, use_async: bool) -> Union[SupportsTokenInfo, AsyncSupportsTokenInfo]:
-        value = self.credential()
+    def _build_credential(self, use_async: bool, *, config_store: Mapping[str, Any]) -> Union[SupportsTokenInfo, AsyncSupportsTokenInfo]:
+        value = self.credential(config_store=config_store)
         try:
             value = value.lower()
             if value == 'default':
@@ -725,7 +738,6 @@ class _ClientResource(Resource[ResourcePropertiesType]):
                 return value
         raise ValueError(f'Cannot convert {value} to credential type.')
 
-
     def get_client(
             self,
             cls: Callable[..., ClientType],
@@ -736,41 +748,41 @@ class _ClientResource(Resource[ResourcePropertiesType]):
             audience: Optional[str] = None,
             config_store: Optional[Mapping[str, Any]] = None,
             env_name: Optional[str] = None,
+            use_async: Optional[bool] = None,
             **client_options,
     ) -> ClientType:
         self._set_suffix(self._infra_attr_names[0] if self._infra_attr_names else self.properties.get('name', ''))
-        if config_store is not None:
-            self.set_config_store(config_store)
-        elif env_name:
-           self.set_config_store(_load_dev_environment(env_name))
-        elif not self._settings['resource_id'].config_store:
-            self.set_config_store(_load_dev_environment())
+        if env_name:
+           if config_store:
+               raise ValueError("Cannot specify both 'config_store' and 'env_name'.")
+           config_store = _load_dev_environment(env_name)
+        elif not config_store:
+            config_store = _load_dev_environment()
 
         if hasattr(cls, 'from_resource'):
-            return cls.from_resource(self, transport=transport, **client_options)
+            return cls.from_resource(self, config_store, transport=transport, **client_options)
         if hasattr(cls, '_from_resource'):
-            return cls._from_resource(self, transport=transport, **client_options)
+            return cls._from_resource(self, config_store, transport=transport, **client_options)
 
-        endpoint = self.endpoint()
+        endpoint = self.endpoint(config_store=config_store)
         client_kwargs = {}
-        client_kwargs.update(self.client_options())
+        client_kwargs.update(self.client_options(config_store=config_store))
         client_kwargs.update(client_options)
-        if api_version:
-            client_kwargs['api_version'] = api_version
-        else:
-            try:
-                client_kwargs['api_version'] = self.api_version()
-            except RuntimeError:
-                pass
-        if audience:
-            client_kwargs['audience'] = audience
-        elif 'scope' not in client_options:
-            try:
-                client_kwargs['audience'] = self.audience()
-            except RuntimeError:
-                pass
-        is_async = inspect.iscoroutinefunction(getattr(cls, 'close'))
-        client_kwargs['credential'] = self._build_credential(is_async)
+        try:
+            client_kwargs['api_version'] = self.api_version(api_version, config_store=config_store)
+        except RuntimeError:
+            pass
+        try:
+            client_kwargs['audience'] = self.audience(audience, config_store=config_store)
+        except RuntimeError:
+            pass
+        if 'credential' not in client_kwargs:
+            if use_async is None:
+                try:
+                    use_async = inspect.iscoroutinefunction(getattr(cls, 'close'))
+                except AttributeError:
+                    raise TypeError(f"Cannot determine whether cls type '{cls.__name__}' is async or not. Please specify 'use_async' keyword argument.")
+            client_kwargs['credential'] = self._build_credential(use_async, config_store=config_store)
         client = cls(endpoint, **client_kwargs)
         client.__resource_settings__ = self
         return client

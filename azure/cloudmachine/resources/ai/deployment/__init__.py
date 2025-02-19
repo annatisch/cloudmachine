@@ -145,8 +145,8 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
             parent=parent
         )
 
-    def _build_endpoint(self) -> str:
-        return f"https://{self.parent.name()}.openai.azure.com/openai/deployments/{self.name()}"
+    def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
+        return f"https://{self.parent.name(config_store=config_store)}.openai.azure.com/openai/deployments/{self.name(config_store=config_store)}"
 
     def _outputs(
             self,
@@ -154,7 +154,7 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
             symbol: ResourceSymbol,
             attrname: Optional[str],
             resource_group: Union[str, ResourceSymbol],
-            parent: Optional[ResourceSymbol] = None,
+            parents: Tuple[ResourceSymbol, ...],
             **kwargs
     ) -> Dict[str, Output]:
         outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)
@@ -162,7 +162,7 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
         outputs['model_version'] = Output(f"AZURE_AI_DEPLOYMENT_MODEL_VERSION{self._suffix}", 'properties.model.version', symbol)
         outputs['endpoint'] = Output(
             f"AZURE_AI_DEPLOYMENT_ENDPOINT{self._suffix}",
-            Output("", "properties.endpoint", parent).format("{}openai/deployments/") + outputs['name'].format()
+            Output("", "properties.endpoint", parents[0]).format("{}openai/deployments/") + outputs['name'].format()
         )
         return outputs
 
@@ -222,8 +222,8 @@ class AIChat(AIDeployment):
         #existing.model_name.set_value(model)
         return existing
 
-    def _build_endpoint(self) -> str:
-        return f"https://{self.parent.name()}.openai.azure.com/openai/deployments/{self.name()}/chat/completions"
+    def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
+        return f"https://{self.parent.name(config_store=config_store)}.openai.azure.com/openai/deployments/{self.name(config_store=config_store)}/chat/completions"
 
     def _symbol(self) -> ResourceSymbol:
         symbol = super()._symbol()
@@ -236,18 +236,19 @@ class AIChat(AIDeployment):
             symbol: ResourceSymbol,
             attrname: Optional[str],
             resource_group: Union[str, ResourceSymbol],
-            parent: Optional[ResourceSymbol] = None,
+            parents: Tuple[ResourceSymbol, ...],
             **kwargs
     ) -> Dict[str, Output]:
-        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)
+        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, parents=parents, **kwargs)
         outputs['model_name'] = Output(f"AZURE_AI_CHAT_MODEL_NAME{self._suffix}", 'properties.model.name', symbol)
         outputs['model_version'] = Output(f"AZURE_AI_CHAT_MODEL_VERSION{self._suffix}", 'properties.model.version', symbol)
         outputs['endpoint'] = Output(
             f"AZURE_AI_CHAT_ENDPOINT{self._suffix}",
-            Output("", "properties.endpoint", parent).format("{}openai/deployments/") + outputs['name'].format() + "/chat/completions"
+            Output("", "properties.endpoint", parents[0]).format("{}openai/deployments/") + outputs['name'].format() + "/chat/completions"
         )
         return outputs
 
+    # TODO: Add use_async and config_store
     def get_client(
             self,
             cls: Optional[Callable[..., ChatClientType]] = None,
@@ -263,24 +264,24 @@ class AIChat(AIDeployment):
         if cls is None:
             from azure.ai.inference import ChatCompletionsClient
             cls = ChatCompletionsClient
-        api_version = api_version or self.api_version()
+        api_version = api_version or self.api_version(config_store=config_store)
         try:
-            audience = audience or self.audience()
+            audience = audience or self.audience(config_store=config_store)
         except RuntimeError:
             audience = "https://cognitiveservices.azure.com"
         if cls.__name__ in ['AzureOpenAI', 'Chat', 'Completions']:
             from openai import AzureOpenAI
             from azure.identity import get_bearer_token_provider
-            credential = self._build_credential(False)
+            credential = self._build_credential(False, config_store=config_store)
             token_provider = get_bearer_token_provider(credential, f"{audience}/.default")
             kwargs = {}
-            kwargs.update(self.client_options())
+            kwargs.update(self.client_options(config_store=config_store))
             kwargs.update(client_options)
             client = AzureOpenAI(
                 api_version=api_version,
-                azure_endpoint=self.endpoint(),
+                azure_endpoint=self.endpoint(config_store=config_store),
                 azure_ad_token_provider=token_provider,
-                azure_deployment=self.name(),
+                azure_deployment=self.name(config_store=config_store),
                 http_client=kwargs.pop('http_client', transport),
                 **kwargs
 
@@ -294,16 +295,16 @@ class AIChat(AIDeployment):
         if cls.__name__ in ['AsyncAzureOpenAI', 'AsyncChat', 'AsyncCompletions']:
             from openai import AsyncAzureOpenAI
             from azure.identity.aio import get_bearer_token_provider
-            credential = self._build_credential(True)
+            credential = self._build_credential(True, config_store=config_store)
             token_provider = get_bearer_token_provider(credential, f"{audience}/.default")
             kwargs = {}
-            kwargs.update(self.client_options())
+            kwargs.update(self.client_options(config_store=config_store))
             kwargs.update(client_options)
             client = AsyncAzureOpenAI(
                 api_version=api_version,
-                azure_endpoint=self.endpoint(),
+                azure_endpoint=self.endpoint(config_store=config_store),
                 azure_ad_token_provider=token_provider,
-                azure_deployment=self.name(),
+                azure_deployment=self.name(config_store=config_store),
                 http_client=kwargs.pop('http_client', transport),
                 **kwargs
 
@@ -373,16 +374,14 @@ class AIEmbeddings(AIDeployment[AIDeploymentResourceType]):
             account: Optional[Union[str, AIServices]] = None,
             resource_group: Optional[Union[str, 'ResourceGroup']] = None,
     ) -> 'AIEmbeddings[ResourceReference]':
-        existing = super().reference(
+        return super().reference(
             name=name,
             account=account,
             resource_group=resource_group
         )
-        #existing.model_name.set_value(model)
-        return existing
 
-    def _build_endpoint(self) -> str:
-        return f"https://{self.parent.name()}.openai.azure.com/openai/deployments/{self.name()}/embeddings"
+    def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
+        return f"https://{self.parent.name(config_store=config_store)}.openai.azure.com/openai/deployments/{self.name(config_store=config_store)}/embeddings"
 
     def _symbol(self) -> ResourceSymbol:
         symbol = super()._symbol()
@@ -395,14 +394,14 @@ class AIEmbeddings(AIDeployment[AIDeploymentResourceType]):
             symbol: ResourceSymbol,
             attrname: Optional[str],
             resource_group: Union[str, ResourceSymbol],
-            parent: Optional[ResourceSymbol] = None,
+            parents: Tuple[ResourceSymbol, ...],
             **kwargs
     ) -> Dict[str, Output]:
-        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)
+        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, parents=parents, **kwargs)
         outputs['model_name'] = Output(f"AZURE_AI_EMBEDDINGS_MODEL_NAME{self._suffix}", 'properties.model.name', symbol)
         outputs['model_version'] = Output(f"AZURE_AI_EMBEDDINGS_MODEL_VERSION{self._suffix}", 'properties.model.version', symbol)
         outputs['endpoint'] = Output(
             f"AZURE_AI_EMBEDDINGS_ENDPOINT{self._suffix}",
-            Output("", "properties.endpoint", parent).format("{}openai/deployments/") + outputs['name'].format() + "/embeddings"
+            Output("", "properties.endpoint", parents[0]).format("{}openai/deployments/") + outputs['name'].format() + "/embeddings"
         )
         return outputs
