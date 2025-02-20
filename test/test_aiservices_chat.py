@@ -46,32 +46,32 @@ def test_aiservices_chat_properties():
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert len(symbols) == 2
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.aiservices_account', '__main__.aiservices_account.chat_deployment']
-    assert fields['__main__.aiservices_account.chat_deployment'].resource == "Microsoft.CognitiveServices/accounts/deployments"
-    assert fields['__main__.aiservices_account.chat_deployment'].properties == {'properties': {}, 'parent': ResourceSymbol('aiservices_account')}
-    assert fields['__main__.aiservices_account.chat_deployment'].outputs == _get_outputs()
-    assert fields['__main__.aiservices_account.chat_deployment'].extensions == {}
-    assert fields['__main__.aiservices_account.chat_deployment'].existing == False
-    assert fields['__main__.aiservices_account.chat_deployment'].version
-    assert fields['__main__.aiservices_account.chat_deployment'].symbol == symbols[0]
-    assert fields['__main__.aiservices_account.chat_deployment'].resource_group == RG
-    assert not fields['__main__.aiservices_account.chat_deployment'].name
-    assert fields['__main__.aiservices_account.chat_deployment'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'aiservices_account', 'aiservices_account.chat_deployment']
+    assert fields['aiservices_account.chat_deployment'].resource == "Microsoft.CognitiveServices/accounts/deployments"
+    assert fields['aiservices_account.chat_deployment'].properties == {'properties': {}, 'parent': ResourceSymbol('aiservices_account')}
+    assert fields['aiservices_account.chat_deployment'].outputs == _get_outputs()
+    assert fields['aiservices_account.chat_deployment'].extensions == {}
+    assert fields['aiservices_account.chat_deployment'].existing == False
+    assert fields['aiservices_account.chat_deployment'].version
+    assert fields['aiservices_account.chat_deployment'].symbol == symbols[0]
+    assert fields['aiservices_account.chat_deployment'].resource_group == RG
+    assert not fields['aiservices_account.chat_deployment'].name
+    assert fields['aiservices_account.chat_deployment'].add_defaults
 
     r2 = AIChat(model="gpt-4o", capacity=10)
     assert r2.properties == {'name': 'gpt-4o', 'sku': {'capacity': 10}, 'properties': {'model': {'name': 'gpt-4o'}}}
     symbols = r2.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.aiservices_account', '__main__.aiservices_account.chat_deployment', '__main__.aiservices_account.chat_deployment_gpt4o']
-    assert fields['__main__.aiservices_account.chat_deployment_gpt4o'].resource == "Microsoft.CognitiveServices/accounts/deployments"
-    assert fields['__main__.aiservices_account.chat_deployment_gpt4o'].properties == {'name': 'gpt-4o', 'sku': {'capacity': 10}, 'properties': {'model': {'name': 'gpt-4o'}}, 'parent': ResourceSymbol('aiservices_account')}
-    assert fields['__main__.aiservices_account.chat_deployment_gpt4o'].outputs == _get_outputs("_gpt4o")
-    assert fields['__main__.aiservices_account.chat_deployment_gpt4o'].extensions == {}
-    assert fields['__main__.aiservices_account.chat_deployment_gpt4o'].existing == False
-    assert fields['__main__.aiservices_account.chat_deployment_gpt4o'].version
-    assert fields['__main__.aiservices_account.chat_deployment_gpt4o'].symbol == symbols[0]
-    assert fields['__main__.aiservices_account.chat_deployment_gpt4o'].resource_group == RG
-    assert fields['__main__.aiservices_account.chat_deployment_gpt4o'].name == 'gpt-4o'
-    assert fields['__main__.aiservices_account.chat_deployment_gpt4o'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'aiservices_account', 'aiservices_account.chat_deployment', 'aiservices_account.chat_deployment_gpt4o']
+    assert fields['aiservices_account.chat_deployment_gpt4o'].resource == "Microsoft.CognitiveServices/accounts/deployments"
+    assert fields['aiservices_account.chat_deployment_gpt4o'].properties == {'name': 'gpt-4o', 'sku': {'capacity': 10}, 'properties': {'model': {'name': 'gpt-4o'}}, 'parent': ResourceSymbol('aiservices_account')}
+    assert fields['aiservices_account.chat_deployment_gpt4o'].outputs == _get_outputs("_gpt4o")
+    assert fields['aiservices_account.chat_deployment_gpt4o'].extensions == {}
+    assert fields['aiservices_account.chat_deployment_gpt4o'].existing == False
+    assert fields['aiservices_account.chat_deployment_gpt4o'].version
+    assert fields['aiservices_account.chat_deployment_gpt4o'].symbol == symbols[0]
+    assert fields['aiservices_account.chat_deployment_gpt4o'].resource_group == RG
+    assert fields['aiservices_account.chat_deployment_gpt4o'].name == 'gpt-4o'
+    assert fields['aiservices_account.chat_deployment_gpt4o'].add_defaults
 
     r3 = AIChat(model="gpt-4o", capacity=30)
     assert r3.properties == {'name': 'gpt-4o', 'sku': {'capacity': 30}, 'properties': {'model': {'name': 'gpt-4o'}}}
@@ -81,17 +81,17 @@ def test_aiservices_chat_properties():
     r4 = AIChat(model="secret", account=AIServices(name='foo', tags={'test': 'value'}, public_network_access='Disabled'))
     assert r4.properties == {'properties': {'model': {'name': 'secret'}}, 'name': 'secret'}
     symbols = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.aiservices_account', '__main__.aiservices_account.chat_deployment', '__main__.aiservices_account.chat_deployment_gpt4o', '__main__.aiservices_account_foo', '__main__.aiservices_account_foo.chat_deployment_foo_secret']
-    assert fields['__main__.aiservices_account_foo.chat_deployment_foo_secret'].resource == "Microsoft.CognitiveServices/accounts/deployments"
-    assert fields['__main__.aiservices_account_foo.chat_deployment_foo_secret'].properties == {'properties': {'model': {'name': 'secret'}}, 'name': 'secret', 'parent': ResourceSymbol('aiservices_account_foo')}
-    assert fields['__main__.aiservices_account_foo.chat_deployment_foo_secret'].outputs == _get_outputs("_foo_secret", "_foo")
-    assert fields['__main__.aiservices_account_foo.chat_deployment_foo_secret'].extensions == {}
-    assert fields['__main__.aiservices_account_foo.chat_deployment_foo_secret'].existing == False
-    assert fields['__main__.aiservices_account_foo.chat_deployment_foo_secret'].version
-    assert fields['__main__.aiservices_account_foo.chat_deployment_foo_secret'].symbol == symbols[0]
-    assert fields['__main__.aiservices_account_foo.chat_deployment_foo_secret'].resource_group == RG
-    assert fields['__main__.aiservices_account_foo.chat_deployment_foo_secret'].name == 'secret'
-    assert fields['__main__.aiservices_account_foo.chat_deployment_foo_secret'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'aiservices_account', 'aiservices_account.chat_deployment', 'aiservices_account.chat_deployment_gpt4o', 'aiservices_account_foo', 'aiservices_account_foo.chat_deployment_foo_secret']
+    assert fields['aiservices_account_foo.chat_deployment_foo_secret'].resource == "Microsoft.CognitiveServices/accounts/deployments"
+    assert fields['aiservices_account_foo.chat_deployment_foo_secret'].properties == {'properties': {'model': {'name': 'secret'}}, 'name': 'secret', 'parent': ResourceSymbol('aiservices_account_foo')}
+    assert fields['aiservices_account_foo.chat_deployment_foo_secret'].outputs == _get_outputs("_foo_secret", "_foo")
+    assert fields['aiservices_account_foo.chat_deployment_foo_secret'].extensions == {}
+    assert fields['aiservices_account_foo.chat_deployment_foo_secret'].existing == False
+    assert fields['aiservices_account_foo.chat_deployment_foo_secret'].version
+    assert fields['aiservices_account_foo.chat_deployment_foo_secret'].symbol == symbols[0]
+    assert fields['aiservices_account_foo.chat_deployment_foo_secret'].resource_group == RG
+    assert fields['aiservices_account_foo.chat_deployment_foo_secret'].name == 'secret'
+    assert fields['aiservices_account_foo.chat_deployment_foo_secret'].add_defaults
 
     param1 = Parameter("testA")
     param2 = Parameter("testB")
@@ -101,17 +101,17 @@ def test_aiservices_chat_properties():
     params = dict(GLOBAL_PARAMS)
     fields = {}
     symbols = r5.__bicep__(fields, parameters=params)
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.aiservices_account', '__main__.aiservices_account.chat_deployment_foo']
-    assert fields['__main__.aiservices_account.chat_deployment_foo'].resource == "Microsoft.CognitiveServices/accounts/deployments"
-    assert fields['__main__.aiservices_account.chat_deployment_foo'].properties == {'name': 'foo', 'sku': {'name': param2, 'capacity': param3}, 'properties': {'model': param1}, 'parent': ResourceSymbol('aiservices_account')}
-    assert fields['__main__.aiservices_account.chat_deployment_foo'].outputs == _get_outputs("_foo")
-    assert fields['__main__.aiservices_account.chat_deployment_foo'].extensions == {}
-    assert fields['__main__.aiservices_account.chat_deployment_foo'].existing == False
-    assert fields['__main__.aiservices_account.chat_deployment_foo'].version
-    assert fields['__main__.aiservices_account.chat_deployment_foo'].symbol == symbols[0]
-    assert fields['__main__.aiservices_account.chat_deployment_foo'].resource_group == RG
-    assert fields['__main__.aiservices_account.chat_deployment_foo'].name == 'foo'
-    assert fields['__main__.aiservices_account.chat_deployment_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'aiservices_account', 'aiservices_account.chat_deployment_foo']
+    assert fields['aiservices_account.chat_deployment_foo'].resource == "Microsoft.CognitiveServices/accounts/deployments"
+    assert fields['aiservices_account.chat_deployment_foo'].properties == {'name': 'foo', 'sku': {'name': param2, 'capacity': param3}, 'properties': {'model': param1}, 'parent': ResourceSymbol('aiservices_account')}
+    assert fields['aiservices_account.chat_deployment_foo'].outputs == _get_outputs("_foo")
+    assert fields['aiservices_account.chat_deployment_foo'].extensions == {}
+    assert fields['aiservices_account.chat_deployment_foo'].existing == False
+    assert fields['aiservices_account.chat_deployment_foo'].version
+    assert fields['aiservices_account.chat_deployment_foo'].symbol == symbols[0]
+    assert fields['aiservices_account.chat_deployment_foo'].resource_group == RG
+    assert fields['aiservices_account.chat_deployment_foo'].name == 'foo'
+    assert fields['aiservices_account.chat_deployment_foo'].add_defaults
     assert params.get('testA') == param1
     assert params.get('testB') == param2
     assert params.get('testC') == param3
@@ -132,17 +132,17 @@ def test_aiservices_chat_reference():
         r.resource_id()
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.aiservices_account_bar', '__main__.aiservices_account_bar.chat_deployment_bar_foo']
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].resource == "Microsoft.CognitiveServices/accounts/deployments"
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].properties == {'name': 'foo', 'parent': ResourceSymbol('aiservices_account_bar')}
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].outputs == _get_outputs("_bar_foo", "_bar")
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].extensions == {}
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].existing == True
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].version
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].symbol == symbols[0]
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].resource_group == None
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].name == 'foo'
-    assert not fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'aiservices_account_bar', 'aiservices_account_bar.chat_deployment_bar_foo']
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].resource == "Microsoft.CognitiveServices/accounts/deployments"
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].properties == {'name': 'foo', 'parent': ResourceSymbol('aiservices_account_bar')}
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].outputs == _get_outputs("_bar_foo", "_bar")
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].extensions == {}
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].existing == True
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].version
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].symbol == symbols[0]
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].resource_group == None
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].name == 'foo'
+    assert not fields['aiservices_account_bar.chat_deployment_bar_foo'].add_defaults
 
     rg = ResourceSymbol('resourcegroup_baz')
     r = AIChat.reference(name='foo', account='bar', resource_group='baz')
@@ -150,17 +150,17 @@ def test_aiservices_chat_reference():
     assert r.resource_group() == 'baz'
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup_baz', '__main__.aiservices_account_bar', '__main__.aiservices_account_bar.chat_deployment_bar_foo']
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].resource == "Microsoft.CognitiveServices/accounts/deployments"
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].properties == {'name': 'foo', 'parent': ResourceSymbol('aiservices_account_bar')}
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].outputs == _get_outputs("_bar_foo", '_bar', 'baz')
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].extensions == {}
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].existing == True
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].version
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].symbol == symbols[0]
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].resource_group == None
-    assert fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].name == 'foo'
-    assert not fields['__main__.aiservices_account_bar.chat_deployment_bar_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup_baz', 'aiservices_account_bar', 'aiservices_account_bar.chat_deployment_bar_foo']
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].resource == "Microsoft.CognitiveServices/accounts/deployments"
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].properties == {'name': 'foo', 'parent': ResourceSymbol('aiservices_account_bar')}
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].outputs == _get_outputs("_bar_foo", '_bar', 'baz')
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].extensions == {}
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].existing == True
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].version
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].symbol == symbols[0]
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].resource_group == None
+    assert fields['aiservices_account_bar.chat_deployment_bar_foo'].name == 'foo'
+    assert not fields['aiservices_account_bar.chat_deployment_bar_foo'].add_defaults
 
     r = AIChat.reference(name='foo', account=AIServices.reference(name='bar', resource_group=ResourceGroup.reference(name='baz', subscription=TEST_SUB)))
     assert r.properties == {'name': 'foo'}
@@ -192,24 +192,28 @@ def test_aiservices_chat_defaults():
     }
 
 def test_aiservices_chat_export(export_dir):
-    r = AIChat()
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    class TestInfra(AzureInfrastructure):
+        r: AIChat = resource()
+    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_aiservices_chat_export_existing(export_dir):
-    r = AIChat.reference(name='aitest', account='aitest')
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    class TestInfra(AzureInfrastructure):
+        r: AIChat = resource(default=AIChat.reference(name='aitest', account='aitest'))
+    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_aiservices_chat_export_with_properties(export_dir):
-    r = AIChat(sku='test', capacity=15, format='foo', version='2')
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    class TestInfra(AzureInfrastructure):
+        r: AIChat = resource(default=AIChat(sku='test', capacity=15, format='foo', version='2'))
+    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_aiservices_chat_export_multiple_deployments(export_dir):
-    a = AIChat(model="one")
-    b = AIChat(model='two')
-    export(a, b, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    class TestInfra(AzureInfrastructure):
+        r: AIChat = resource(default=AIChat(model="one"))
+        b: AIChat = resource(default=AIChat(model='two'))
+    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_aiservices_chat_client():
@@ -239,8 +243,9 @@ def test_aiservices_chat_infra():
         chat_b: AIChat = resource(default=AIChat(model='gpt-4o'))
     
     assert isinstance(TestInfra.chat_a, AIChat)
-    assert TestInfra.chat_a.infrastructure == TestInfra
+    assert TestInfra.chat_a._infra is None
     infra = TestInfra()
+    assert infra.chat_a._infra == infra
     assert isinstance(infra.chat_a, AIChat)
     assert infra.chat_a.name() == 'gpt-4o-mini'
     assert infra.chat_a.properties == {'name': 'gpt-4o-mini', 'properties': {'model': {'name': 'gpt-4o-mini'}}}

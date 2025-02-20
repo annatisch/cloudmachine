@@ -38,13 +38,13 @@ def test_roles_properties():
     }
     symbols = r.__bicep__(fields, parameters=parameters)
     add_extensions(fields, parameters)
-    assert len(fields[f'__main__.storageaccount_foo'].extensions['managed_identity_roles']) == 2
-    assert len(fields[f'__main__.storageaccount_foo'].extensions['user_roles']) == 2
-    role_symbol = fields[f'__main__.storageaccount_foo'].extensions['managed_identity_roles'][0]
-    assert fields[f'__main__.{role_symbol._value}'].resource == "Microsoft.Authorization/roleAssignments"
-    assert fields[f'__main__.{role_symbol._value}'].properties == {'name': CONTRIB_GUID, 'scope': symbols[0], 'properties': {'principalId': IDENTITY, 'principalType': 'ServicePrincipal', 'roleDefinitionId': RoleDefinition('ba92f5b4-2d11-453d-a403-e96b0029c9fe')}}
-    assert fields[f'__main__.{role_symbol._value}'].symbol == role_symbol
-    assert fields[f'__main__.{role_symbol._value}'].resource_group == RG
+    assert len(fields[f'storageaccount_foo'].extensions['managed_identity_roles']) == 2
+    assert len(fields[f'storageaccount_foo'].extensions['user_roles']) == 2
+    role_symbol = fields[f'storageaccount_foo'].extensions['managed_identity_roles'][0]
+    assert fields[f'{role_symbol._value}'].resource == "Microsoft.Authorization/roleAssignments"
+    assert fields[f'{role_symbol._value}'].properties == {'name': CONTRIB_GUID, 'scope': symbols[0], 'properties': {'principalId': IDENTITY, 'principalType': 'ServicePrincipal', 'roleDefinitionId': RoleDefinition('ba92f5b4-2d11-453d-a403-e96b0029c9fe')}}
+    assert fields[f'{role_symbol._value}'].symbol == role_symbol
+    assert fields[f'{role_symbol._value}'].resource_group == RG
 
 
 def test_roles_defaults():
@@ -59,8 +59,8 @@ def test_roles_defaults():
     parameters = dict(GLOBAL_PARAMS)
     symbols = r.__bicep__(fields, parameters=parameters)
     add_extensions(fields, parameters)
-    role_symbol = fields[f'__main__.storageaccount_foo'].extensions['managed_identity_roles'][0]
-    assert fields[f'__main__.{role_symbol._value}'].properties == {
+    role_symbol = fields[f'storageaccount_foo'].extensions['managed_identity_roles'][0]
+    assert fields[f'{role_symbol._value}'].properties == {
         'name': CONTRIB_GUID,
         'scope': symbols[0],
         'properties': {'principalId': IDENTITY, 'principalType': 'ServicePrincipal', 'roleDefinitionId': BUILT_IN_ROLES['Storage Blob Data Contributor']}

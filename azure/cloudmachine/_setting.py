@@ -66,7 +66,7 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         :rtype: str or int or float
         :raises: RuntimeError if no value can be determined
         """
-        settingvalue = self._raw_value(value, config_store=config_store or {})
+        settingvalue = self._raw_value(value, config_store=config_store)
         return self._convert(settingvalue)
 
     def _convert_parameter(self, value: Parameter[ValidInputType], *, config_store) -> ValidInputType:
@@ -81,13 +81,13 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         # 5. immediate values
         if value is not None:
             if isinstance(value, Parameter):
-                return self._convert_parameter(value, config_store=config_store)
+                return self._convert_parameter(value, config_store=config_store or {})
             return value
 
         # 4. previously user-set value
         if not isinstance(self._user_value, _Unset):
             if isinstance(self._user_value, Parameter):
-                return self._convert_parameter(self._user_value, config_store=config_store)
+                return self._convert_parameter(self._user_value, config_store=config_store or {})
             return self._user_value
 
         # 3. check a config store
@@ -110,7 +110,7 @@ class StoredPrioritizedSetting(PrioritizedSetting):
             try:
                 value = self._system_hook(config_store=config_store)
                 if isinstance(value, Parameter):
-                    return self._convert_parameter(value, config_store=config_store)
+                    return self._convert_parameter(value, config_store=config_store or {})
                 return value
             except RuntimeError:
                 pass

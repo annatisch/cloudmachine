@@ -40,7 +40,7 @@ output AZURE_STORAGE_NAME string = storageaccount.name
 output AZURE_STORAGE_RESOURCE_GROUP string = resourceGroup().name
 
 
-resource blobservice 'Microsoft.Storage/storageAccounts/blobServices@2022-09-01' = {
+resource blobservice 'Microsoft.Storage/storageAccounts/blobServices@2024-01-01' = {
   parent: storageaccount
   properties: {}
   name: 'default'
@@ -92,6 +92,38 @@ resource roleassignment_kutzxiqaacvpglqusjyi 'Microsoft.Authorization/roleAssign
 
   }
   scope: blobservice
+}
+
+
+
+resource roleassignment_pndnychulkrpvveynuqi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid('MicrosoftStoragestorageAccountsblobServicescontainers', defaultName, 'ServicePrincipal', 'Owner')
+  properties: {
+    principalId: managedIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '8e3af657-a8ff-443c-a75c-2fe8c4bcb635'
+    )
+
+  }
+  scope: container
+}
+
+
+
+resource roleassignment_wurmjvqtlcisulkozfnn 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid('MicrosoftStoragestorageAccountsblobServicescontainers', defaultName, 'User', 'Contributor')
+  properties: {
+    principalId: principalId
+    principalType: 'User'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      'b24988ac-6180-42a0-ab88-20f7382dd24c'
+    )
+
+  }
+  scope: container
 }
 
 

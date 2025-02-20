@@ -37,7 +37,7 @@ class ResourceGroupKwargs(TypedDict, total=False):
     """Tags of the Resource Group."""
 
 
-ResourceGroupResourceType = TypeVar('ResourceGroupResourceType', default='ResourceGroupResource')
+ResourceGroupResourceType = TypeVar('ResourceGroupResourceType', bound=Dict[str, Any], default='ResourceGroupResource')
 
 class ResourceGroup(Resource[ResourceGroupResourceType]):
     DEFAULTS: 'ResourceGroupResource' = _DEFAULT_RESOURCE_GROUP
@@ -111,11 +111,9 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
             fields: FieldsType,
             *,
             parameters: Dict[str, Parameter],
-            attrname: Optional[str] = None,
             **kwargs
     ) -> Tuple[ResourceSymbol, ...]:
-        field_id = self._infra_objects[0].__name__ if self._infra_objects else '__main__'
-        self._set_suffix(attrname or self.properties.get('name', ''))
+        self._set_suffix(self.properties.get('name', ''))
         if self._existing:
             properties = {'name': self.properties['name']}
             if self.properties.get('subscription'):
@@ -133,7 +131,7 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
                 name=self.properties['name'],
                 add_defaults=None,
             )
-            fields[f"{field_id}.{attrname if attrname else symbol.value}"] = field
+            fields[self._get_field_id(symbol, ())] = field
             return (symbol,)
 
         field = self._find_last_resource_match(fields, name=self.properties.get('name'))
@@ -155,7 +153,7 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
                 name=self.properties.get('name'),
                 add_defaults=self._add_defaults
             )
-            fields[f"{field_id}.{attrname if attrname else symbol.value}"] = field
+            fields[self._get_field_id(symbol, ())] = field
         self._merge_properties(properties, self.properties, symbol=symbol, resource_group=symbol)
         self._add_parameters(field.properties, parameters)
         return (symbol,)

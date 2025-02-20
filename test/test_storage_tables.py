@@ -38,32 +38,32 @@ def test_storage_tables_properties():
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert len(symbols) == 2
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount', '__main__.storageaccount.tableservice']
-    assert fields['__main__.storageaccount.tableservice'].resource == "Microsoft.Storage/storageAccounts/tableServices"
-    assert fields['__main__.storageaccount.tableservice'].properties == {'properties': {}, 'parent': ResourceSymbol('storageaccount')}
-    assert fields['__main__.storageaccount.tableservice'].outputs == _get_outputs()
-    assert fields['__main__.storageaccount.tableservice'].extensions == {}
-    assert fields['__main__.storageaccount.tableservice'].existing == False
-    assert fields['__main__.storageaccount.tableservice'].version
-    assert fields['__main__.storageaccount.tableservice'].symbol == symbols[0]
-    assert fields['__main__.storageaccount.tableservice'].resource_group == RG
-    assert not fields['__main__.storageaccount.tableservice'].name
-    assert fields['__main__.storageaccount.tableservice'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount', 'storageaccount.tableservice']
+    assert fields['storageaccount.tableservice'].resource == "Microsoft.Storage/storageAccounts/tableServices"
+    assert fields['storageaccount.tableservice'].properties == {'properties': {}, 'parent': ResourceSymbol('storageaccount')}
+    assert fields['storageaccount.tableservice'].outputs == _get_outputs()
+    assert fields['storageaccount.tableservice'].extensions == {}
+    assert fields['storageaccount.tableservice'].existing == False
+    assert fields['storageaccount.tableservice'].version
+    assert fields['storageaccount.tableservice'].symbol == symbols[0]
+    assert fields['storageaccount.tableservice'].resource_group == RG
+    assert not fields['storageaccount.tableservice'].name
+    assert fields['storageaccount.tableservice'].add_defaults
 
     r2 = TableStorage(location='westus', sku='Standard_RAGRS', cors_rules=[])
     assert r2.properties == {'properties': {'cors': {'corsRules': []}}}
     r2.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount', '__main__.storageaccount.tableservice']
-    assert fields['__main__.storageaccount.tableservice'].resource == "Microsoft.Storage/storageAccounts/tableServices"
-    assert fields['__main__.storageaccount.tableservice'].properties == {'properties': {'cors': {'corsRules': []}}, 'parent': ResourceSymbol('storageaccount')}
-    assert fields['__main__.storageaccount.tableservice'].outputs == _get_outputs()
-    assert fields['__main__.storageaccount.tableservice'].extensions == {}
-    assert fields['__main__.storageaccount.tableservice'].existing == False
-    assert fields['__main__.storageaccount.tableservice'].version
-    assert fields['__main__.storageaccount.tableservice'].symbol == symbols[0]
-    assert fields['__main__.storageaccount.tableservice'].resource_group == RG
-    assert not fields['__main__.storageaccount.tableservice'].name
-    assert fields['__main__.storageaccount.tableservice'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount', 'storageaccount.tableservice']
+    assert fields['storageaccount.tableservice'].resource == "Microsoft.Storage/storageAccounts/tableServices"
+    assert fields['storageaccount.tableservice'].properties == {'properties': {'cors': {'corsRules': []}}, 'parent': ResourceSymbol('storageaccount')}
+    assert fields['storageaccount.tableservice'].outputs == _get_outputs()
+    assert fields['storageaccount.tableservice'].extensions == {}
+    assert fields['storageaccount.tableservice'].existing == False
+    assert fields['storageaccount.tableservice'].version
+    assert fields['storageaccount.tableservice'].symbol == symbols[0]
+    assert fields['storageaccount.tableservice'].resource_group == RG
+    assert not fields['storageaccount.tableservice'].name
+    assert fields['storageaccount.tableservice'].add_defaults
 
     r3 = StorageAccount(sku='Premium_ZRS')
     assert r3.properties == {'sku': {'name': 'Premium_ZRS'}, 'properties': {}}
@@ -79,17 +79,17 @@ def test_storage_tables_properties():
     assert r4.properties == {'properties': {}}
     assert r4.parent == StorageAccount(name='foo')
     symbols = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount', '__main__.storageaccount.tableservice', '__main__.storageaccount_foo', '__main__.storageaccount_foo.tableservice_foo']
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].resource == "Microsoft.Storage/storageAccounts/tableServices"
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].properties == {'parent': ResourceSymbol('storageaccount_foo'), 'properties': {}}
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].outputs == _get_outputs("_foo")
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].extensions == {}
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].existing == False
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].version
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].symbol == symbols[0]
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].resource_group == RG
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].name == None
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount', 'storageaccount.tableservice', 'storageaccount_foo', 'storageaccount_foo.tableservice_foo']
+    assert fields['storageaccount_foo.tableservice_foo'].resource == "Microsoft.Storage/storageAccounts/tableServices"
+    assert fields['storageaccount_foo.tableservice_foo'].properties == {'parent': ResourceSymbol('storageaccount_foo'), 'properties': {}}
+    assert fields['storageaccount_foo.tableservice_foo'].outputs == _get_outputs("_foo")
+    assert fields['storageaccount_foo.tableservice_foo'].extensions == {}
+    assert fields['storageaccount_foo.tableservice_foo'].existing == False
+    assert fields['storageaccount_foo.tableservice_foo'].version
+    assert fields['storageaccount_foo.tableservice_foo'].symbol == symbols[0]
+    assert fields['storageaccount_foo.tableservice_foo'].resource_group == RG
+    assert fields['storageaccount_foo.tableservice_foo'].name == None
+    assert fields['storageaccount_foo.tableservice_foo'].add_defaults
 
     param1 = Parameter("testA")
     param2 = Parameter("testB")
@@ -99,17 +99,17 @@ def test_storage_tables_properties():
     params = dict(GLOBAL_PARAMS)
     fields = {}
     symbols = r5.__bicep__(fields, parameters=params)
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount_testa', '__main__.storageaccount_testa.tableservice_testa']
-    assert fields['__main__.storageaccount_testa.tableservice_testa'].resource == "Microsoft.Storage/storageAccounts/tableServices"
-    assert fields['__main__.storageaccount_testa.tableservice_testa'].properties == {'parent': ResourceSymbol('storageaccount_testa'), 'properties': {'cors': {'corsRules': [param2]}}}
-    assert fields['__main__.storageaccount_testa.tableservice_testa'].outputs == _get_outputs("_testa")
-    assert fields['__main__.storageaccount_testa.tableservice_testa'].extensions == {}
-    assert fields['__main__.storageaccount_testa.tableservice_testa'].existing == False
-    assert fields['__main__.storageaccount_testa.tableservice_testa'].version
-    assert fields['__main__.storageaccount_testa.tableservice_testa'].symbol == symbols[0]
-    assert fields['__main__.storageaccount_testa.tableservice_testa'].resource_group == RG
-    assert fields['__main__.storageaccount_testa.tableservice_testa'].name == None
-    assert fields['__main__.storageaccount_testa.tableservice_testa'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount_testa', 'storageaccount_testa.tableservice_testa']
+    assert fields['storageaccount_testa.tableservice_testa'].resource == "Microsoft.Storage/storageAccounts/tableServices"
+    assert fields['storageaccount_testa.tableservice_testa'].properties == {'parent': ResourceSymbol('storageaccount_testa'), 'properties': {'cors': {'corsRules': [param2]}}}
+    assert fields['storageaccount_testa.tableservice_testa'].outputs == _get_outputs("_testa")
+    assert fields['storageaccount_testa.tableservice_testa'].extensions == {}
+    assert fields['storageaccount_testa.tableservice_testa'].existing == False
+    assert fields['storageaccount_testa.tableservice_testa'].version
+    assert fields['storageaccount_testa.tableservice_testa'].symbol == symbols[0]
+    assert fields['storageaccount_testa.tableservice_testa'].resource_group == RG
+    assert fields['storageaccount_testa.tableservice_testa'].name == None
+    assert fields['storageaccount_testa.tableservice_testa'].add_defaults
     assert params.get('testA') == param1
     assert params.get('testB') == param2
 
@@ -129,17 +129,17 @@ def test_storage_tables_reference():
         r.resource_id()
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.storageaccount_foo', '__main__.storageaccount_foo.tableservice_foo']
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].resource == "Microsoft.Storage/storageAccounts/tableServices"
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].properties == {'name': 'default', 'parent': ResourceSymbol("storageaccount_foo")}
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].outputs == _get_outputs("_foo")
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].extensions == {}
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].existing == True
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].version
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].symbol == symbols[0]
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].resource_group == None
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].name == 'default'
-    assert not fields['__main__.storageaccount_foo.tableservice_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'storageaccount_foo', 'storageaccount_foo.tableservice_foo']
+    assert fields['storageaccount_foo.tableservice_foo'].resource == "Microsoft.Storage/storageAccounts/tableServices"
+    assert fields['storageaccount_foo.tableservice_foo'].properties == {'name': 'default', 'parent': ResourceSymbol("storageaccount_foo")}
+    assert fields['storageaccount_foo.tableservice_foo'].outputs == _get_outputs("_foo")
+    assert fields['storageaccount_foo.tableservice_foo'].extensions == {}
+    assert fields['storageaccount_foo.tableservice_foo'].existing == True
+    assert fields['storageaccount_foo.tableservice_foo'].version
+    assert fields['storageaccount_foo.tableservice_foo'].symbol == symbols[0]
+    assert fields['storageaccount_foo.tableservice_foo'].resource_group == None
+    assert fields['storageaccount_foo.tableservice_foo'].name == 'default'
+    assert not fields['storageaccount_foo.tableservice_foo'].add_defaults
 
     rg = ResourceSymbol('resourcegroup_bar')
     r = TableStorage.reference(account='foo', resource_group='bar')
@@ -147,17 +147,17 @@ def test_storage_tables_reference():
     assert r.resource_group() == 'bar'
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup_bar', '__main__.storageaccount_foo', '__main__.storageaccount_foo.tableservice_foo']
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].resource == "Microsoft.Storage/storageAccounts/tableServices"
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].properties == {'name': 'default', 'parent': ResourceSymbol('storageaccount_foo')}
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].outputs == _get_outputs("_foo", 'bar')
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].extensions == {}
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].existing == True
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].version
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].symbol == symbols[0]
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].resource_group == None
-    assert fields['__main__.storageaccount_foo.tableservice_foo'].name == 'default'
-    assert not fields['__main__.storageaccount_foo.tableservice_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup_bar', 'storageaccount_foo', 'storageaccount_foo.tableservice_foo']
+    assert fields['storageaccount_foo.tableservice_foo'].resource == "Microsoft.Storage/storageAccounts/tableServices"
+    assert fields['storageaccount_foo.tableservice_foo'].properties == {'name': 'default', 'parent': ResourceSymbol('storageaccount_foo')}
+    assert fields['storageaccount_foo.tableservice_foo'].outputs == _get_outputs("_foo", 'bar')
+    assert fields['storageaccount_foo.tableservice_foo'].extensions == {}
+    assert fields['storageaccount_foo.tableservice_foo'].existing == True
+    assert fields['storageaccount_foo.tableservice_foo'].version
+    assert fields['storageaccount_foo.tableservice_foo'].symbol == symbols[0]
+    assert fields['storageaccount_foo.tableservice_foo'].resource_group == None
+    assert fields['storageaccount_foo.tableservice_foo'].name == 'default'
+    assert not fields['storageaccount_foo.tableservice_foo'].add_defaults
 
     r = TableStorage.reference(account=StorageAccount.reference(name='foo', resource_group=ResourceGroup.reference(name='bar', subscription=TEST_SUB)))
     assert r.properties == {}
@@ -182,28 +182,35 @@ def test_storage_tables_defaults():
 
 
 def test_storage_tables_export(export_dir):
-    r = TableStorage()
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    class Infra(AzureInfrastructure):
+        r: TableStorage = resource()
+
+    export(Infra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_storage_tables_export_existing(export_dir):
-    r = TableStorage.reference(account='storagetest', resource_group='testrg')
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    class Infra(AzureInfrastructure):
+        r: TableStorage = resource(default=TableStorage.reference(account='storagetest', resource_group='testrg'))
+
+    export(Infra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_storage_tables_export_with_properties(export_dir):
-    r = TableStorage(cors_rules=[{'allowedMethods': ['GET', 'HEAD']}], sku='Premium_LRS', location="westus")
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    class Infra(AzureInfrastructure):
+        r: TableStorage = resource(default=TableStorage(cors_rules=[{'allowedMethods': ['GET', 'HEAD']}], sku='Premium_LRS', location="westus"))
+    export(Infra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_storage_tables_export_with_role_assignments(export_dir):
-    r = TableStorage(roles=[], user_roles=[])
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    class Infra(AzureInfrastructure):
+        r: TableStorage = resource(default=TableStorage(roles=[], user_roles=[]))
+    export(Infra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_storage_tables_export_with_no_user_access(export_dir):
-    r = TableStorage(roles=['Storage Table Data Owner'], user_roles=['Storage Table Data Contributor'])
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test", user_access=False)
+    class Infra(AzureInfrastructure):
+        r: TableStorage = resource(default=TableStorage(roles=['Storage Table Data Owner'], user_roles=['Storage Table Data Contributor']))
+    export(Infra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test", user_access=False)
 
 
 def test_storage_tables_client():
@@ -230,8 +237,11 @@ def test_storage_tables_infra():
         data: TableStorage = resource()
     
     assert isinstance(TestInfra.data, TableStorage)
-    assert TestInfra.data.infrastructure == TestInfra
+    assert TestInfra.data._infra_type is None
+    assert TestInfra.data._infra is None
     infra = TestInfra()
+    assert infra.data._infra_type == TestInfra
+    assert infra.data._infra == infra
     assert isinstance(infra.data, TableStorage)
     assert infra.data.properties == {'properties': {}}
 

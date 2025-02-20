@@ -40,7 +40,7 @@ output AZURE_STORAGE_NAME string = storageaccount.name
 output AZURE_STORAGE_RESOURCE_GROUP string = resourceGroup().name
 
 
-resource blobservice 'Microsoft.Storage/storageAccounts/blobServices@2022-09-01' = {
+resource blobservice 'Microsoft.Storage/storageAccounts/blobServices@2024-01-01' = {
   parent: storageaccount
   properties: {}
   name: 'default'

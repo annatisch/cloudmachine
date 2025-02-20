@@ -35,32 +35,32 @@ def test_storage_properties():
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert len(symbols) == 1
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount']
-    assert fields['__main__.storageaccount'].resource == "Microsoft.Storage/storageAccounts"
-    assert fields['__main__.storageaccount'].properties == {'properties': {}}
-    assert fields['__main__.storageaccount'].outputs == _get_outputs()
-    assert fields['__main__.storageaccount'].extensions == {}
-    assert fields['__main__.storageaccount'].existing == False
-    assert fields['__main__.storageaccount'].version
-    assert fields['__main__.storageaccount'].symbol == symbols[0]
-    assert fields['__main__.storageaccount'].resource_group == RG
-    assert not fields['__main__.storageaccount'].name
-    assert fields['__main__.storageaccount'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount']
+    assert fields['storageaccount'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['storageaccount'].properties == {'properties': {}}
+    assert fields['storageaccount'].outputs == _get_outputs()
+    assert fields['storageaccount'].extensions == {}
+    assert fields['storageaccount'].existing == False
+    assert fields['storageaccount'].version
+    assert fields['storageaccount'].symbol == symbols[0]
+    assert fields['storageaccount'].resource_group == RG
+    assert not fields['storageaccount'].name
+    assert fields['storageaccount'].add_defaults
 
     r2 = StorageAccount(location='westus', sku='Standard_RAGRS')
     assert r2.properties == {'location': 'westus', 'sku': {'name': 'Standard_RAGRS'}, 'properties': {}}
     r2.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount']
-    assert fields['__main__.storageaccount'].resource == "Microsoft.Storage/storageAccounts"
-    assert fields['__main__.storageaccount'].properties == {'location': 'westus', 'sku': {'name': 'Standard_RAGRS'}, 'properties': {}}
-    assert fields['__main__.storageaccount'].outputs == _get_outputs()
-    assert fields['__main__.storageaccount'].extensions == {}
-    assert fields['__main__.storageaccount'].existing == False
-    assert fields['__main__.storageaccount'].version
-    assert fields['__main__.storageaccount'].symbol == symbols[0]
-    assert fields['__main__.storageaccount'].resource_group == RG
-    assert not fields['__main__.storageaccount'].name
-    assert fields['__main__.storageaccount'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount']
+    assert fields['storageaccount'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['storageaccount'].properties == {'location': 'westus', 'sku': {'name': 'Standard_RAGRS'}, 'properties': {}}
+    assert fields['storageaccount'].outputs == _get_outputs()
+    assert fields['storageaccount'].extensions == {}
+    assert fields['storageaccount'].existing == False
+    assert fields['storageaccount'].version
+    assert fields['storageaccount'].symbol == symbols[0]
+    assert fields['storageaccount'].resource_group == RG
+    assert not fields['storageaccount'].name
+    assert fields['storageaccount'].add_defaults
 
     r3 = StorageAccount(sku='Premium_ZRS')
     assert r3.properties == {'sku': {'name': 'Premium_ZRS'}, 'properties': {}}
@@ -70,17 +70,17 @@ def test_storage_properties():
     r4 = StorageAccount(name='foo', tags={'test': 'value'}, access_tier='Cool')
     assert r4.properties == {'name': 'foo', 'tags': {'test': 'value'}, 'properties': {'accessTier': 'Cool'}}
     symbols = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount', '__main__.storageaccount_foo']
-    assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
-    assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'tags': {'test': 'value'}, 'properties': {'accessTier': 'Cool'}}
-    assert fields['__main__.storageaccount_foo'].outputs == _get_outputs("_foo")
-    assert fields['__main__.storageaccount_foo'].extensions == {}
-    assert fields['__main__.storageaccount_foo'].existing == False
-    assert fields['__main__.storageaccount_foo'].version
-    assert fields['__main__.storageaccount_foo'].symbol == symbols[0]
-    assert fields['__main__.storageaccount_foo'].resource_group == RG
-    assert fields['__main__.storageaccount_foo'].name == 'foo'
-    assert fields['__main__.storageaccount_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount', 'storageaccount_foo']
+    assert fields['storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['storageaccount_foo'].properties == {'name': 'foo', 'tags': {'test': 'value'}, 'properties': {'accessTier': 'Cool'}}
+    assert fields['storageaccount_foo'].outputs == _get_outputs("_foo")
+    assert fields['storageaccount_foo'].extensions == {}
+    assert fields['storageaccount_foo'].existing == False
+    assert fields['storageaccount_foo'].version
+    assert fields['storageaccount_foo'].symbol == symbols[0]
+    assert fields['storageaccount_foo'].resource_group == RG
+    assert fields['storageaccount_foo'].name == 'foo'
+    assert fields['storageaccount_foo'].add_defaults
 
     param1 = Parameter("testA")
     param2 = Parameter("testB")
@@ -90,17 +90,17 @@ def test_storage_properties():
     params = dict(GLOBAL_PARAMS)
     fields = {}
     symbols = r5.__bicep__(fields, parameters=params)
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount_testa']
-    assert fields['__main__.storageaccount_testa'].resource == "Microsoft.Storage/storageAccounts"
-    assert fields['__main__.storageaccount_testa'].properties == {'name': param1, 'sku': {'name': param2}, 'properties': {'accessTier': param3}}
-    assert fields['__main__.storageaccount_testa'].outputs == _get_outputs("_testa")
-    assert fields['__main__.storageaccount_testa'].extensions == {}
-    assert fields['__main__.storageaccount_testa'].existing == False
-    assert fields['__main__.storageaccount_testa'].version
-    assert fields['__main__.storageaccount_testa'].symbol == symbols[0]
-    assert fields['__main__.storageaccount_testa'].resource_group == RG
-    assert fields['__main__.storageaccount_testa'].name == param1
-    assert fields['__main__.storageaccount_testa'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount_testa']
+    assert fields['storageaccount_testa'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['storageaccount_testa'].properties == {'name': param1, 'sku': {'name': param2}, 'properties': {'accessTier': param3}}
+    assert fields['storageaccount_testa'].outputs == _get_outputs("_testa")
+    assert fields['storageaccount_testa'].extensions == {}
+    assert fields['storageaccount_testa'].existing == False
+    assert fields['storageaccount_testa'].version
+    assert fields['storageaccount_testa'].symbol == symbols[0]
+    assert fields['storageaccount_testa'].resource_group == RG
+    assert fields['storageaccount_testa'].name == param1
+    assert fields['storageaccount_testa'].add_defaults
     assert params.get('testA') == param1
     assert params.get('testB') == param2
     assert params.get('testC') == param3
@@ -121,17 +121,17 @@ def test_storage_reference():
         r.resource_id()
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.storageaccount_foo']
-    assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
-    assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'scope': RG}
-    assert fields['__main__.storageaccount_foo'].outputs == _get_outputs("_foo")
-    assert fields['__main__.storageaccount_foo'].extensions == {}
-    assert fields['__main__.storageaccount_foo'].existing == True
-    assert fields['__main__.storageaccount_foo'].version
-    assert fields['__main__.storageaccount_foo'].symbol == symbols[0]
-    assert fields['__main__.storageaccount_foo'].resource_group == RG
-    assert fields['__main__.storageaccount_foo'].name == 'foo'
-    assert not fields['__main__.storageaccount_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'storageaccount_foo']
+    assert fields['storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['storageaccount_foo'].properties == {'name': 'foo', 'scope': RG}
+    assert fields['storageaccount_foo'].outputs == _get_outputs("_foo")
+    assert fields['storageaccount_foo'].extensions == {}
+    assert fields['storageaccount_foo'].existing == True
+    assert fields['storageaccount_foo'].version
+    assert fields['storageaccount_foo'].symbol == symbols[0]
+    assert fields['storageaccount_foo'].resource_group == RG
+    assert fields['storageaccount_foo'].name == 'foo'
+    assert not fields['storageaccount_foo'].add_defaults
 
     rg = ResourceSymbol('resourcegroup_bar')
     r = StorageAccount.reference(name='foo', resource_group='bar')
@@ -139,17 +139,17 @@ def test_storage_reference():
     assert r.resource_group() == 'bar'
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup_bar', '__main__.storageaccount_foo']
-    assert fields['__main__.storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
-    assert fields['__main__.storageaccount_foo'].properties == {'name': 'foo', 'scope': rg}
-    assert fields['__main__.storageaccount_foo'].outputs == _get_outputs("_foo", 'bar')
-    assert fields['__main__.storageaccount_foo'].extensions == {}
-    assert fields['__main__.storageaccount_foo'].existing == True
-    assert fields['__main__.storageaccount_foo'].version
-    assert fields['__main__.storageaccount_foo'].symbol == symbols[0]
-    assert fields['__main__.storageaccount_foo'].resource_group == rg
-    assert fields['__main__.storageaccount_foo'].name == 'foo'
-    assert not fields['__main__.storageaccount_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup_bar', 'storageaccount_foo']
+    assert fields['storageaccount_foo'].resource == "Microsoft.Storage/storageAccounts"
+    assert fields['storageaccount_foo'].properties == {'name': 'foo', 'scope': rg}
+    assert fields['storageaccount_foo'].outputs == _get_outputs("_foo", 'bar')
+    assert fields['storageaccount_foo'].extensions == {}
+    assert fields['storageaccount_foo'].existing == True
+    assert fields['storageaccount_foo'].version
+    assert fields['storageaccount_foo'].symbol == symbols[0]
+    assert fields['storageaccount_foo'].resource_group == rg
+    assert fields['storageaccount_foo'].name == 'foo'
+    assert not fields['storageaccount_foo'].add_defaults
 
     r = StorageAccount.reference(name='foo', resource_group=ResourceGroup.reference(name='bar', subscription=TEST_SUB))
     assert r.properties == {'name': 'foo', 'resource_group': ResourceGroup(name='bar')}
@@ -181,32 +181,33 @@ def test_storage_defaults():
 
 
 def test_storage_export(export_dir):
-    r = StorageAccount()
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    class Infra(AzureInfrastructure):
+        r: StorageAccount = resource()
+    export(Infra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_storage_export_existing(export_dir):
-    r = StorageAccount.reference(name='storagetest', resource_group='testrg')
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
-
-
-#def test_export_storage_multiple(export_dir):
-#def test_export_storage_with_parameters(export_dir):
+    class Infra(AzureInfrastructure):
+        r: StorageAccount = resource(default=StorageAccount.reference(name='storagetest', resource_group='testrg'))
+    export(Infra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_storage_export_with_properties(export_dir):
-    r = StorageAccount(enable_hierarchical_namespace=True, allow_blob_public_access=True, sku='Premium_LRS', location="westus")
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    class Infra(AzureInfrastructure):
+        r: StorageAccount = resource(default=StorageAccount(enable_hierarchical_namespace=True, allow_blob_public_access=True, sku='Premium_LRS', location="westus"))
+    export(Infra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_storage_export_with_role_assignments(export_dir):
-    r = StorageAccount(roles=['Storage Blob Data Owner'], user_roles=['Storage Blob Data Contributor'])
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+    class Infra(AzureInfrastructure):
+        r: StorageAccount = resource(default=StorageAccount(roles=['Storage Blob Data Owner'], user_roles=['Storage Blob Data Contributor']))
+    export(Infra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_storage_export_with_no_user_access(export_dir):
-    r = StorageAccount(roles=['Storage Blob Data Owner'], user_roles=['Storage Blob Data Contributor'])
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test", user_access=False)
+    class Infra(AzureInfrastructure):
+        r: StorageAccount = resource(default=StorageAccount(roles=['Storage Blob Data Owner'], user_roles=['Storage Blob Data Contributor']))
+    export(Infra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test", user_access=False)
 
 
 def test_storage_client():
@@ -217,16 +218,19 @@ def test_storage_client():
 
 def test_storage_infra():
     class TestInfra(AzureInfrastructure):
-        rg: StorageAccount = resource()
+        data: StorageAccount = resource()
     
-    assert isinstance(TestInfra.rg, StorageAccount)
-    assert TestInfra.rg.infrastructure == TestInfra
+    assert isinstance(TestInfra.data, StorageAccount)
+    assert TestInfra.data._infra_type is None
+    assert TestInfra.data._infra is None
     infra = TestInfra()
-    assert isinstance(infra.rg, StorageAccount)
-    assert infra.rg.properties == {'properties': {}}
+    assert infra.data._infra_type == TestInfra
+    assert infra.data._infra == infra
+    assert isinstance(infra.data, StorageAccount)
+    assert infra.data.properties == {'properties': {}}
 
-    infra = TestInfra(rg=StorageAccount(name='foo'))
-    assert infra.rg.name() == 'foo'
+    infra = TestInfra(data=StorageAccount(name='foo'))
+    assert infra.data.name() == 'foo'
 
 
 def test_storage_app():

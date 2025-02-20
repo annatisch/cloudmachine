@@ -33,7 +33,7 @@ def _get_outputs(suffix="", parent="", rg=None):
     })
     return outputs
 
-def test_storage_blob_container_properties():
+def test_storage_blobs_container_properties():
     r = BlobContainer()
     assert r.properties == {'properties': {}}
     assert r.extensions == {}
@@ -46,32 +46,32 @@ def test_storage_blob_container_properties():
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert len(symbols) == 3
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount', '__main__.storageaccount.blobservice', '__main__.blobservice.container']
-    assert fields['__main__.blobservice.container'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
-    assert fields['__main__.blobservice.container'].properties == {'properties': {}, 'parent': ResourceSymbol('blobservice')}
-    assert fields['__main__.blobservice.container'].outputs == _get_outputs()
-    assert fields['__main__.blobservice.container'].extensions == {}
-    assert fields['__main__.blobservice.container'].existing == False
-    assert fields['__main__.blobservice.container'].version
-    assert fields['__main__.blobservice.container'].symbol == symbols[0]
-    assert fields['__main__.blobservice.container'].resource_group == RG
-    assert not fields['__main__.blobservice.container'].name
-    assert fields['__main__.blobservice.container'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount', 'storageaccount.blobservice', 'storageaccount.blobservice.container']
+    assert fields['storageaccount.blobservice.container'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
+    assert fields['storageaccount.blobservice.container'].properties == {'properties': {}, 'parent': ResourceSymbol('blobservice')}
+    assert fields['storageaccount.blobservice.container'].outputs == _get_outputs()
+    assert fields['storageaccount.blobservice.container'].extensions == {}
+    assert fields['storageaccount.blobservice.container'].existing == False
+    assert fields['storageaccount.blobservice.container'].version
+    assert fields['storageaccount.blobservice.container'].symbol == symbols[0]
+    assert fields['storageaccount.blobservice.container'].resource_group == RG
+    assert not fields['storageaccount.blobservice.container'].name
+    assert fields['storageaccount.blobservice.container'].add_defaults
 
     r2 = BlobContainer(default_encryption_scope="test")
     assert r2.properties == {'properties': {'defaultEncryptionScope': "test"}}
     r2.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount', '__main__.storageaccount.blobservice', '__main__.blobservice.container']
-    assert fields['__main__.blobservice.container'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
-    assert fields['__main__.blobservice.container'].properties == {'properties': {'defaultEncryptionScope': "test"}, 'parent': ResourceSymbol('blobservice')}
-    assert fields['__main__.blobservice.container'].outputs == _get_outputs()
-    assert fields['__main__.blobservice.container'].extensions == {}
-    assert fields['__main__.blobservice.container'].existing == False
-    assert fields['__main__.blobservice.container'].version
-    assert fields['__main__.blobservice.container'].symbol == symbols[0]
-    assert fields['__main__.blobservice.container'].resource_group == RG
-    assert not fields['__main__.blobservice.container'].name
-    assert fields['__main__.blobservice.container'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount', 'storageaccount.blobservice', 'storageaccount.blobservice.container']
+    assert fields['storageaccount.blobservice.container'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
+    assert fields['storageaccount.blobservice.container'].properties == {'properties': {'defaultEncryptionScope': "test"}, 'parent': ResourceSymbol('blobservice')}
+    assert fields['storageaccount.blobservice.container'].outputs == _get_outputs()
+    assert fields['storageaccount.blobservice.container'].extensions == {}
+    assert fields['storageaccount.blobservice.container'].existing == False
+    assert fields['storageaccount.blobservice.container'].version
+    assert fields['storageaccount.blobservice.container'].symbol == symbols[0]
+    assert fields['storageaccount.blobservice.container'].resource_group == RG
+    assert not fields['storageaccount.blobservice.container'].name
+    assert fields['storageaccount.blobservice.container'].add_defaults
 
     r3 = BlobContainer(default_encryption_scope="foo")
     assert r3.properties == {'properties': {'defaultEncryptionScope': "foo"}}
@@ -81,17 +81,17 @@ def test_storage_blob_container_properties():
     r4 = BlobContainer(name='foo')
     assert r4.properties == {'name': 'foo', 'properties': {}}
     symbols = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount', '__main__.storageaccount.blobservice', '__main__.blobservice.container', '__main__.blobservice.container_foo']
-    assert fields['__main__.blobservice.container_foo'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
-    assert fields['__main__.blobservice.container_foo'].properties == {'parent': ResourceSymbol('blobservice'), 'name': 'foo', 'properties': {}}
-    assert fields['__main__.blobservice.container_foo'].outputs == _get_outputs("_foo")
-    assert fields['__main__.blobservice.container_foo'].extensions == {}
-    assert fields['__main__.blobservice.container_foo'].existing == False
-    assert fields['__main__.blobservice.container_foo'].version
-    assert fields['__main__.blobservice.container_foo'].symbol == symbols[0]
-    assert fields['__main__.blobservice.container_foo'].resource_group == RG
-    assert fields['__main__.blobservice.container_foo'].name == 'foo'
-    assert fields['__main__.blobservice.container_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount', 'storageaccount.blobservice', 'storageaccount.blobservice.container', 'storageaccount.blobservice.container_foo']
+    assert fields['storageaccount.blobservice.container_foo'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
+    assert fields['storageaccount.blobservice.container_foo'].properties == {'parent': ResourceSymbol('blobservice'), 'name': 'foo', 'properties': {}}
+    assert fields['storageaccount.blobservice.container_foo'].outputs == _get_outputs("_foo")
+    assert fields['storageaccount.blobservice.container_foo'].extensions == {}
+    assert fields['storageaccount.blobservice.container_foo'].existing == False
+    assert fields['storageaccount.blobservice.container_foo'].version
+    assert fields['storageaccount.blobservice.container_foo'].symbol == symbols[0]
+    assert fields['storageaccount.blobservice.container_foo'].resource_group == RG
+    assert fields['storageaccount.blobservice.container_foo'].name == 'foo'
+    assert fields['storageaccount.blobservice.container_foo'].add_defaults
 
     param1 = Parameter("testA")
     param2 = Parameter("testB")
@@ -102,23 +102,23 @@ def test_storage_blob_container_properties():
     params = dict(GLOBAL_PARAMS)
     fields = {}
     symbols = r5.__bicep__(fields, parameters=params)
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.userassignedidentity', '__main__.storageaccount_testa', '__main__.storageaccount_testa.blobservice_testa', '__main__.blobservice_testa.container_testa_testb']
-    assert fields['__main__.blobservice_testa.container_testa_testb'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
-    assert fields['__main__.blobservice_testa.container_testa_testb'].properties == {'parent': ResourceSymbol('blobservice_testa'), 'properties': {'defaultEncryptionScope': param3}, 'name': param2}
-    assert fields['__main__.blobservice_testa.container_testa_testb'].outputs == _get_outputs("_testa_testb", "_testa")
-    assert fields['__main__.blobservice_testa.container_testa_testb'].extensions == {}
-    assert fields['__main__.blobservice_testa.container_testa_testb'].existing == False
-    assert fields['__main__.blobservice_testa.container_testa_testb'].version
-    assert fields['__main__.blobservice_testa.container_testa_testb'].symbol == symbols[0]
-    assert fields['__main__.blobservice_testa.container_testa_testb'].resource_group == RG
-    assert fields['__main__.blobservice_testa.container_testa_testb'].name == param2
-    assert fields['__main__.blobservice_testa.container_testa_testb'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'storageaccount_testa', 'storageaccount_testa.blobservice_testa', 'storageaccount_testa.blobservice_testa.container_testa_testb']
+    assert fields['storageaccount_testa.blobservice_testa.container_testa_testb'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
+    assert fields['storageaccount_testa.blobservice_testa.container_testa_testb'].properties == {'parent': ResourceSymbol('blobservice_testa'), 'properties': {'defaultEncryptionScope': param3}, 'name': param2}
+    assert fields['storageaccount_testa.blobservice_testa.container_testa_testb'].outputs == _get_outputs("_testa_testb", "_testa")
+    assert fields['storageaccount_testa.blobservice_testa.container_testa_testb'].extensions == {}
+    assert fields['storageaccount_testa.blobservice_testa.container_testa_testb'].existing == False
+    assert fields['storageaccount_testa.blobservice_testa.container_testa_testb'].version
+    assert fields['storageaccount_testa.blobservice_testa.container_testa_testb'].symbol == symbols[0]
+    assert fields['storageaccount_testa.blobservice_testa.container_testa_testb'].resource_group == RG
+    assert fields['storageaccount_testa.blobservice_testa.container_testa_testb'].name == param2
+    assert fields['storageaccount_testa.blobservice_testa.container_testa_testb'].add_defaults
     assert params.get('testA') == param1
     assert params.get('testB') == param2
     assert params.get('testC') == param3
 
 
-def test_storage_blob_container_reference():
+def test_storage_blobs_container_reference():
     r = BlobContainer.reference(name='foo', account='bar')
     assert r.properties == {'name': 'foo'}
     assert r._existing == True
@@ -133,17 +133,17 @@ def test_storage_blob_container_reference():
         r.resource_id()
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup', '__main__.storageaccount_bar', '__main__.storageaccount_bar.blobservice_bar', '__main__.blobservice_bar.container_bar_foo']
-    assert fields['__main__.blobservice_bar.container_bar_foo'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
-    assert fields['__main__.blobservice_bar.container_bar_foo'].properties == {'name': 'foo', 'parent': ResourceSymbol("blobservice_bar")}
-    assert fields['__main__.blobservice_bar.container_bar_foo'].outputs == _get_outputs("_bar_foo", "_bar")
-    assert fields['__main__.blobservice_bar.container_bar_foo'].extensions == {}
-    assert fields['__main__.blobservice_bar.container_bar_foo'].existing == True
-    assert fields['__main__.blobservice_bar.container_bar_foo'].version
-    assert fields['__main__.blobservice_bar.container_bar_foo'].symbol == symbols[0]
-    assert fields['__main__.blobservice_bar.container_bar_foo'].resource_group == None
-    assert fields['__main__.blobservice_bar.container_bar_foo'].name == 'foo'
-    assert not fields['__main__.blobservice_bar.container_bar_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup', 'storageaccount_bar', 'storageaccount_bar.blobservice_bar', 'storageaccount_bar.blobservice_bar.container_bar_foo']
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].properties == {'name': 'foo', 'parent': ResourceSymbol("blobservice_bar")}
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].outputs == _get_outputs("_bar_foo", "_bar")
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].extensions == {}
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].existing == True
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].version
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].symbol == symbols[0]
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].resource_group == None
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].name == 'foo'
+    assert not fields['storageaccount_bar.blobservice_bar.container_bar_foo'].add_defaults
 
     rg = ResourceSymbol('resourcegroup_baz')
     r = BlobContainer.reference(name='foo', account='bar', resource_group='baz')
@@ -151,17 +151,17 @@ def test_storage_blob_container_reference():
     assert r.resource_group() == 'baz'
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['__main__.resourcegroup_baz', '__main__.storageaccount_bar', '__main__.storageaccount_bar.blobservice_bar', '__main__.blobservice_bar.container_bar_foo']
-    assert fields['__main__.blobservice_bar.container_bar_foo'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
-    assert fields['__main__.blobservice_bar.container_bar_foo'].properties == {'name': 'foo', 'parent': ResourceSymbol('blobservice_bar')}
-    assert fields['__main__.blobservice_bar.container_bar_foo'].outputs == _get_outputs("_bar_foo", '_bar', 'baz')
-    assert fields['__main__.blobservice_bar.container_bar_foo'].extensions == {}
-    assert fields['__main__.blobservice_bar.container_bar_foo'].existing == True
-    assert fields['__main__.blobservice_bar.container_bar_foo'].version
-    assert fields['__main__.blobservice_bar.container_bar_foo'].symbol == symbols[0]
-    assert fields['__main__.blobservice_bar.container_bar_foo'].resource_group == None
-    assert fields['__main__.blobservice_bar.container_bar_foo'].name == 'foo'
-    assert not fields['__main__.blobservice_bar.container_bar_foo'].add_defaults
+    assert list(fields.keys()) == ['resourcegroup_baz', 'storageaccount_bar', 'storageaccount_bar.blobservice_bar', 'storageaccount_bar.blobservice_bar.container_bar_foo']
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].resource == "Microsoft.Storage/storageAccounts/blobServices/containers"
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].properties == {'name': 'foo', 'parent': ResourceSymbol('blobservice_bar')}
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].outputs == _get_outputs("_bar_foo", '_bar', 'baz')
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].extensions == {}
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].existing == True
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].version
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].symbol == symbols[0]
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].resource_group == None
+    assert fields['storageaccount_bar.blobservice_bar.container_bar_foo'].name == 'foo'
+    assert not fields['storageaccount_bar.blobservice_bar.container_bar_foo'].add_defaults
 
     account = BlobStorage.reference(account='foo', resource_group=ResourceGroup.reference(name='bar', subscription=TEST_SUB))
     assert account.subscription() == TEST_SUB
@@ -171,7 +171,7 @@ def test_storage_blob_container_reference():
     assert r.resource_id() == f"/subscriptions/{TEST_SUB}/resourceGroups/bar/providers/Microsoft.Storage/storageAccounts/foo/blobServices/default/containers/foo"
 
 
-def test_storage_blob_container_defaults():
+def test_storage_blobs_container_defaults():
     scope = Parameter('EncryptionScope', default="foobar")
     r = BlobContainer(default_encryption_scope=scope)
     fields = {}
@@ -187,32 +187,37 @@ def test_storage_blob_container_defaults():
     }
 
 
-def test_storage_blob_container_export(export_dir):
-    r = BlobContainer()
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+def test_storage_blobs_container_export(export_dir):
+    class TestInfra(AzureInfrastructure):
+        r: BlobContainer = resource()
+    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
-def test_storage_blob_container_export_existing(export_dir):
-    r = BlobContainer.reference(name='test', account='storagetest', resource_group='testrg')
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+def test_storage_blobs_container_export_existing(export_dir):
+    class TestInfra(AzureInfrastructure):
+        r: BlobContainer = resource(default=BlobContainer.reference(name='test', account='storagetest', resource_group='testrg'))
+    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
-def test_storage_blob_container_export_with_properties(export_dir):
-    r = BlobContainer(name='foo', default_encryption_scope='test', deny_encryption_scope_override=True)
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+def test_storage_blobs_container_export_with_properties(export_dir):
+    class TestInfra(AzureInfrastructure):
+        r: BlobContainer = resource(default=BlobContainer(name='foo', default_encryption_scope='test', deny_encryption_scope_override=True))
+    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
-def test_storage_blob_container_export_with_role_assignments(export_dir):
-    r = BlobContainer(roles=['Owner'], user_roles=['Contributor'])
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+def test_storage_blobs_container_export_with_role_assignments(export_dir):
+    class TestInfra(AzureInfrastructure):
+        r: BlobContainer = resource(default=BlobContainer(roles=['Owner'], user_roles=['Contributor']))
+    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
-def test_storage_blob_container_export_with_no_user_access(export_dir):
-    r = BlobContainer(roles=['Storage Blob Data Owner'], user_roles=['Storage Blob Data Contributor'])
-    export(r, output_dir=export_dir[0], infra_dir=export_dir[2], name="test", user_access=False)
+def test_storage_blobs_container_export_with_no_user_access(export_dir):
+    class TestInfra(AzureInfrastructure):
+        r: BlobContainer = resource(default=BlobContainer(roles=['Storage Blob Data Owner'], user_roles=['Storage Blob Data Contributor']))
+    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test", user_access=False)
 
 
-def test_storage_blob_container_client():
+def test_storage_blobs_container_client():
     from azure.storage.blob import ContainerClient
     from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 
@@ -232,14 +237,15 @@ def test_storage_blob_container_client():
     assert isinstance(client, AsyncContainerClient)
 
 
-def test_storage_blob_container_infra():
+def test_storage_blobs_container_infra():
     class TestInfra(AzureInfrastructure):
         data: BlobContainer = resource()
     
     assert isinstance(TestInfra.data, BlobContainer)
-    assert TestInfra.data.infrastructure == TestInfra
+    assert TestInfra.data._infra is None
     infra = TestInfra()
     assert isinstance(infra.data, BlobContainer)
+    assert infra.data._infra == infra
     assert infra.data.properties == {'properties': {}}
 
     infra = TestInfra(data=BlobContainer(name='foo', account='bar'))
@@ -254,7 +260,7 @@ def test_storage_blob_container_infra():
     assert infra.data.parent.parent.name() == 'teststorage'
 
 
-def test_storage_blob_container_app():
+def test_storage_blobs_container_app():
     from azure.storage.blob import ContainerClient
     from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 

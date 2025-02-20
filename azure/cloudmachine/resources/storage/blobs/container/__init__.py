@@ -4,6 +4,7 @@ import inspect
 from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, Tuple, TypedDict, Union, Unpack, overload, Optional, Any, Type
 from typing_extensions import TypeVar
 
+from ....._component import InfrastructureResource
 from ....._parameters import GLOBAL_PARAMS
 from ...._identifiers import ResourceIdentifiers
 from ....._bicep.expressions import Output, Parameter, ResourceSymbol, Expression
@@ -66,7 +67,7 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
             properties: Optional['ContainerResource'] = None,
             /,
             name: Optional[str] = None,
-            account: Optional[Union[str, BlobStorage]] = None,
+            account: Optional[Union[str, Parameter[str], BlobStorage, InfrastructureResource]] = None,
             **kwargs: Unpack['ContainerKwargs']
     ) -> None:
         existing = kwargs.pop('existing', False)
@@ -75,7 +76,7 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
             extensions['managed_identity_roles'] = kwargs.pop('roles')
         if 'user_roles' in kwargs:
             extensions['user_roles'] = kwargs.pop('user_roles')
-        parent = account if isinstance(account, BlobStorage) else kwargs.pop('parent', BlobStorage(account=account))
+        parent = account if isinstance(account, (BlobStorage, InfrastructureResource)) else kwargs.pop('parent', BlobStorage(account=account))
         if not existing:
             properties = properties or {}
             if 'properties' not in properties:
@@ -152,12 +153,11 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
             self,
             *,
             symbol: ResourceSymbol,
-            attrname: Optional[str],
             resource_group: Union[str, ResourceSymbol],
             parents: Tuple[ResourceSymbol, ...],
             **kwargs
     ) -> Dict[str, Output]:
-        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)
+        outputs = super()._outputs(symbol=symbol, resource_group=resource_group, **kwargs)
         outputs['endpoint'] = Output(
             f"AZURE_BLOB_CONTAINER_ENDPOINT{self._suffix}",
             Output("", "properties.primaryEndpoints.blob", parents[-1]).format() + outputs['name'].format()

@@ -1,6 +1,7 @@
 param location string
 param environmentName string
 param defaultName string
+param principalId string
 param azdTags object
 var managedIdentityId = userassignedidentity.id
 var managedIdentityPrincipalId = userassignedidentity.properties.principalId
@@ -39,7 +40,7 @@ output AZURE_STORAGE_NAME string = storageaccount.name
 output AZURE_STORAGE_RESOURCE_GROUP string = resourceGroup().name
 
 
-resource blobservice 'Microsoft.Storage/storageAccounts/blobServices@2022-09-01' = {
+resource blobservice 'Microsoft.Storage/storageAccounts/blobServices@2024-01-01' = {
   parent: storageaccount
   properties: {}
   name: 'default'
@@ -79,18 +80,18 @@ resource roleassignment_bopldzzxbodmidnqjpaj 'Microsoft.Authorization/roleAssign
 
 
 
-resource roleassignment_mcphbpynruzqieqkouut 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid('MicrosoftStoragestorageAccountsblobServicescontainers', defaultName, 'ServicePrincipal', 'Storage Blob Data Owner')
+resource roleassignment_kutzxiqaacvpglqusjyi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid('MicrosoftStoragestorageAccountsblobServices', 'default', 'User', 'Storage Blob Data Contributor')
   properties: {
-    principalId: managedIdentityPrincipalId
-    principalType: 'ServicePrincipal'
+    principalId: principalId
+    principalType: 'User'
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',
-      'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
+      'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
     )
 
   }
-  scope: container
+  scope: blobservice
 }
 
 

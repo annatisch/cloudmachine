@@ -40,7 +40,7 @@ output AZURE_STORAGE_NAME string = storageaccount.name
 output AZURE_STORAGE_RESOURCE_GROUP string = resourceGroup().name
 
 
-resource blobservice 'Microsoft.Storage/storageAccounts/blobServices@2022-09-01' = {
+resource blobservice 'Microsoft.Storage/storageAccounts/blobServices@2024-01-01' = {
   parent: storageaccount
   properties: {}
   name: 'default'
@@ -52,16 +52,19 @@ output AZURE_BLOBS_RESOURCE_GROUP string = resourceGroup().name
 output AZURE_BLOBS_ENDPOINT string = storageaccount.properties.primaryEndpoints.blob
 
 
-resource container 'Microsoft.Storage/storageAccounts/blobServices/containers@2022-09-01' = {
+resource container_foo 'Microsoft.Storage/storageAccounts/blobServices/containers@2022-09-01' = {
   parent: blobservice
-  properties: {}
-  name: defaultName
+  properties: {
+    defaultEncryptionScope: 'test'
+    denyEncryptionScopeOverride: true
+  }
+  name: 'foo'
 }
 
-output AZURE_BLOB_CONTAINER_ID string = container.id
-output AZURE_BLOB_CONTAINER_NAME string = container.name
-output AZURE_BLOB_CONTAINER_RESOURCE_GROUP string = resourceGroup().name
-output AZURE_BLOB_CONTAINER_ENDPOINT string = '${storageaccount.properties.primaryEndpoints.blob}${container.name}'
+output AZURE_BLOB_CONTAINER_ID_FOO string = container_foo.id
+output AZURE_BLOB_CONTAINER_NAME_FOO string = container_foo.name
+output AZURE_BLOB_CONTAINER_RESOURCE_GROUP_FOO string = resourceGroup().name
+output AZURE_BLOB_CONTAINER_ENDPOINT_FOO string = '${storageaccount.properties.primaryEndpoints.blob}${container_foo.name}'
 
 
 resource roleassignment_bopldzzxbodmidnqjpaj 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -92,38 +95,6 @@ resource roleassignment_kutzxiqaacvpglqusjyi 'Microsoft.Authorization/roleAssign
 
   }
   scope: blobservice
-}
-
-
-
-resource roleassignment_pndnychulkrpvveynuqi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid('MicrosoftStoragestorageAccountsblobServicescontainers', defaultName, 'ServicePrincipal', 'Owner')
-  properties: {
-    principalId: managedIdentityPrincipalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      '8e3af657-a8ff-443c-a75c-2fe8c4bcb635'
-    )
-
-  }
-  scope: container
-}
-
-
-
-resource roleassignment_wurmjvqtlcisulkozfnn 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid('MicrosoftStoragestorageAccountsblobServicescontainers', defaultName, 'User', 'Contributor')
-  properties: {
-    principalId: principalId
-    principalType: 'User'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      'b24988ac-6180-42a0-ab88-20f7382dd24c'
-    )
-
-  }
-  scope: container
 }
 
 

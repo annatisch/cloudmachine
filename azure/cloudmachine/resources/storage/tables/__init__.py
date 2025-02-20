@@ -113,7 +113,7 @@ class TableStorage(_ClientResource[TableServiceResourceType]):
             resource=resource,
             parent=parent,
         )
-        existing.name.set_value('default')
+        existing._name.set_value('default')
         return existing
 
     def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
@@ -124,12 +124,11 @@ class TableStorage(_ClientResource[TableServiceResourceType]):
             self,
             *,
             symbol: ResourceSymbol,
-            attrname: Optional[str],
             resource_group: ResourceSymbol,
             parents: Tuple[ResourceSymbol, ...],
             **kwargs
     ) -> Dict[str, Output]:
-        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)
+        outputs = super()._outputs(symbol=symbol, resource_group=resource_group, **kwargs)
         outputs['endpoint'] = Output(f"AZURE_TABLES_ENDPOINT{self.parent._suffix}", "properties.primaryEndpoints.table", parents[0])
         return outputs
 

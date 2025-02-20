@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Mapping, Self, Tuple, Union, Unpack, overload, Optional, Any, Type
+from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, Tuple, Union, Unpack, overload, Optional, Any, Type
 from typing_extensions import TypeVar
 from collections import defaultdict
 
@@ -9,12 +9,12 @@ from ...._resource import _ClientResource, ExtensionResources, ResourceReference
 from .. import StorageAccount, StorageAccountKwargs
 
 if TYPE_CHECKING:
-    from .types import BlobServiceResource
+    from .types import BlobServiceResource, CorsRule
     from azure.storage.blob import BlobServiceClient
 
 
 class BlobStorageKwargs(StorageAccountKwargs):
-    automatic_snapshot_policy_enabled: bool
+    automatic_snapshot_policy_enabled: Union[bool, Parameter[bool]]
     """Automatic Snapshot is enabled if set to true."""
     change_feed_enabled: bool
     """The blob service properties for change feed events. Indicates whether change feed event logging is enabled for the Blob service."""
@@ -26,7 +26,7 @@ class BlobStorageKwargs(StorageAccountKwargs):
     """Indicates the number of days that the deleted item should be retained."""
     container_delete_retention_policy_enabled: bool
     """The blob service properties for container soft delete. Indicates whether DeleteRetentionPolicy is enabled."""
-    cors_rules: 'CorsRules'
+    cors_rules: Union[List[Union['CorsRule', Parameter['CorsRule']]], Parameter[List['CorsRule']]]
     """Specifies CORS rules for the Blob service. You can include up to five CorsRule elements in the request. If no CorsRule elements are included in the request body, all CORS rules will be deleted, and CORS will be disabled for the Blob service."""
     default_service_version: str
     """Indicates the default version to use for requests to the Blob service if an incoming request's version is not specified. Possible values include version 2008-10-27 and all more recent versions."""
@@ -36,7 +36,7 @@ class BlobStorageKwargs(StorageAccountKwargs):
     """Indicates the number of days that the deleted blob should be retained."""
     delete_retention_policy_enabled: bool
     """The blob service properties for blob soft delete."""
-    is_versioning_enabled: bool
+    is_versioning_enabled: Union[bool, Parameter[bool]]
     """Use versioning to automatically maintain previous versions of your blobs."""
     last_access_time_tracking_policy_enabled: bool
     """The blob service property to configure last access time based tracking policy. When set to true last access time based tracking is enabled."""
@@ -91,7 +91,9 @@ class BlobStorage(_ClientResource[BlobServiceResourceType]):
             #     blob_service_params['containerDeleteRetentionPolicyDays'] = kwargs.pop('container_delete_retention_policy_days')
             # if 'container_delete_retention_policy_enabled' in kwargs:
             #     blob_service_params['containerDeleteRetentionPolicyEnabled'] = kwargs.pop('container_delete_retention_policy_enabled')
-            # if 'cors_rules' in kwargs:
+            if 'cors_rules' in kwargs:
+                properties['properties']['cors'] = {}
+                properties['properties']['cors']['corsRules'] = kwargs.pop('cors_rules')
             #     blob_service_params['corsRules'] = kwargs.pop('cors_rules')
             # if 'default_service_version' in kwargs:
             #     blob_service_params['defaultServiceVersion'] = kwargs.pop('default_service_version')
@@ -167,10 +169,9 @@ class BlobStorage(_ClientResource[BlobServiceResourceType]):
             parent = account
         existing = super().reference(
             resource=resource,
-            #name='default',
             parent=parent,
         )
-        existing.name.set_value('default')
+        existing._name.set_value('default')
         return existing
 
     def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
@@ -180,15 +181,13 @@ class BlobStorage(_ClientResource[BlobServiceResourceType]):
             self,
              *,
              symbol: ResourceSymbol,
-             attrname: Optional[str],
              resource_group: ResourceSymbol,
              parents: Tuple[ResourceSymbol, ...],
              **kwargs
     ) -> Dict[str, Output]:
-        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)
+        outputs = super()._outputs(symbol=symbol, resource_group=resource_group, **kwargs)
         outputs['endpoint'] = Output(f"AZURE_BLOBS_ENDPOINT{self.parent._suffix}", "properties.primaryEndpoints.blob", parents[0])
         return outputs
-
 
     def get_client(
             self,

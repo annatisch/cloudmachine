@@ -152,12 +152,11 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
             self,
             *,
             symbol: ResourceSymbol,
-            attrname: Optional[str],
             resource_group: Union[str, ResourceSymbol],
             parents: Tuple[ResourceSymbol, ...],
             **kwargs
     ) -> Dict[str, Output]:
-        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, **kwargs)
+        outputs = super()._outputs(symbol=symbol, resource_group=resource_group, **kwargs)
         outputs['model_name'] = Output(f"AZURE_AI_DEPLOYMENT_MODEL_NAME{self._suffix}", 'properties.model.name', symbol)
         outputs['model_version'] = Output(f"AZURE_AI_DEPLOYMENT_MODEL_VERSION{self._suffix}", 'properties.model.version', symbol)
         outputs['endpoint'] = Output(
@@ -234,12 +233,11 @@ class AIChat(AIDeployment):
             self,
             *,
             symbol: ResourceSymbol,
-            attrname: Optional[str],
             resource_group: Union[str, ResourceSymbol],
             parents: Tuple[ResourceSymbol, ...],
             **kwargs
     ) -> Dict[str, Output]:
-        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, parents=parents, **kwargs)
+        outputs = super()._outputs(symbol=symbol, resource_group=resource_group, parents=parents, **kwargs)
         outputs['model_name'] = Output(f"AZURE_AI_CHAT_MODEL_NAME{self._suffix}", 'properties.model.name', symbol)
         outputs['model_version'] = Output(f"AZURE_AI_CHAT_MODEL_VERSION{self._suffix}", 'properties.model.version', symbol)
         outputs['endpoint'] = Output(
@@ -392,12 +390,11 @@ class AIEmbeddings(AIDeployment[AIDeploymentResourceType]):
             self,
             *,
             symbol: ResourceSymbol,
-            attrname: Optional[str],
             resource_group: Union[str, ResourceSymbol],
             parents: Tuple[ResourceSymbol, ...],
             **kwargs
     ) -> Dict[str, Output]:
-        outputs = super()._outputs(symbol=symbol, attrname=attrname, resource_group=resource_group, parents=parents, **kwargs)
+        outputs = super()._outputs(symbol=symbol, resource_group=resource_group, parents=parents, **kwargs)
         outputs['model_name'] = Output(f"AZURE_AI_EMBEDDINGS_MODEL_NAME{self._suffix}", 'properties.model.name', symbol)
         outputs['model_version'] = Output(f"AZURE_AI_EMBEDDINGS_MODEL_VERSION{self._suffix}", 'properties.model.version', symbol)
         outputs['endpoint'] = Output(

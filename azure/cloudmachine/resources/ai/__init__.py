@@ -193,14 +193,8 @@ class CognitiveServicesAccount(_ClientResource[CognitiveServicesAccountResourceT
                 return field
         return None
 
-    def _outputs(
-            self,
-            *,
-            symbol: ResourceSymbol,
-            attrname: Optional[str],
-            **kwargs
-    ) -> Dict[str, Output]:
-        outputs = super()._outputs(symbol=symbol, attrname=attrname, **kwargs)
+    def _outputs(self, *, symbol: ResourceSymbol, **kwargs) -> Dict[str, Output]:
+        outputs = super()._outputs(symbol=symbol, **kwargs)
         outputs['endpoint'] = Output(f"AZURE_{self._prefixes[0].upper()}_ENDPOINT{self._suffix}", "properties.endpoint", symbol)
         return outputs
 

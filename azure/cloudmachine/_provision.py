@@ -9,7 +9,7 @@ from collections import defaultdict
 from dotenv import dotenv_values
 
 from ._version import VERSION
-from ._component import AzureInfrastructure, AnnotationResource
+from ._component import AzureInfrastructure, InfrastructureResource
 from ._parameters import GLOBAL_PARAMS
 from ._bicep.utils import generate_name, resolve_value, serialize_dict, generate_suffix, serialize_list
 from ._bicep.expressions import Expression, Output, Parameter, ResourceSymbol, Subscription, UniqueString, Variable
@@ -75,7 +75,7 @@ def _init_project(
 
 
 def _get_component_resources(component: Type[Resource]) -> Dict[str, Resource]:
-    return {k: getattr(component, k) for k, v in component.__dict__.items() if isinstance(v, (Resource, AnnotationResource))}
+    return {k: v for k, v in component.__dict__.items() if isinstance(v, (Resource, InfrastructureResource))}
 
 def _get_filename() -> str:
     frame = inspect.stack()[2]
@@ -163,23 +163,16 @@ def provision(
 
 
 def export(
-        *__r: Union[Resource, AzureInfrastructure],
+        deployment: Union[Resource, AzureInfrastructure],
+        /,
         infra_dir: str = "infra",
         main_bicep: str = "main",
         output_dir: str = ".",
         user_access: bool = True,
         location: Optional[str] = None,
         name: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None,
 ) -> None:
-    if not __r:
-        return
-    deployment = list(__r)
-    if not deployment:
-        print("No resources to deploy.")
-        return
-    deployment_name = name or _get_filename()
-    config = config or {}
+    deployment_name = name or deployment.__class__.__name__
     print("Building bicep...")
     working_dir = os.path.abspath(output_dir)
     infra_dir = os.path.join(working_dir, infra_dir)
@@ -191,22 +184,14 @@ def export(
         parameters['location'].default = location
 
     fields: FieldsType = {}
-    for resource in deployment:
-        if isinstance(resource, Resource):
-            resource.__bicep__(
-                fields=fields,
-                parameters=parameters,
-                module_name=deployment_name
-            )
-        elif issubclass(resource, AzureInfrastructure):
-            _parse_module(
-                parameters=parameters,
-                parent_component=resource,
-                component=resource,
-                component_resources=_get_component_resources(resource),
-                component_fields=fields,
-                module_name=deployment_name,
-            )
+    _parse_module(
+        parameters=parameters,
+        parent_component=deployment,
+        component=deployment,
+        component_resources=_get_component_resources(deployment),
+        component_fields=fields,
+        module_name=deployment_name,
+    )
     for field in fields.values():
         if field.add_defaults:
             field.add_defaults(field, parameters)
@@ -221,7 +206,7 @@ def export(
         main.write("targetScope = 'subscription'\n\n")
         module_params = {k: v for k,v in parameters.items() if v.module == 'main'}
         for parameter in module_params.values():
-            main.write(parameter.__bicep__(config.get(parameter.name)))
+            main.write(parameter.__bicep__(deployment._config_store.get(parameter.name)))
         _write_resources(
             bicep=main,
             fields=list(fields.values()),
@@ -229,11 +214,10 @@ def export(
             module_parameters=module_params,
             deployment_name=deployment_name,
             infra_dir=infra_dir,
-            config=config
+            config=deployment._config_store
 
         )
         main.write("\n")
-
     main_parameters = os.path.join(infra_dir, f"{main_bicep}.parameters.json")
     params_content = dict(_BICEP_PARAMS)
     params_content["parameters"] = {}
@@ -244,34 +228,30 @@ def export(
         json.dump(params_content, params_json, indent=4)
 
 
-
 def _parse_module(
         *,
         parameters: Dict[str, Parameter],
-        parent_component: Type,
-        component: Type,
+        parent_component: AzureInfrastructure,
+        component: AzureInfrastructure,
         component_resources: Dict[str, Resource],
         component_fields: FieldsType,
-        attrname: Optional[str] = None,
         module_name: str
 ) -> FieldsType:
-    for name, r in component_resources.items():
-        if r.infrastructure == component:
-            r.__bicep__(
+    for resource in component_resources.values():
+        if resource._infra == component:
+            resource.__bicep__(
                 component_fields,
                 parameters=parameters,
                 app_component=parent_component,
-                attrname=attrname or name,
                 module_name=module_name
             )
         else:
             _parse_module(
                 parameters=parameters,
                 parent_component=parent_component,
-                component=r.infrastructure,
-                component_resources=_get_component_resources(r.infrastructure),
+                component=resource._infra,
+                component_resources=_get_component_resources(resource._infra),
                 component_fields=component_fields,
-                attrname=name,
                 module_name=module_name
             )
 
