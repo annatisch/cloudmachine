@@ -139,7 +139,7 @@ class ExtensionResources(TypedDict, total=False):
     # secret store
 
 
-ResourcePropertiesType = TypeVar("ResourcePropertiesType", bound=dict[str, Any])
+ResourcePropertiesType = TypeVar("ResourcePropertiesType", bound=Mapping[str, Any])
 
 class FieldType(NamedTuple, Generic[ResourcePropertiesType]):
     resource: str
@@ -147,7 +147,7 @@ class FieldType(NamedTuple, Generic[ResourcePropertiesType]):
     properties: ResourcePropertiesType
     symbol: ResourceSymbol
     outputs: Dict[str, Output]
-    resource_group: ResourceSymbol
+    resource_group: Optional[ResourceSymbol]
     extensions: ExtensionResources
     existing: bool
     name: Optional[Union[str, Parameter[str]]]
@@ -160,7 +160,6 @@ class Resource(Generic[ResourcePropertiesType]):
     DEFAULTS: Mapping[str, Any] = _EMPTY_DEFAULT
     DEFAULT_EXTENSIONS = _EMPTY_DEFAULT_EXTENSIONS
     identifier: ResourceIdentifiers
-    infrastructure: Optional[AzureInfrastructure]
     resource: str
     version: str
     properties: ResourcePropertiesType
@@ -171,8 +170,8 @@ class Resource(Generic[ResourcePropertiesType]):
         """This constructor should not be used directly."""
         self.properties: ResourcePropertiesType = properties or {}
         self.extensions: ExtensionResources = kwargs.pop('extensions', {})
-        self.parent: Optional[Resource] = kwargs.pop('parent', None)
         self.identifier = kwargs.pop('identifier')
+        self.parent: Optional[Resource] = kwargs.pop('parent', None)
         self._resource: str = kwargs.pop('resource', "")
         self._subresource: Optional[str] = kwargs.pop('subresource', '')
         self._version: str = kwargs.pop('resource_version', "")
@@ -180,61 +179,64 @@ class Resource(Generic[ResourcePropertiesType]):
         if self.parent and not self._subresource:
             raise ValueError('Parent must be specified with subresource.')
 
-        # These properties are used to track whether this resource is part
-        # of an AzureInfrastructure component and are set by the InfrastructureResource
-        # field specifier.
-        self._infra: Optional[AzureInfrastructure] = None
-        self._infra_type: Optional[Type[AzureInfrastructure]] = None
-        
         # Suffix and prefix are used to environment variable/config setting names
         # The prefix identifies the service/resource and the suffix is unique to this
         # specific resource (using either the name or name parameter if present).
-        self._suffix: str = ""
         self._prefixes: List[str] = kwargs.pop('service_prefix', [])
-    
+        self._suffix = kwargs.pop('suffix', None)
+        self._symbol = None
+
         # These determine how resource properties are handled when building up the bicep
         # definitions for the same resource declared in multiple places. Anything in the
         # 'properties' field of a resource will error on conflict
-        self._properties_to_merge = ['properties', 'tags']
+        self._properties_to_merge = kwargs.pop('properties_to_merge', ['properties', 'tags'])
 
-        # TODO: Hopefully we can refactor away this property
-        self._supports_managed_identity: bool = False
+        self._settings: Dict[str, StoredPrioritizedSetting] = {
+            "name": StoredPrioritizedSetting(
+                'name',
+                env_vars=_build_envs(self._prefixes, ['NAME']),
+                system_hook=self._get_default_name,
+                suffix=self._suffix
+            ),
+            "resource_id": StoredPrioritizedSetting(
+                name='resource_id',
+                env_vars=_build_envs(self._prefixes, ['ID', 'RESOURCE_ID']),
+                system_hook=self._build_resource_id,
+                suffix=self._suffix
+            ),
+        }
+        if self.parent:
+            self._settings['resource_group'] = self.parent._settings['resource_group']
+            self._settings['subscription'] = self.parent._settings['subscription']
+        elif 'resource_group' in self.properties:
+            self._settings['resource_group'] = self.properties['resource_group']._settings['name']
+            self._settings['subscription'] = self.properties['resource_group']._settings['subscription']
+        else:
+            self._settings['resource_group'] = StoredPrioritizedSetting(
+                name='resource_group',
+                env_vars=_build_envs(self._prefixes, ['RESOURCE_GROUP']),
+                suffix=self._suffix,
+            )
+            self._settings['subscription'] = StoredPrioritizedSetting(
+                name='subscription',
+                env_var='AZURE_SUBSCRIPTION_ID',
+                suffix=self._suffix
+            ),
+        if 'name' in self.properties:
+            self._settings['name'].set_value(properties['name'])
+        if 'subscription' in self.properties:
+            self._settings['subscription'].set_value(properties['subscription'])
+
         if kwargs:
             raise TypeError(f"Resource {self.__class__.__name__} got unexpected kwargs: {list(kwargs.keys())}")
 
-        self._name = StoredPrioritizedSetting(
-            'name',
-            env_vars=_build_envs(self._prefixes, ['NAME']),
-            system_hook=self._get_name_if_known,
-        )
-        if 'name' in self.properties:
-            self._name.set_value(properties['name'])
-        self._resource_id = StoredPrioritizedSetting(
-            name='resource_id',
-            env_vars=_build_envs(self._prefixes, ['ID', 'RESOURCE_ID']),
-            system_hook=self._build_resource_id
-        )
-        self._subscription = StoredPrioritizedSetting(
-            name='subscription_id',
-            env_var='AZURE_SUBSCRIPTION_ID',
-            system_hook=self._existing_subscription_id
-        )
-        self._resource_group = StoredPrioritizedSetting(
-            name='resource_group',
-            env_vars=_build_envs(self._prefixes, ['RESOURCE_GROUP']),
-        )
-        self._settings: Dict[str, StoredPrioritizedSetting] = {
-            "name": self._name,
-            "resource_id": self._resource_id,
-            "subscription_id": self._subscription,
-            "resource_group": self._resource_group,
-        }
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}(\'{self.properties.get("name", "<default>")}\')'
+        name = f'\'{self.properties["name"]}\'' if 'name' in self.properties else "<default>"
+        return f"{self.__class__.__name__}({name})"
 
     def __eq__(self, value: Any) -> bool:
-        """Resource comparison. Resource is the same if it's the same type and same name."""
+        """Resource is considered equal if it's the same type and same name."""
         try:
             return value.resource == self.resource and value.properties.get('name') == self.properties.get('name')
         except:
@@ -247,34 +249,6 @@ class Resource(Generic[ResourcePropertiesType]):
     @property
     def version(self) -> str:
         return self._version
-    
-    def name(self, *, config_store: Optional[Mapping[str, Any]] = None) -> str:
-        if config_store:
-            return self._name(config_store=config_store)
-        if self._infra:
-            return self._name(config_store=self._infra._config_store)
-        return self._name()
-
-    def resource_id(self, *, config_store: Optional[Mapping[str, Any]] = None) -> str:
-        if config_store:
-            return self._resource_id(config_store=config_store)
-        if self._infra:
-            return self._resource_id(config_store=self._infra._config_store)
-        return self._resource_id()
-
-    def resource_group(self, *, config_store: Optional[Mapping[str, Any]] = None) -> str:
-        if config_store:
-            return self._resource_group(config_store=config_store)
-        if self._infra:
-            return self._resource_group(config_store=self._infra._config_store)
-        return self._resource_group()
-
-    def subscription(self, *, config_store: Optional[Mapping[str, Any]] = None) -> str:
-        if config_store:
-            return self._subscription(config_store=config_store)
-        if self._infra:
-            return self._subscription(config_store=self._infra._config_store)
-        return self._subscription()
 
     @classmethod
     def reference(
@@ -300,77 +274,28 @@ class Resource(Generic[ResourcePropertiesType]):
             # resources, like a resourcegroup. Otherwise 'subscription' must be provided
             # on the 'resource_group' parameter.
             properties['subscription'] = subscription
-        resource_ref = cls(
+        return cls(
             properties,
             resource=resource_type,
             resource_version=resource_version,
             parent=parent,
             existing=True
         )
-        resource_ref._set_suffix(name)
-        if parent:
-            try:
-                resource_ref._resource_group.set_value(parent._resource_group._user_value)
-            except RuntimeError:
-                pass
-            try:
-                resource_ref._subscription.set_value(parent._subscription._user_value)
-            except RuntimeError:
-                pass
-        else:
-            if resource_group:
-                resource_ref._resource_group.set_value(resource_group._name._user_value)
-                resource_ref._subscription.set_value(resource_group._subscription._user_value)
-            if subscription and isinstance(subscription, (str, Parameter)):
-                resource_ref._subscription.set_value(subscription)
-        return resource_ref
 
-    def _set_infra(self, infra: AzureInfrastructure) -> None:
-        self._infra = infra
-        self._infra_type = infra.__class__
-        if self.parent:
-            self.parent._set_infra(infra)
-
-    def _set_suffix(self, value: Union[str, Parameter] = None) -> None:
+    def _build_suffix(self, value: Optional[Union[str, Parameter]]) -> str:
         if value:
             if isinstance(value, str):
-                self._suffix = '_' + clean_name(value).upper()
-            else:
-                self._suffix = '_' + clean_name(value.value).upper()
+                if self.parent:
+                    return self.parent._suffix + '_' + clean_name(value).upper()
+                return '_' + clean_name(value).upper()
             if self.parent:
-                self._suffix = self.parent._suffix + self._suffix
-            for setting in self._settings.values():
-                setting.suffix = self._suffix
+                return self.parent._suffix + '_' + clean_name(value.value).upper()
+            return '_' + clean_name(value.value).upper()
         elif self.parent:
-            self._suffix = self.parent._suffix
-            for setting in self._settings.values():
-                setting.suffix = self._suffix
+            return self.parent._suffix
+        return ""
 
-    def _existing_subscription_id(self, *, config_store: Mapping[str, Any]) -> str:
-        if self._existing and 'resource_group' in self.properties:
-            return self.properties['resource_group'].subscription(config_store=config_store)
-        raise RuntimeError("Existing resource group reference has no subscription specified.")
-
-    def _build_resource_id(self, *, config_store: Optional[Mapping[str, Any]]) -> str:
-        if not self._resource:
-            raise ValueError("No resource specified.")
-        if self.parent:
-            return f"{self.parent._build_resource_id(config_store=config_store)}/{self._subresource}/{self.name(config_store=config_store)}"
-        prefix = f"/subscriptions/{self.subscription(config_store=config_store)}/resourceGroups/{self.resource_group(config_store=config_store)}/providers/"
-        return prefix + f"{self._resource}/{self.name(config_store=config_store)}"
-
-    def _get_name_if_known(self, *, config_store: Mapping[str, Any]) -> str:
-        try:
-            return self.properties['name']
-        except KeyError:
-            pass
-        try:
-            return self.DEFAULTS['name']
-        except KeyError:
-            pass
-        raise RuntimeError("Resource name not known.")
-   
-    def _symbol(self) -> ResourceSymbol:
+    def _build_symbol(self) -> ResourceSymbol:
         if not self.resource:
             raise TypeError("Empty Resource object cannot be provisioned.")
         resource_ref = self.resource.split("/")[-1].lower()
@@ -383,6 +308,23 @@ class Resource(Generic[ResourcePropertiesType]):
         if self.properties.get('identity', {}).get('type', "").startswith('SystemAssigned'):
             principal_id = "principalId"
         return ResourceSymbol(symbol, principal_id=principal_id)
+
+    def _build_resource_id(self, *, config_store: Optional[Mapping[str, Any]]) -> str:
+        if not self._resource:
+            raise ValueError("No resource specified.")
+        name = self._settings['name'](config_store=config_store)
+        if self.parent:
+            return f"{self.parent._build_resource_id(config_store=config_store)}/{self._subresource}/{name}"
+        sub_prefix = f"/subscriptions/{self._settings['subscription'](config_store=config_store)}"
+        rg_prefix = f"/resourceGroups/{self._settings['resource_group'](config_store=config_store)}"
+        return sub_prefix + rg_prefix + f"/providers/{self._resource}/{name}"
+
+    def _get_default_name(self, *, config_store: Mapping[str, Any]) -> str:
+        try:
+            return self.DEFAULTS['name']
+        except KeyError:
+            pass
+        raise RuntimeError("Resource name not known.")
 
     def _outputs(
             self,
@@ -400,7 +342,7 @@ class Resource(Generic[ResourcePropertiesType]):
         outputs['resource_group'] = Output(rg_output, ResourceGroup().name)
         if self._existing:
             try:
-                rg_name = self.resource_group()  # TODO: Is it a problem that there's no config?
+                rg_name = self._settings('resource_group')()  # TODO: Is it a problem that there's no config?
                 outputs['resource_group'] = Output(rg_output, rg_name)
             except RuntimeError:
                 pass
@@ -431,6 +373,7 @@ class Resource(Generic[ResourcePropertiesType]):
             name: Optional[Union[str, Expression]] = None,
             parent: Optional[ResourceSymbol] = None,
     ) -> Optional[FieldType]:
+        # TODO: Turn into generator
         resource = resource or self.resource
         for field in (f for f in reversed(list(fields.values())) if f.resource == resource):
             if name and resource_group:
@@ -460,6 +403,7 @@ class Resource(Generic[ResourcePropertiesType]):
             name: Optional[str] = None,
             module_name: Optional[str] = None
     ) -> ResourceSymbol:
+        # TODO: This might be no longer needed, always one resource group per deployment
         match = self._find_last_resource_match(
             fields,
             resource="Microsoft.Resources/resourceGroups",
@@ -467,12 +411,7 @@ class Resource(Generic[ResourcePropertiesType]):
         )
         if match:
             return match.symbol
-        from .resources.resourcegroup import ResourceGroup
-        if name:
-            existing_rg = ResourceGroup.reference(name=name)
-            return existing_rg.__bicep__(fields, parameters=parameters, module_name=module_name)[0]
-        default_rg = ResourceGroup()
-        return default_rg.__bicep__(fields, parameters=parameters, module_name=module_name)[0]
+        raise RuntimeError("No resource group found.")
 
     def _find_identity(
             self,
@@ -481,21 +420,20 @@ class Resource(Generic[ResourcePropertiesType]):
             *,
             module_name: Optional[str] = None,
     ) -> Optional[ResourceSymbol]:
+        # TODO: This is probably no longer needed - use default parameters instead.
         match = self._find_last_resource_match(
             fields,
             resource="Microsoft.ManagedIdentity/userAssignedIdentities",
         )
         if match:
             return match.symbol
-        from .resources.managedidentity import UserAssignedIdentity
-        new_identity = UserAssignedIdentity()
-        return new_identity.__bicep__(fields, parameters=parameters, module_name=module_name)[0]
+        return None
 
-    def _get_field_id(self, symbol: ResourceSymbol, parents: Tuple[ResourceSymbol, ...] = None) -> str:
-        if parents:
-            prefix = self.parent._get_field_id(parents[0], parents[1:])
-            return f"{prefix}.{symbol.value}"
-        return symbol.value
+    def _get_field_id(self) -> str:
+        if self.parent:
+            prefix = self.parent._get_field_id()
+            return f"{prefix}.{self._symbol.value}"
+        return self._symbol.value
 
     def _add_parameters(self, obj: Dict[str, Any], parameters):
         for value in obj.values():
@@ -528,7 +466,7 @@ class Resource(Generic[ResourcePropertiesType]):
                         field.properties[key] = updated_default
                     except AttributeError:
                         # We probably got an Expression
-                        # TODO: support union operation?
+                        # TODO: support bicep union operation?
                         pass
             else:
                 field.properties[key] = value
@@ -543,9 +481,16 @@ class Resource(Generic[ResourcePropertiesType]):
             fields: FieldsType,
             *,
             parameters: Dict[str, Parameter],
-            app_component: Optional[Type] = None,
+            infra_component: Optional[AzureInfrastructure] = None,
             module_name: Optional[str] = None,
     ) -> Tuple[ResourceSymbol, ...]:
+        if self._suffix is None:
+            # We're doing this delayed because if it's a ComponentField, it would
+            # fail if we do it in the constructor (before __set_name__ is called).
+            self._suffix = self._build_suffix(self.properties.get('name'))
+            for resource_setting in self._settings.values():
+                resource_setting.suffix = self._suffix
+            self._symbol = self._build_symbol()
         extensions = defaultdict(list)
         extensions.update(self.extensions)
         parents: Tuple[ResourceSymbol] = ()
@@ -553,16 +498,9 @@ class Resource(Generic[ResourcePropertiesType]):
             parents = self.parent.__bicep__(
                 fields,
                 parameters=parameters,
-                app_component=app_component,
+                infra_component=infra_component,
                 module_name=module_name
             )
-        self._set_suffix(self.properties.get('name', ''))
-
-        # We only want to export the outputs if either this is a resource not nested inside an
-        # infrastructure object, or if it's in the root infrastructure object.
-        output_resource = False
-        if not self._infra or app_component == self._infra:
-            output_resource = True
 
         if self._existing:
             if 'name' not in self.properties and 'name' not in self.DEFAULTS:
@@ -572,12 +510,13 @@ class Resource(Generic[ResourcePropertiesType]):
                 properties['parent'] = parents[0]
                 rg = None
             elif 'resource_group' in self.properties:
-                rg = self.properties['resource_group'].__bicep__(fields, parameters=parameters, module_name=module_name)[0]
+                rg = self.properties['resource_group'].__bicep__(
+                    fields, parameters=parameters, infra_component=infra_component, module_name=module_name)[0]
                 properties['scope'] = rg
-            else:
-                rg = self._find_resource_group(fields, parameters, module_name=module_name)
-                properties['scope'] = rg
-            symbol = self._symbol()
+            # TODO: Don't think we need this as it will automatically use the default rg scope
+            #else:
+            #    rg = self._find_resource_group(fields, parameters, module_name=module_name)
+            #    properties['scope'] = rg
             outputs = self._outputs(
                 symbol=symbol,
                 resource_group=rg,
@@ -599,13 +538,6 @@ class Resource(Generic[ResourcePropertiesType]):
             fields[self._get_field_id(symbol, parents)] = field
             return (symbol, *parents)
 
-
-        identity = None
-        # TODO: Should probably revise this logic - it was added because it creates
-        # the initial managed identity if none is otherwise specified. Must be a cleaner
-        # way to do that....
-        if self._supports_managed_identity:
-            identity = self._find_identity(fields, parameters, module_name=module_name)
         rg = self._find_resource_group(fields, parameters, module_name=module_name)
         if not parents:
             field = self._find_last_resource_match(fields, resource_group=rg, name=self.properties.get('name'))
@@ -617,6 +549,8 @@ class Resource(Generic[ResourcePropertiesType]):
             symbol = field.symbol
             outputs = field.outputs
             if 'managed_identity_roles' in self.extensions:
+                # TODO: Need to confirm the behaviour here as I think this might be mutating the original copy
+                # of extensions.
                 # We don't really care if this causes duplicate roles because they should be
                 # cleaned up when exported to bicep.
                 field.extensions['managed_identity_roles'].extend(extensions['managed_identity_roles'])
@@ -649,21 +583,18 @@ class Resource(Generic[ResourcePropertiesType]):
             parameters=parameters,
             symbol=symbol,
             resource_group=rg,
-            identity=identity,
         )
-        if not outputs and output_resource:
-            resource_outputs = self._outputs(
-                symbol=symbol,
-                resource_group=rg,
-                parents=parents,
-                **output_config
-            )
-            outputs.update(resource_outputs)
+        resource_outputs = self._outputs(
+            symbol=symbol,
+            resource_group=rg,
+            parents=parents,
+            **output_config
+        )
+        outputs.update(resource_outputs)
         self._add_parameters(field.properties, parameters)
         # TODO: this wont really work yet
         # self._add_parameters(field.extensions, parameters)
         return (symbol, *parents)
-
 
     def get_client(
             self,
@@ -678,40 +609,40 @@ class Resource(Generic[ResourcePropertiesType]):
 
 
 class _ClientResource(Resource[ResourcePropertiesType]):
-    endpoint: PrioritizedSetting[str, str]
-    client_options: PrioritizedSetting[Dict[str, Any], Dict[str, Any]]
-    audience: PrioritizedSetting[str, str]
-    credential: PrioritizedSetting[CredentialTypes, CredentialTypes]
-    api_version: PrioritizedSetting[str, str]
-
     def __init__(self, properties=None, /, **kwargs) -> None:
+        settings_passthrough = 'settings' in kwargs
         super().__init__(properties, **kwargs)
-        self.audience = StoredPrioritizedSetting(
-            name='audience',
-            env_vars=_build_envs(self._prefixes, ['AUDIENCE']),
-        )
-        self._settings['audience'] = self.audience
-        self.endpoint = StoredPrioritizedSetting(
-            name='endpoint',
-            env_vars=_build_envs(self._prefixes, ['ENDPOINT']),
-            system_hook=self._build_endpoint
-        )
-        self._settings['endpoint'] = self.endpoint
-        self.api_version = StoredPrioritizedSetting(
-            name='api_version',
-            env_vars=_build_envs(self._prefixes, ['API_VERSION']),
-        )
-        self._settings['api_version'] = self.api_version
-        self.client_options = StoredPrioritizedSetting(
-            name='client_options',
-            default={},
-        )
-        self._settings['client_options'] = self.client_options
-        self.credential = StoredPrioritizedSetting(
-            name='credential',
-            default='default',
-        )
-        self._settings['credential'] = self.credential
+        if not settings_passthrough:
+            self._settings.update(
+                {
+                    'audience': StoredPrioritizedSetting(
+                        name='audience',
+                        env_vars=_build_envs(self._prefixes, ['AUDIENCE']),
+                        suffix=self._suffix
+                    ),
+                    'endpoint': StoredPrioritizedSetting(
+                        name='endpoint',
+                        env_vars=_build_envs(self._prefixes, ['ENDPOINT']),
+                        system_hook=self._build_endpoint,
+                        suffix=self._suffix
+                    ),
+                    'api_version': StoredPrioritizedSetting(
+                        name='api_version',
+                        env_vars=_build_envs(self._prefixes, ['API_VERSION']),
+                        suffix=self._suffix
+                    ),
+                    'client_options': StoredPrioritizedSetting(
+                        name='client_options',
+                        default={},
+                        suffix=self._suffix
+                    ),
+                    'credential': StoredPrioritizedSetting(
+                        name='credential',
+                        default='default',
+                    )
+                }
+
+            )
 
     def _build_endpoint(self) -> str:
         raise NotImplementedError("This must be implemented by child resources.")
@@ -761,7 +692,6 @@ class _ClientResource(Resource[ResourcePropertiesType]):
             use_async: Optional[bool] = None,
             **client_options,
     ) -> ClientType:
-        self._set_suffix(self.properties.get('name', ''))
         if env_name:
            if config_store:
                raise ValueError("Cannot specify both 'config_store' and 'env_name'.")
@@ -774,16 +704,16 @@ class _ClientResource(Resource[ResourcePropertiesType]):
         if hasattr(cls, '_from_resource'):
             return cls._from_resource(self, config_store, transport=transport, **client_options)
 
-        endpoint = self.endpoint(config_store=config_store)
+        endpoint = self._settings['endpoint'](config_store=config_store)
         client_kwargs = {}
-        client_kwargs.update(self.client_options(config_store=config_store))
+        client_kwargs.update(self._settings['client_options'](config_store=config_store))
         client_kwargs.update(client_options)
         try:
-            client_kwargs['api_version'] = self.api_version(api_version, config_store=config_store)
+            client_kwargs['api_version'] = self._settings['api_version'](api_version, config_store=config_store)
         except RuntimeError:
             pass
         try:
-            client_kwargs['audience'] = self.audience(audience, config_store=config_store)
+            client_kwargs['audience'] = self._settings['audience'](audience, config_store=config_store)
         except RuntimeError:
             pass
         if 'credential' not in client_kwargs:

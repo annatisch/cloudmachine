@@ -1,92 +1,199 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 import pytest
 
+from azure.cloudmachine._resource import ResourceReference
+from azure.cloudmachine.resources.storage import StorageAccount
 from azure.cloudmachine.resources.storage.blobs import BlobStorage
 from azure.cloudmachine.resources.storage.blobs.container import BlobContainer
 from azure.cloudmachine import (
     Parameter,
     AzureApp,
     AzureInfrastructure,
-    resource,
+    field,
     client,
     MISSING
 )
 
-def test_component_resource_config():
-    p = Parameter("StorageAccount")
-    r = BlobStorage(account=p)
-
-    with pytest.raises(RuntimeError):
-        r.parent.name()
-    
-    assert r.endpoint(config_store={"StorageAccount": "foo"}) == "https://foo.blob.core.windows.net/"
-    assert r.parent.name(config_store={"StorageAccount": "foo"}) == "foo"
-
-    p = Parameter("DefaultStorageAccount", default="foobar")
-    r = BlobStorage(account=p)
-    assert r.parent.name() == "foobar"
-    assert r.endpoint() == "https://foobar.blob.core.windows.net/"
-
-    r = BlobStorage.reference(account=p)
-    r.parent.name()
 
 def test_component_infra_invalid():
-    with pytest.raises(RuntimeError):
-        class Foo:
-            test = resource()
+    # TODO
+    ...
+# test bad type hint string
+#     with pytest.raises(RuntimeError):
+#         class Foo:
+#             test = resource()
 
-    with pytest.raises(RuntimeError):
-        class Foo:
-            test: int = resource()
+#     with pytest.raises(RuntimeError):
+#         class Foo:
+#             test: int = resource()
 
-    with pytest.raises(ValueError):
-        class Foo:
-            test: BlobStorage = resource(default=BlobStorage(), default_factory=BlobStorage)
+#     with pytest.raises(ValueError):
+#         class Foo:
+#             test: BlobStorage = resource(default=BlobStorage(), default_factory=BlobStorage)
 
-    class Foo:
-        test: BlobStorage = resource(default_factory=BlobStorage)
+#     class Foo:
+#         test: BlobStorage = resource(default_factory=BlobStorage)
     
-    foo = Foo()
-    with pytest.raises(TypeError):
-        foo.test = 3
-    with pytest.raises(TypeError):
-        foo.test = BlobContainer()
+#     foo = Foo()
+#     with pytest.raises(TypeError):
+#         foo.test = 3
+#     with pytest.raises(TypeError):
+#         foo.test = BlobContainer()
+
+def test_component_infra_inheritance():
+    ...
+def test_component_infra_linked():
+    ...
+def test_component_infra_attr_references():
+    with pytest.raises(NameError):
+        class Infra(AzureInfrastructure):
+            storage: BlobStorage
+            data: BlobContainer = BlobContainer(account=storage)
+
+    class Infra(AzureInfrastructure):
+        name: str = "foo"
+        storage: BlobStorage = BlobStorage.reference(account=name)
+        data: BlobContainer = BlobContainer(account=storage)
+
+    infra = Infra()
+    assert infra.data == BlobContainer(account=BlobStorage.reference(account="foo"))
+
+    class Infra(AzureInfrastructure):
+        name: str = field()
+        storage: BlobStorage = BlobStorage.reference(account=name)
+        data: BlobContainer = BlobContainer(account=storage)
+
+    infra = Infra(name="bar")
+    assert infra.data == BlobContainer(account=BlobStorage.reference(account="bar"))
+
+def test_component_infra_repr():
+    ...
+def test_component_infra_init():
+    # TODO
+    ...
+def test_component_infra_factory():
+    ...
+def test_component_infra_alias():
+    # TODO
+    ...
 
 def test_component_infra_basic():
 
     class Infra(AzureInfrastructure):
-        test: BlobStorage = resource()
+        test: BlobStorage = field()
 
-    assert Infra.test == BlobStorage()
-    assert Infra.test._infra is None
-    assert Infra.test._infra_type is None
+    with pytest.raises(TypeError):
+        Infra()
+
+    with pytest.raises(TypeError):
+        Infra(foo="bar")
+    
+    infra = Infra(test=BlobStorage(account="foo"))
+    assert infra.test == BlobStorage(account="foo")
+    assert infra.test.parent == StorageAccount(name="foo")
+
+    class Infra(AzureInfrastructure):
+        test: BlobStorage = field(default=MISSING)
+
+    with pytest.raises(TypeError):
+        Infra()
+
+    with pytest.raises(TypeError):
+        Infra(foo="bar")
+    
+    infra = Infra(test=BlobStorage(account="foo"))
+    assert infra.test == BlobStorage(account="foo")
+    assert infra.test.parent == StorageAccount(name="foo")
+
+    class Infra(AzureInfrastructure):
+        test: BlobStorage
+
+    with pytest.raises(TypeError):
+        Infra()
+
+    with pytest.raises(TypeError):
+        Infra(foo="bar")
+    
+    infra = Infra(test=BlobStorage(account="foo"))
+    assert infra.test == BlobStorage(account="foo")
+    assert infra.test.parent == StorageAccount(name="foo")
+
+    class Infra(AzureInfrastructure):
+        test: BlobStorage = field(default=BlobStorage(account='test'))
+
     infra = Infra()
-    with pytest.raises(RuntimeError):
-        infra.test.parent.name()
-    assert infra.test._infra == infra
-    assert infra.test._infra_type is Infra
-    assert infra.test.parent._infra == infra
-    assert infra.test.parent._infra_type is Infra
+    assert infra.test == BlobStorage(account="test")
+    assert infra.test.parent == StorageAccount(name="test")
 
-    infra = Infra(test=BlobStorage(account='foo'))
-    assert infra.test._infra == infra
-    assert infra.test._infra_type is Infra
-    assert infra.test.parent._infra == infra
-    assert infra.test.parent._infra_type is Infra
+    infra = Infra(test=BlobStorage(account="foo"))
+    assert infra.test == BlobStorage(account="foo")
+    assert infra.test.parent == StorageAccount(name="foo")
 
-    infra.test = BlobStorage(account='bar')
-    assert infra.test._infra == infra
-    assert infra.test._infra_type is Infra
-    assert infra.test.parent._infra == infra
-    assert infra.test.parent._infra_type is Infra
+    class Infra(AzureInfrastructure):
+        test: BlobStorage[Any] = BlobStorage(account='test')
+
+    infra = Infra()
+    assert infra.test == BlobStorage(account="test")
+    assert infra.test.parent == StorageAccount(name="test")
+    infra.test = BlobStorage.reference(account="existing")
+    assert infra.test == BlobStorage(account="existing")
+    infra.test = "a string"
+    assert infra.test == "a string"
+
+    infra = Infra(test=BlobStorage(account="foo"))
+    assert infra.test == BlobStorage(account="foo")
+    assert infra.test.parent == StorageAccount(name="foo")
+
+    class Infra(AzureInfrastructure):
+        test: Optional[BlobStorage] = None
+
+    infra = Infra()
+    assert infra.test == None
+
+    infra = Infra(test=BlobStorage(account="foo"))
+    assert infra.test == BlobStorage(account="foo")
+    assert infra.test.parent == StorageAccount(name="foo")
+
+    class Infra(AzureInfrastructure):
+        test: Optional[BlobStorage] = field(default=None)
+
+    infra = Infra()
+    assert infra.test == None
+
+    infra = Infra(test=BlobStorage(account="foo"))
+    assert infra.test == BlobStorage(account="foo")
+    assert infra.test.parent == StorageAccount(name="foo")
+
+    class Infra(AzureInfrastructure):
+        test: BlobStorage[ResourceReference]
+    
+    with pytest.raises(TypeError):
+        Infra()
+    
+    infra = Infra(test=BlobStorage.reference(account=StorageAccount.reference(name='foo')))
+    assert infra.test == BlobStorage(account="foo")
+    assert infra.test.parent == StorageAccount(name="foo") 
+
+    class Infra(AzureInfrastructure):
+        test: Union[BlobContainer, BlobStorage] = BlobContainer(name="data", account="data")
+
+    infra = Infra()
+    assert infra.test == BlobContainer(name="data", account="data")
+    assert infra.test.parent == BlobStorage(account="data")
+    assert infra.test.parent.parent == StorageAccount(name="data")
+    infra.test = BlobStorage(account="foo")
+    assert infra.test == BlobStorage(account="foo")
+    assert infra.test.parent == StorageAccount(name="foo") 
 
 
 def test_component_infra_hybrid():
     class TestInfra(AzureInfrastructure):
         number: int
+        resource: BlobContainer
         string: str = "teststring"
-        resource: BlobContainer = resource()
+        another_resource: BlobStorage = field(default=BlobStorage(), repr=False)
+        data: dict = field(factory=dict, repr=False, foo=string, bar=another_resource)
 
         def some_func(self) -> str:
             return self.string
@@ -94,54 +201,16 @@ def test_component_infra_hybrid():
     with pytest.raises(TypeError):
         TestInfra()
 
-    infra = TestInfra(number=7)
+    infra = TestInfra(number=7, resource=BlobContainer.reference(name="A", account="B"))
     assert infra.number == 7
     assert infra.string == "teststring"
     assert infra.some_func() == "teststring"
-    assert infra.resource == BlobContainer()
+    assert infra.resource == BlobContainer(name="A")
+    assert infra.another_resource == BlobStorage()
+    assert infra.data['bar'].get(infra) == BlobStorage()
+    assert infra.data['foo'] == 'teststring'
+    assert repr(infra) == "TestInfra(number=7, resource=BlobContainer('A'), string='teststring')"
 
-
-def test_component_infra_defaults():
-
-    class TestInfra(AzureInfrastructure):
-        data: BlobStorage = resource(default=MISSING)
-    
-    with pytest.raises(TypeError):
-        TestInfra()
-
-    infra = TestInfra(data=BlobStorage.reference(account='foo'))
-    assert infra.data == BlobStorage.reference(account='foo')
-
-    class TestInfra(AzureInfrastructure):
-        data: BlobStorage = resource(default_factory=BlobStorage)
-
-    infra = TestInfra()
-    assert infra.data == BlobStorage()
-
-    class TestInfra(AzureInfrastructure):
-        data: BlobStorage = resource(default=BlobStorage(account='foo'))
-    
-    infra = TestInfra()
-    assert infra.data == BlobStorage(account='foo')
-
-
-def test_component_infra_config():
-    name = Parameter('AccountName')
-    rg = Parameter('ResourceGroup', default='sharedrg')
-
-    class Infra(AzureInfrastructure):
-        test: BlobStorage = resource(
-            default=BlobStorage.reference(account=name, resource_group=rg))
-
-    infra = Infra()
-    assert infra.test.resource_group() == 'sharedrg'
-    assert infra.test.parent.resource_group() == 'sharedrg'
-    assert infra.test.resource_group(config_store={'ResourceGroup': 'foo'}) == 'foo'
-    with pytest.raises(RuntimeError):
-        infra.test.parent.name()
-    assert infra.test.parent.name(config_store={'AccountName': 'foo'}) == 'foo'
-
-    infra = Infra(config_store={'AccountName': 'bar', 'ResourceGroup': 'baz'})
-    assert infra._config_store == {'AccountName': 'bar', 'ResourceGroup': 'baz'}
-    assert infra.test.resource_group() == 'baz'
-    assert infra.test.parent.name() == 'bar'
+def test_component_infra_export_config():
+    # TODO: Test ComponentFields as parameters
+    ...

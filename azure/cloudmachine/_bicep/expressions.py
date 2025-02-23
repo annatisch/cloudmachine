@@ -182,10 +182,7 @@ class Parameter(Expression, Generic[ParameterType]):
             return "array"
         if self._type is int:
             return "int"
-        if self._type is dict:
-            return "object"
-        else:
-            raise TypeError(f"Unrecognized parameter type: '{self._type}'.")
+        return "object"
 
     def __repr__(self) -> str:
         if self.default not in (None, MISSING, ""):

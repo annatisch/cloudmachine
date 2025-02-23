@@ -2,6 +2,7 @@ from inspect import get_annotations
 from typing import (
     TYPE_CHECKING,
     Mapping,
+    Protocol,
     Self,
     dataclass_transform,
     overload,
@@ -9,8 +10,15 @@ from typing import (
     Any, Union, Literal, Optional, Callable, Dict, List, Type, Unpack
 )
 
-from ._resource import Resource, DefaultResource, _load_dev_environment
+from ._bicep.expressions import Parameter
+from ._resource import Resource, DefaultResource, _load_dev_environment, ResourceReference
 from .resources._identifiers import ResourceIdentifiers
+from .resources.resourcegroup import ResourceGroup
+from .resources.managedidentity import UserAssignedIdentity
+
+if TYPE_CHECKING:
+    from .resources.resourcegroup.types import ResourceGroupResource
+    from .resources.managedidentity.types import UserAssignedIdentityResource
 
 
 MISSING = DefaultResource.MISSING
@@ -41,62 +49,92 @@ CLIENT_BY_ANNOTATION: Dict[str, ResourceIdentifiers] = {
     'SearchIndexClient': ResourceIdentifiers.search
 }
 
+class DefaultFactory(Protocol):
+    def __call__(self, **kwargs) -> Any:
+        ...
 
-class InfrastructureResource:
+
+class ComponentField(Parameter[Any]):
     def __init__(
             self,
-            resource: Union[DefaultResource, Resource],
-            resource_factory: Union[Literal[DefaultResource.MISSING], Callable[[Mapping[str, Any]], Resource]],
+            *,
+            default: Any,
+            factory: Union[Literal[DefaultResource.MISSING], DefaultFactory],
+            repr: bool,
+            init: bool,
+            alias: Optional[str],
             **kwargs
     ):
-        self._resource_factory = resource_factory
-        self._resource = resource
-        self._resource_kwargs = kwargs
-        self._annotation: Optional[Type] = None
+        self._factory = factory
+        self._kwargs = kwargs
+        self._default = default
+        self._repr = repr
+        self._init = init
+        self._alias = alias
         self._owner: Optional[Type] = None
         self._attrname: Optional[str] = None
+        self._name: Optional[str] = None
+
+    @property
+    def name(self) -> str:
+        if not self._owner or not self._name:
+            raise ValueError("ComponentField not used in component class.")
+        return f"{self._owner.__name__}.{self._name}"
+
+    @property
+    def default(self) -> Any:
+        return self._default   
+        
+    def __repr__(self) -> str:
+        if self._default:
+            return f"FieldComponent(default={repr(self._default)})"
+        if self._factory:
+            return f"FieldComponent(default={self._factory._name_}(**kwargs))"
+        return "FieldComponent()"
 
     def __set_name__(self, owner: Type, name: str) -> None:
         self._owner = owner
+        self._name = name
         self._attrname = '_' + name
         try:
-            self._annotation = get_annotations(owner)[name]
+            self._type = get_annotations(owner)[name]
         except KeyError:
             raise RuntimeError(f"'{owner.__name__}.{name}' is missing type hint.") from None
-        if not issubclass(self._annotation, Resource):
-            raise RuntimeError(f"Incompatible type hint for {owner.__name__}.{name} - must be a Resource type.")
 
-    def __get__(self, obj, _) -> Resource:
+    def __get__(self, obj, obj_type):
         if obj is None:
-            if isinstance(self._resource, Resource):
-                return self._resource
-            if self._resource_factory is not MISSING:
-                return self._resource_factory(self._resource_kwargs)
-            if self._resource is MISSING:
-                raise AttributeError(f"No default value provided for '{self._owner.__name__}.{self._attrname}'.")
-            else:
-                return self._annotation(**self._resource_kwargs)
+            if self._default is not MISSING:
+                return self._default
+            if self._factory is not MISSING:
+                return self._factory(**self._kwargs)
+            raise AttributeError(f"No default value provided for '{self._owner.__name__}.{self._name}'.")
         return getattr(obj, self._attrname)
 
-    def __set__(self, obj: 'AzureInfrastructure', value: Resource):
-        if not isinstance(value, self._annotation):
-            raise TypeError(f"{self._owner.__name__}.{self._attrname} must be an instance of resource '{self._annotation}'.")
-        value._set_infra(obj)
+    def __set__(self, obj, value):
         setattr(obj, self._attrname, value)
 
+    def get(self, obj = None, /) -> Any:
+        return self.__get__(obj, obj.__class__)
 
-def resource(
+
+def field(
         *,
-        default: Union[Resource, DefaultResource] = BUILD_DEFAULT,
-        default_factory: Union[Callable[[Mapping[str, Any]], Resource], Literal[DefaultResource.MISSING]] = MISSING
-) -> InfrastructureResource:
-    if isinstance(default, Resource):
-        if default_factory is not MISSING:
-            raise ValueError("Cannot specify both 'default' and 'default_factory'.")
-
-    return InfrastructureResource(
-        resource=default,
-        resource_factory=default_factory
+        default: Union[Any, Literal[DefaultResource.MISSING]] = MISSING,
+        factory: Union[DefaultFactory, Literal[DefaultResource.MISSING]] = MISSING,
+        repr: bool = True,
+        init: bool = True,
+        alias: Optional[str] = None,
+        **kwargs
+) -> ComponentField:
+    if default is not MISSING and factory is not MISSING:
+        raise ValueError("Cannot specify both 'default' and 'default_factory'.")
+    return ComponentField(
+        default=default,
+        factory=factory,
+        repr=repr,
+        init=init,
+        alias=alias,
+        **kwargs
     )
 
 
@@ -109,39 +147,59 @@ def _parameter(*, default = None, default_factory = None, **kwargs):
     return None
 
 
-@dataclass_transform(field_specifiers=(resource, _parameter), kw_only_default=True)
+@dataclass_transform(field_specifiers=(field, _parameter), kw_only_default=True)
 class AzureInfraComponent(type):
     # TODO: The typing of the __call__ function is breaking
     # typing when kwargs are passed into the constructor.
     # Need to figure that out.....
     def __call__(cls, **kwargs):
-        if 'env_name' in kwargs:
-            if 'config_store' in kwargs:
-                raise ValueError("Cannot specify both 'config_store' and 'env_name'.")
-            kwargs['config_store'] = _load_dev_environment(kwargs['env_name'])
         instance_kwargs = {}
-        for attr in get_annotations(cls):
-            try:
-                # TODO: This doesn't support None/Optional as a value, but that's
-                # fine for now as Union type hints aren't supported. Could be a future
-                # addition.
-                instance_kwargs[attr] = kwargs.get(attr) or getattr(cls, attr)
-            except AttributeError:
-                raise TypeError(f"{cls.__name__} missing required keyword argument: '{attr}'.")
+        missing_kwargs = []
+        mro = cls.mro()
+        # We want to skip objects in the heirachy above AzureInfrastructure, which should
+        # only be 'object', but just in case that changes, we'll strip everything.
+        for cls_type in reversed(mro[:mro.index(AzureInfrastructure) + 1]):
+            for attr in get_annotations(cls_type):
+                try:
+                    try:
+                        instance_kwargs[attr] = kwargs.pop(attr)
+                    except KeyError:
+                        instance_kwargs[attr] = getattr(cls, attr)
+                    if attr in missing_kwargs:
+                        missing_kwargs.pop(missing_kwargs.index(attr))
+                except AttributeError:
+                    missing_kwargs.append(attr)
+        if kwargs:
+            argument = "argument" if len(missing_kwargs) == 1 else "arguments"
+            args = ', '.join([f"'{arg}'" for arg in kwargs])
+            raise TypeError(f"{cls.__name__} got unexpected keyword {argument}: {args}")
+        if missing_kwargs:
+            argument = "argument" if len(missing_kwargs) == 1 else "arguments"
+            attrs = ', '.join([f"'{attr}'" for attr in missing_kwargs])
+            raise TypeError(f"{cls.__name__} missing required keyword {argument}: {attrs}.")
         kwargs.update(instance_kwargs)
         return super().__call__(**kwargs)
 
 
 class AzureInfrastructure(metaclass=AzureInfraComponent):
-    _config_store: Mapping[str, Any] = _parameter(alias="config_store", default_factory=dict)
-    _env_name: Optional[str] = _parameter(alias="env_name", default=None)
+    resource_group: ResourceGroup = field(default=ResourceGroup(), repr=False)
+    identity: Optional[UserAssignedIdentity] = field(default=UserAssignedIdentity(), repr=False)
 
     def __init__(self, **kwargs):
-        self._config_store = kwargs.pop('config_store', {})
-        self._env_name = kwargs.pop('env_name', None)
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+    def __repr__(self) -> str:
+        attrs = []
+        for attr in get_annotations(self.__class__):
+            try:
+                in_repr = self.__class__.__dict__[attr]._repr
+                if in_repr:
+                    attrs.append(f"{attr}={repr(getattr(self, attr))}")
+            except (KeyError, AttributeError):
+                attrs.append(f"{attr}={repr(getattr(self, attr))}")
+        repr_str = ", ".join(attrs)
+        return f"{self.__class__.__name__}({repr_str})"
 
 class ClientBuilder:
     def __init__(self, resource: Optional[Resource] = MISSING, **client_options):
