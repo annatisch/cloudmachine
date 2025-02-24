@@ -14,6 +14,5 @@ resource userassignedidentity_foo 'Microsoft.ManagedIdentity/userAssignedIdentit
   }
 }
 
-output AZURE_CLIENT_ID string = userassignedidentity_foo.properties.clientId
 
 

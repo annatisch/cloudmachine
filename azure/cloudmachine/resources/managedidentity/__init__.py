@@ -101,7 +101,10 @@ class UserAssignedIdentity(Resource[UserAssignedIdentityResourceType]):
         return ResourceSymbol(symbol, principal_id=True)
 
     def _outputs(self, symbol, **kwargs) -> Dict[str, Output]:
-        return {'client_id': Output("AZURE_CLIENT_ID", "properties.clientId", symbol)}
+        # TODO: This results in duplicate outputs if there's multiple identities.
+        # Not sure if it's really needed as most people wont be using managedidentitycredential locally.
+        # return {'client_id': Output("AZURE_CLIENT_ID", "properties.clientId", symbol)}
+        return {}
 
     def __bicep__(self, fields, *, parameters, infra_component = None, module_name, **kwargs):
         symbols = super().__bicep__(fields, parameters=parameters, infra_component=infra_component, module_name=module_name, **kwargs)

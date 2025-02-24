@@ -39,6 +39,5 @@ module test_module 'test.bicep' = {
     testLocation: testLocation
   }
 }
-output AZURE_CLIENT_ID string = test_module.outputs.AZURE_CLIENT_ID
 
 

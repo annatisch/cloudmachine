@@ -160,6 +160,8 @@ class AzureInfraComponent(type):
         # only be 'object', but just in case that changes, we'll strip everything.
         for cls_type in reversed(mro[:mro.index(AzureInfrastructure) + 1]):
             for attr in get_annotations(cls_type):
+                if attr in instance_kwargs:
+                    continue
                 try:
                     try:
                         instance_kwargs[attr] = kwargs.pop(attr)
@@ -174,8 +176,9 @@ class AzureInfraComponent(type):
             args = ', '.join([f"'{arg}'" for arg in kwargs])
             raise TypeError(f"{cls.__name__} got unexpected keyword {argument}: {args}")
         if missing_kwargs:
-            argument = "argument" if len(missing_kwargs) == 1 else "arguments"
-            attrs = ', '.join([f"'{attr}'" for attr in missing_kwargs])
+            missing = set(missing_kwargs)
+            argument = "argument" if len(missing) == 1 else "arguments"
+            attrs = ', '.join([f"'{attr}'" for attr in missing])
             raise TypeError(f"{cls.__name__} missing required keyword {argument}: {attrs}.")
         kwargs.update(instance_kwargs)
         return super().__call__(**kwargs)

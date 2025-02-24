@@ -12,6 +12,5 @@ resource userassignedidentity 'Microsoft.ManagedIdentity/userAssignedIdentities@
   name: defaultName
 }
 
-output AZURE_CLIENT_ID string = userassignedidentity.properties.clientId
 
 

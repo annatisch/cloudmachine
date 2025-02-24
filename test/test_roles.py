@@ -44,7 +44,7 @@ def test_roles_properties():
     assert fields[f'{role_symbol._value}'].resource == "Microsoft.Authorization/roleAssignments"
     assert fields[f'{role_symbol._value}'].properties == {'name': CONTRIB_GUID, 'scope': symbols[0], 'properties': {'principalId': IDENTITY, 'principalType': 'ServicePrincipal', 'roleDefinitionId': RoleDefinition('ba92f5b4-2d11-453d-a403-e96b0029c9fe')}}
     assert fields[f'{role_symbol._value}'].symbol == role_symbol
-    assert fields[f'{role_symbol._value}'].resource_group == RG
+    assert fields[f'{role_symbol._value}'].resource_group == None
 
 
 def test_roles_defaults():

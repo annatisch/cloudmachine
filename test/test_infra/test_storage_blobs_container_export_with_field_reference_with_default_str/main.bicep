@@ -36,7 +36,6 @@ module test_module 'test.bicep' = {
     azdTags: azdTags
   }
 }
-output AZURE_CLIENT_ID string = test_module.outputs.AZURE_CLIENT_ID
 output AZURE_STORAGE_ID string = test_module.outputs.AZURE_STORAGE_ID
 output AZURE_STORAGE_NAME string = test_module.outputs.AZURE_STORAGE_NAME
 output AZURE_STORAGE_RESOURCE_GROUP string = test_module.outputs.AZURE_STORAGE_RESOURCE_GROUP

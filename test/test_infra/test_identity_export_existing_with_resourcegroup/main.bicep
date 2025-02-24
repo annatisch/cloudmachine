@@ -19,13 +19,15 @@ var azdTags = {
   'azd-env-name': environmentName
 }
 
-resource resourcegroup_rgexists 'Microsoft.Resources/resourceGroups@2021-04-01' existing = {
-  name: 'rgexists'
+resource resourcegroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
+  name: defaultName
+  location: location
+  tags: azdTags
 }
 
 module test_module 'test.bicep' = {
   name: '${deployment().name}_test'
-  scope: resourcegroup_rgexists
+  scope: resourcegroup
   params: {
     location: location
     environmentName: environmentName
@@ -34,6 +36,5 @@ module test_module 'test.bicep' = {
     azdTags: azdTags
   }
 }
-output AZURE_CLIENT_ID string = test_module.outputs.AZURE_CLIENT_ID
 
 

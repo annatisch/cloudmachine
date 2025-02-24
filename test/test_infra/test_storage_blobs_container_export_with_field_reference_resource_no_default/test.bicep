@@ -12,7 +12,6 @@ resource userassignedidentity 'Microsoft.ManagedIdentity/userAssignedIdentities@
   name: defaultName
 }
 
-output AZURE_CLIENT_ID string = userassignedidentity.properties.clientId
 
 
 resource storageaccount_teststorage 'Microsoft.Storage/storageAccounts@2023-05-01' = {

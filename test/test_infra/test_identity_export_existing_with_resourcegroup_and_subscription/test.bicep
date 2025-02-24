@@ -10,6 +10,5 @@ resource userassignedidentity_exists 'Microsoft.ManagedIdentity/userAssignedIden
   name: 'exists'
 }
 
-output AZURE_CLIENT_ID string = userassignedidentity_exists.properties.clientId
 
 
