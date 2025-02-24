@@ -56,7 +56,7 @@ def test_expression_resourcesymbol():
 def test_expression_parameter():
     param = exp.Parameter("test")
     assert param.name == "test"
-    assert param.default == exp.ParameterDefault.MISSING
+    assert param.default == exp.Default.MISSING
     assert param.type == "string"
     assert param.value == "test"
     assert repr(param) == "parameter(test)"

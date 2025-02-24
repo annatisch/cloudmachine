@@ -8,10 +8,10 @@ from .utils import resolve_value, serialize
 BicepDataTypes = Literal["string", "array", "object", "int", "bool"]
 _type = type
 
-class ParameterDefault(StrEnum):
+class Default(StrEnum):
     MISSING = 'NoDefault'
 
-MISSING = ParameterDefault.MISSING
+MISSING = Default.MISSING
 
 
 class Expression:
@@ -132,7 +132,7 @@ class Parameter(Expression, Generic[ParameterType]):
     name: str
     type: str
     module: str
-    default: Union[ParameterType, Literal[ParameterDefault.MISSING]]
+    default: Union[ParameterType, Literal[Default.MISSING]]
 
     def __init__(
             self,

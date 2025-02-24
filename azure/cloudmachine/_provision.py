@@ -1,6 +1,6 @@
 from inspect import get_annotations
 import inspect
-from typing import IO, Any, Callable, Iterable, List, Literal, Optional, Type, Dict, Tuple, TYPE_CHECKING, TypeVar, Union, Unpack, overload
+from typing import IO, Any, Callable, Iterable, List, Literal, Mapping, Optional, Type, Dict, Tuple, TYPE_CHECKING, TypeVar, Union, Unpack, overload
 import os
 import json
 import subprocess
@@ -9,7 +9,7 @@ from collections import defaultdict
 from dotenv import dotenv_values
 
 from ._version import VERSION
-from ._component import AzureInfrastructure, InfrastructureResource
+from ._component import AzureInfrastructure, ComponentField
 from ._parameters import GLOBAL_PARAMS
 from ._bicep.utils import generate_name, resolve_value, serialize_dict, generate_suffix, serialize_list
 from ._bicep.expressions import Expression, Output, Parameter, ResourceSymbol, Subscription, UniqueString, Variable
@@ -75,7 +75,9 @@ def _init_project(
 
 
 def _get_component_resources(component: Type[Resource]) -> Dict[str, Resource]:
-    return {k: v for k, v in component.__dict__.items() if isinstance(v, (Resource, InfrastructureResource))}
+    resources = {k: v for k, v in component.__dict__.items() if isinstance(v, (Resource, AzureInfrastructure))}
+    return resources
+
 
 def _get_filename() -> str:
     frame = inspect.stack()[2]
@@ -171,8 +173,10 @@ def export(
         user_access: bool = True,
         location: Optional[str] = None,
         name: Optional[str] = None,
+        config_store: Optional[Mapping[str, Any]] = None,
 ) -> None:
     deployment_name = name or deployment.__class__.__name__
+    config_store = config_store or {}
     print("Building bicep...")
     working_dir = os.path.abspath(output_dir)
     infra_dir = os.path.join(working_dir, infra_dir)
@@ -206,7 +210,7 @@ def export(
         main.write("targetScope = 'subscription'\n\n")
         module_params = {k: v for k,v in parameters.items() if v.module == 'main'}
         for parameter in module_params.values():
-            main.write(parameter.__bicep__(deployment._config_store.get(parameter.name)))
+            main.write(parameter.__bicep__(config_store.get(parameter.name)))
         _write_resources(
             bicep=main,
             fields=list(fields.values()),
@@ -214,7 +218,7 @@ def export(
             module_parameters=module_params,
             deployment_name=deployment_name,
             infra_dir=infra_dir,
-            config=deployment._config_store
+            config=config_store
 
         )
         main.write("\n")
@@ -233,24 +237,24 @@ def _parse_module(
         parameters: Dict[str, Parameter],
         parent_component: AzureInfrastructure,
         component: AzureInfrastructure,
-        component_resources: Dict[str, Resource],
+        component_resources: Dict[str, Union[Resource, AzureInfrastructure]],
         component_fields: FieldsType,
         module_name: str
 ) -> FieldsType:
     for resource in component_resources.values():
-        if resource._infra == component:
+        if isinstance(resource, Resource):
             resource.__bicep__(
                 component_fields,
                 parameters=parameters,
-                app_component=parent_component,
+                infra_component=component,
                 module_name=module_name
             )
         else:
             _parse_module(
                 parameters=parameters,
                 parent_component=parent_component,
-                component=resource._infra,
-                component_resources=_get_component_resources(resource._infra),
+                component=resource,
+                component_resources=_get_component_resources(resource),
                 component_fields=component_fields,
                 module_name=module_name
             )
@@ -325,7 +329,7 @@ def _write_resources(
             bicep.write(f"  name: {resolve_value(field.properties['name'], **config)}\n")
             if 'parent' in field.properties:
                 bicep.write(f"  parent: {resolve_value(field.properties['parent'])}\n")
-            elif field.resource_group != resource_group_scope:
+            elif field.resource_group is not None and field.resource_group != resource_group_scope:
                 bicep.write(f"  scope: {field.resource_group.value}\n")
             bicep.write("}\n")
         else:

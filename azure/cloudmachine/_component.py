@@ -10,8 +10,8 @@ from typing import (
     Any, Union, Literal, Optional, Callable, Dict, List, Type, Unpack
 )
 
-from ._bicep.expressions import Parameter
-from ._resource import Resource, DefaultResource, _load_dev_environment, ResourceReference
+from ._bicep.expressions import Parameter, MISSING, Default
+from ._resource import Resource, _load_dev_environment, ResourceReference
 from .resources._identifiers import ResourceIdentifiers
 from .resources.resourcegroup import ResourceGroup
 from .resources.managedidentity import UserAssignedIdentity
@@ -21,8 +21,6 @@ if TYPE_CHECKING:
     from .resources.managedidentity.types import UserAssignedIdentityResource
 
 
-MISSING = DefaultResource.MISSING
-BUILD_DEFAULT = DefaultResource.BUILD_DEFAULT
 CLIENT_BY_ANNOTATION: Dict[str, ResourceIdentifiers] = {
     'BlobServiceClient': ResourceIdentifiers.blob_storage,
     'DataLakeServiceClient': ResourceIdentifiers.blob_storage,
@@ -59,7 +57,7 @@ class ComponentField(Parameter[Any]):
             self,
             *,
             default: Any,
-            factory: Union[Literal[DefaultResource.MISSING], DefaultFactory],
+            factory: Union[Literal[Default.MISSING], DefaultFactory],
             repr: bool,
             init: bool,
             alias: Optional[str],
@@ -74,6 +72,7 @@ class ComponentField(Parameter[Any]):
         self._owner: Optional[Type] = None
         self._attrname: Optional[str] = None
         self._name: Optional[str] = None
+        self.module = "main"  # TODO: refactor this away
 
     @property
     def name(self) -> str:
@@ -86,9 +85,9 @@ class ComponentField(Parameter[Any]):
         return self._default   
         
     def __repr__(self) -> str:
-        if self._default:
+        if self._default is not MISSING:
             return f"FieldComponent(default={repr(self._default)})"
-        if self._factory:
+        if self._factory is not MISSING:
             return f"FieldComponent(default={self._factory._name_}(**kwargs))"
         return "FieldComponent()"
 
@@ -119,8 +118,8 @@ class ComponentField(Parameter[Any]):
 
 def field(
         *,
-        default: Union[Any, Literal[DefaultResource.MISSING]] = MISSING,
-        factory: Union[DefaultFactory, Literal[DefaultResource.MISSING]] = MISSING,
+        default: Union[Any, Literal[Default.MISSING]] = MISSING,
+        factory: Union[DefaultFactory, Literal[Default.MISSING]] = MISSING,
         repr: bool = True,
         init: bool = True,
         alias: Optional[str] = None,
@@ -279,7 +278,7 @@ class AzureApp(metaclass=AzureAppComponent):
             setattr(self, key, value)
 
     @classmethod
-    def from_infra(cls, infra: Union[AzureInfrastructure], /) -> Self:
+    def from_infra(cls, infra: Union[AzureInfrastructure], /, config_store: Optional[Mapping[str, Any]] = None) -> Self:
         infra_resources = {r.identifier: r for r in infra.__dict__.values() if isinstance(r, Resource)}
         app_resources = {attr: value for attr, value in cls.__dict__.items() if isinstance(value, ClientBuilder)}
         kwargs = {}
@@ -287,4 +286,4 @@ class AzureApp(metaclass=AzureAppComponent):
             app_resource = CLIENT_BY_ANNOTATION[value.client_cls.__name__]
             if app_resource in infra_resources:
                 kwargs[key] = infra_resources[app_resource]
-        return cls(config_store=infra._config_store, **kwargs)
+        return cls(config_store=config_store, **kwargs)

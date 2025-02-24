@@ -146,7 +146,7 @@ class AIDeployment(_ClientResource[AIDeploymentResourceType]):
         )
 
     def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
-        return f"https://{self.parent.name(config_store=config_store)}.openai.azure.com/openai/deployments/{self.name(config_store=config_store)}"
+        return f"https://{self.parent._settings['name'](config_store=config_store)}.openai.azure.com/openai/deployments/{self._settings['name'](config_store=config_store)}"
 
     def _outputs(
             self,
@@ -222,7 +222,7 @@ class AIChat(AIDeployment):
         return existing
 
     def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
-        return f"https://{self.parent.name(config_store=config_store)}.openai.azure.com/openai/deployments/{self.name(config_store=config_store)}/chat/completions"
+        return f"https://{self.parent._settings['name'](config_store=config_store)}.openai.azure.com/openai/deployments/{self._settings['name'](config_store=config_store)}/chat/completions"
 
     def _symbol(self) -> ResourceSymbol:
         symbol = super()._symbol()
@@ -379,7 +379,7 @@ class AIEmbeddings(AIDeployment[AIDeploymentResourceType]):
         )
 
     def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
-        return f"https://{self.parent.name(config_store=config_store)}.openai.azure.com/openai/deployments/{self.name(config_store=config_store)}/embeddings"
+        return f"https://{self.parent._settings['name'](config_store=config_store)}.openai.azure.com/openai/deployments/{self._settings['name'](config_store=config_store)}/embeddings"
 
     def _symbol(self) -> ResourceSymbol:
         symbol = super()._symbol()

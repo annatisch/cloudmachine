@@ -103,8 +103,8 @@ class UserAssignedIdentity(Resource[UserAssignedIdentityResourceType]):
     def _outputs(self, symbol, **kwargs) -> Dict[str, Output]:
         return {'client_id': Output("AZURE_CLIENT_ID", "properties.clientId", symbol)}
 
-    def __bicep__(self, fields, *, parameters, app_component = None, module_name):
-        symbols = super().__bicep__(fields, parameters=parameters, app_component=app_component, module_name=module_name)
+    def __bicep__(self, fields, *, parameters, infra_component = None, module_name, **kwargs):
+        symbols = super().__bicep__(fields, parameters=parameters, infra_component=infra_component, module_name=module_name, **kwargs)
         parameters['managedIdentityId'] = Variable('managedIdentityId', Output(None, 'id', symbols[0]), module=module_name)
         parameters['managedIdentityPrincipalId'] = Variable('managedIdentityPrincipalId', Output(None, 'properties.principalId', symbols[0]), module="")
         return symbols

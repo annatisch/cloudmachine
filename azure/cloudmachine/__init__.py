@@ -1,11 +1,10 @@
 
-from ._resource import Resource, DefaultResource
+from ._resource import Resource
 from ._provision import provision, export
 from ._component import field, client, AzureInfrastructure, AzureApp
-from ._bicep.expressions import Parameter
+from ._bicep.expressions import Parameter, MISSING
 from ._version import VERSION
 
-MISSING = DefaultResource.MISSING
 
 __version__ = VERSION
 __all__ = [

@@ -54,8 +54,8 @@ class RoleAssignment(Resource[RoleAssignmentResourceType]):
     def _outputs(self, **kwargs) -> Dict[str, Output]:
         return {}
 
-    def _set_suffix(self, name):
-        return super()._set_suffix(generate_name(name.value))
+    def _build_suffix(self, name):
+        return "_" + generate_name(name.value)
 
 
 BUILT_IN_ROLES: Dict[str, RoleDefinition] = {

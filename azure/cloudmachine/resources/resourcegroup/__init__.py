@@ -113,12 +113,18 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
             parameters: Dict[str, Parameter],
             **kwargs
     ) -> Tuple[ResourceSymbol, ...]:
-        self._set_suffix(self.properties.get('name', ''))
+        if self._suffix is None:
+            # TODO: We're doing this delayed because if it's a ComponentField, it would
+            # fail if we do it in the constructor (before __set_name__ is called).
+            self._suffix = self._build_suffix(self.properties.get('name'))
+            for resource_setting in self._settings.values():
+                resource_setting.suffix = self._suffix
+
         if self._existing:
             properties = {'name': self.properties['name']}
             if self.properties.get('subscription'):
                 properties['scope'] = Subscription(self.properties['subscription'])
-            symbol = self._symbol()
+            symbol = self._build_symbol()
             field = FieldType(
                 resource=self.resource,
                 properties=properties,
@@ -140,7 +146,7 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
             symbol = field.symbol
         else:
             properties = {}
-            symbol = self._symbol()
+            symbol = self._build_symbol()
             field = FieldType(
                 resource=self.resource,
                 properties=properties,

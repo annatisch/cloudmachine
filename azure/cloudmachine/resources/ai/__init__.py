@@ -278,4 +278,4 @@ class AIServices(CognitiveServicesAccount[CognitiveServicesAccountResourceType])
         )
 
     def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
-        return f"https://{self.name(config_store=config_store)}.openai.azure.com/"
+        return f"https://{self._settings['name'](config_store=config_store)}.openai.azure.com/"

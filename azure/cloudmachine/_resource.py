@@ -70,19 +70,13 @@ from azure.core.settings import PrioritizedSetting
 from .resources._identifiers import ResourceIdentifiers
 from ._parameters import DEFAULT_NAME, LOCATION, AZD_TAGS
 from ._setting import StoredPrioritizedSetting
-from ._bicep.expressions import Guid, Output, Expression, Parameter, ResourceSymbol, ResourceGroup, UniqueString, Variable
+from ._bicep.expressions import Guid, Output, Expression, Parameter, ResourceSymbol, ResourceGroup, Default, MISSING
 from ._bicep.utils import serialize, generate_suffix, resolve_value, serialize_dict, clean_name
 
 if TYPE_CHECKING:
     from .resources.resourcegroup import ResourceGroup
     from .resources._extension import RoleAssignment
     from ._component import AzureInfrastructure
-
-
-
-class DefaultResource(Enum):
-    MISSING = 'MISSING'
-    BUILD_DEFAULT = 'BUILD_DEFAULT'
 
 
 ClientType = TypeVar("ClientType")
@@ -184,7 +178,6 @@ class Resource(Generic[ResourcePropertiesType]):
         # specific resource (using either the name or name parameter if present).
         self._prefixes: List[str] = kwargs.pop('service_prefix', [])
         self._suffix = kwargs.pop('suffix', None)
-        self._symbol = None
 
         # These determine how resource properties are handled when building up the bicep
         # definitions for the same resource declared in multiple places. Anything in the
@@ -221,7 +214,7 @@ class Resource(Generic[ResourcePropertiesType]):
                 name='subscription',
                 env_var='AZURE_SUBSCRIPTION_ID',
                 suffix=self._suffix
-            ),
+            )
         if 'name' in self.properties:
             self._settings['name'].set_value(properties['name'])
         if 'subscription' in self.properties:
@@ -236,9 +229,12 @@ class Resource(Generic[ResourcePropertiesType]):
         return f"{self.__class__.__name__}({name})"
 
     def __eq__(self, value: Any) -> bool:
-        """Resource is considered equal if it's the same type and same name."""
+        """Resources are considered equal if they (and their parents) have the same type and same name."""
         try:
-            return value.resource == self.resource and value.properties.get('name') == self.properties.get('name')
+            parent_eq = True
+            if self.parent:
+                parent_eq = self.parent == value.parent
+            return parent_eq and value.resource == self.resource and value.properties.get('name') == self.properties.get('name')
         except:
             return False
 
@@ -342,7 +338,7 @@ class Resource(Generic[ResourcePropertiesType]):
         outputs['resource_group'] = Output(rg_output, ResourceGroup().name)
         if self._existing:
             try:
-                rg_name = self._settings('resource_group')()  # TODO: Is it a problem that there's no config?
+                rg_name = self._settings['resource_group']()  # TODO: Is it a problem that there's no config?
                 outputs['resource_group'] = Output(rg_output, rg_name)
             except RuntimeError:
                 pass
@@ -402,7 +398,7 @@ class Resource(Generic[ResourcePropertiesType]):
             *,
             name: Optional[str] = None,
             module_name: Optional[str] = None
-    ) -> ResourceSymbol:
+    ) -> Optional[ResourceSymbol]:
         # TODO: This might be no longer needed, always one resource group per deployment
         match = self._find_last_resource_match(
             fields,
@@ -411,7 +407,7 @@ class Resource(Generic[ResourcePropertiesType]):
         )
         if match:
             return match.symbol
-        raise RuntimeError("No resource group found.")
+        return None
 
     def _find_identity(
             self,
@@ -429,11 +425,11 @@ class Resource(Generic[ResourcePropertiesType]):
             return match.symbol
         return None
 
-    def _get_field_id(self) -> str:
+    def _get_field_id(self, symbol: ResourceSymbol, parents: Tuple[ResourceSymbol, ...]) -> str:
         if self.parent:
-            prefix = self.parent._get_field_id()
-            return f"{prefix}.{self._symbol.value}"
-        return self._symbol.value
+            prefix = self.parent._get_field_id(parents[0], parents[1:])
+            return f"{prefix}.{symbol.value}"
+        return symbol.value
 
     def _add_parameters(self, obj: Dict[str, Any], parameters):
         for value in obj.values():
@@ -484,13 +480,6 @@ class Resource(Generic[ResourcePropertiesType]):
             infra_component: Optional[AzureInfrastructure] = None,
             module_name: Optional[str] = None,
     ) -> Tuple[ResourceSymbol, ...]:
-        if self._suffix is None:
-            # We're doing this delayed because if it's a ComponentField, it would
-            # fail if we do it in the constructor (before __set_name__ is called).
-            self._suffix = self._build_suffix(self.properties.get('name'))
-            for resource_setting in self._settings.values():
-                resource_setting.suffix = self._suffix
-            self._symbol = self._build_symbol()
         extensions = defaultdict(list)
         extensions.update(self.extensions)
         parents: Tuple[ResourceSymbol] = ()
@@ -499,24 +488,31 @@ class Resource(Generic[ResourcePropertiesType]):
                 fields,
                 parameters=parameters,
                 infra_component=infra_component,
-                module_name=module_name
+                module_name=module_name,
             )
+        if self._suffix is None:
+            # TODO: We're doing this delayed because if it's a ComponentField, it would
+            # fail if we do it in the constructor (before __set_name__ is called).
+            self._suffix = self._build_suffix(self.properties.get('name'))
+            for resource_setting in self._settings.values():
+                resource_setting.suffix = self._suffix
 
         if self._existing:
             if 'name' not in self.properties and 'name' not in self.DEFAULTS:
                 raise ValueError(f"Reference to existing resource {repr(self)} is missing 'name'.")
             properties = {'name': self.properties.get('name', self.DEFAULTS['name'])}
+            rg = None
             if parents:
-                properties['parent'] = parents[0]
-                rg = None
+                properties['parent'] = parents[0] 
             elif 'resource_group' in self.properties:
                 rg = self.properties['resource_group'].__bicep__(
-                    fields, parameters=parameters, infra_component=infra_component, module_name=module_name)[0]
+                    fields,
+                    parameters=parameters,
+                    infra_component=infra_component,
+                    module_name=module_name,
+                )[0]
                 properties['scope'] = rg
-            # TODO: Don't think we need this as it will automatically use the default rg scope
-            #else:
-            #    rg = self._find_resource_group(fields, parameters, module_name=module_name)
-            #    properties['scope'] = rg
+            symbol = self._build_symbol()
             outputs = self._outputs(
                 symbol=symbol,
                 resource_group=rg,
@@ -560,8 +556,8 @@ class Resource(Generic[ResourcePropertiesType]):
             params = {}
             if self.parent:
                 params['parent'] = parents[0]
-            symbol = self._symbol()
             outputs = {}
+            symbol = self._build_symbol()
             field = FieldType(
                 resource=self.resource,
                 properties=params,
@@ -648,7 +644,7 @@ class _ClientResource(Resource[ResourcePropertiesType]):
         raise NotImplementedError("This must be implemented by child resources.")
 
     def _build_credential(self, use_async: bool, *, config_store: Mapping[str, Any]) -> Union[SupportsTokenInfo, AsyncSupportsTokenInfo]:
-        value = self.credential(config_store=config_store)
+        value = self._settings['credential'](config_store=config_store)
         try:
             value = value.lower()
             if value == 'default':
@@ -657,7 +653,7 @@ class _ClientResource(Resource[ResourcePropertiesType]):
                 else:
                     from azure.identity import DefaultAzureCredential
                 credential = DefaultAzureCredential()
-                self.credential.set_value(credential)
+                self._settings['credential'].set_value(credential)
                 return credential
             if value == 'managedidentity':
                 if use_async:
@@ -665,17 +661,17 @@ class _ClientResource(Resource[ResourcePropertiesType]):
                 else:
                     from azure.identity import ManagedIdentityCredential
                 credential = ManagedIdentityCredential()
-                self.credential.set_value(credential)
+                self._settings['credential'].set_value(credential)
                 return credential
         except AttributeError:
             pass
         try:
             constructed_value = value()
-            self.credential.set_value(constructed_value)
+            self._settings['credential'].set_value(constructed_value)
             return constructed_value
         except TypeError:
             if isinstance(value, (SupportsTokenInfo, AsyncSupportsTokenInfo)):
-                self.credential.set_value(value)
+                self._settings['credential'].set_value(value)
                 return value
         raise ValueError(f'Cannot convert {value} to credential type.')
 

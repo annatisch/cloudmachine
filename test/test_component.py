@@ -65,7 +65,17 @@ def test_component_infra_attr_references():
         data: BlobContainer = BlobContainer(account=storage)
 
     infra = Infra(name="bar")
-    assert infra.data == BlobContainer(account=BlobStorage.reference(account="bar"))
+    assert infra.storage.parent.properties.get('name').get(infra) == "bar"
+    assert infra.data.parent.parent.properties.get('name').get(infra) == "bar"
+
+    class Infra(AzureInfrastructure):
+        storage: BlobStorage = field()
+        data: BlobContainer = BlobContainer(account=storage)
+
+    infra = Infra(storage=BlobStorage.reference(account="foo"))
+    # TODO: How to unravel this???
+    assert infra.data.parent.parent.properties.get('name').get(infra) == BlobStorage(account="foo")
+
 
 def test_component_infra_repr():
     ...
@@ -205,7 +215,7 @@ def test_component_infra_hybrid():
     assert infra.number == 7
     assert infra.string == "teststring"
     assert infra.some_func() == "teststring"
-    assert infra.resource == BlobContainer(name="A")
+    assert infra.resource == BlobContainer(name="A", account="B")
     assert infra.another_resource == BlobStorage()
     assert infra.data['bar'].get(infra) == BlobStorage()
     assert infra.data['foo'] == 'teststring'

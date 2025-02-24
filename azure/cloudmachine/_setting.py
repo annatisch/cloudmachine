@@ -30,7 +30,7 @@ import os
 
 from azure.core.settings import _unset, _Unset, PrioritizedSetting, ValidInputType, ValueType
 
-from ._bicep.expressions import Parameter, MISSING, ParameterDefault, Expression
+from ._bicep.expressions import Parameter, MISSING, Expression
 
 
 class StoredPrioritizedSetting(PrioritizedSetting):
@@ -45,6 +45,7 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         env_vars: Optional[List[str]] = None,
         system_hook: Optional[Callable[[], ValidInputType]] = None,
         default: Union[ValidInputType, _Unset] = _unset,
+        user_value: Union[ValidInputType, _Unset] = _unset,
         convert: Optional[Callable[[Union[ValidInputType, str]], ValueType]] = None,
     ):
         super().__init__(
@@ -54,7 +55,8 @@ class StoredPrioritizedSetting(PrioritizedSetting):
             default=default,
             convert=convert,
         )
-        self.suffix = suffix
+        self.suffix = suffix or ""
+        self._user_value = user_value
         self._env_vars = env_vars or []
 
     def __call__(self, value: Optional[ValidInputType] = None, *, config_store: Optional[Mapping[str, Any]] = None) -> ValueType:
@@ -73,7 +75,7 @@ class StoredPrioritizedSetting(PrioritizedSetting):
         varname = value._varname or value.name
         if varname in config_store:
             return config_store[varname]
-        if not isinstance(value.default, (ParameterDefault, Expression)):
+        if value.default is not MISSING and not isinstance(value.default, Expression):
             return value.default
         raise RuntimeError(f"No value for parameter {varname} found in config store.")
 

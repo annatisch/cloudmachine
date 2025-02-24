@@ -4,7 +4,7 @@ import inspect
 from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, Tuple, TypedDict, Union, Unpack, overload, Optional, Any, Type
 from typing_extensions import TypeVar
 
-from ....._component import InfrastructureResource
+from ....._component import ComponentField
 from ....._parameters import GLOBAL_PARAMS
 from ...._identifiers import ResourceIdentifiers
 from ....._bicep.expressions import Output, Parameter, ResourceSymbol, Expression
@@ -67,7 +67,7 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
             properties: Optional['ContainerResource'] = None,
             /,
             name: Optional[str] = None,
-            account: Optional[Union[str, Parameter[str], BlobStorage, InfrastructureResource]] = None,
+            account: Optional[Union[str, Parameter[str], BlobStorage, ComponentField]] = None,
             **kwargs: Unpack['ContainerKwargs']
     ) -> None:
         existing = kwargs.pop('existing', False)
@@ -76,7 +76,7 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
             extensions['managed_identity_roles'] = kwargs.pop('roles')
         if 'user_roles' in kwargs:
             extensions['user_roles'] = kwargs.pop('user_roles')
-        parent = account if isinstance(account, (BlobStorage, InfrastructureResource)) else kwargs.pop('parent', BlobStorage(account=account))
+        parent = account if isinstance(account, BlobStorage) else kwargs.pop('parent', BlobStorage(account=account))
         if not existing:
             properties = properties or {}
             if 'properties' not in properties:
@@ -147,7 +147,7 @@ class BlobContainer(_ClientResource[ContainerResourceType]):
         return super().reference(resource=resource, name=name, parent=parent)
 
     def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
-        return f"https://{self.parent.parent.name(config_store=config_store)}.blob.core.windows.net/{self.name(config_store=config_store)}"
+        return f"https://{self.parent.parent._settings['name'](config_store=config_store)}.blob.core.windows.net/{self._settings['name'](config_store=config_store)}"
 
     def _outputs(
             self,

@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Mapping, Self, 
 from typing_extensions import TypeVar
 from collections import defaultdict
 
+from ...._component import ComponentField
 from ..._identifiers import ResourceIdentifiers
 from ...resourcegroup import ResourceGroup
 from ...._bicep.expressions import Output, Parameter, ResourceSymbol
@@ -65,7 +66,7 @@ class BlobStorage(_ClientResource[BlobServiceResourceType]):
             self,
             properties: Optional['BlobServiceResource'] = None,
             /,
-            account: Optional[Union[str, StorageAccount]] = None,
+            account: Optional[Union[str, Parameter[str], ComponentField, StorageAccount]] = None,
             **kwargs: Unpack['BlobStorageKwargs']
     ) -> None:
         existing = kwargs.pop('existing', False)
@@ -153,7 +154,7 @@ class BlobStorage(_ClientResource[BlobServiceResourceType]):
     def reference(
             cls,
             *,
-            account: Union[str, Parameter[str], StorageAccount],
+            account: Union[str, Parameter[str], StorageAccount, ComponentField],
             resource_group: Optional[Union[str, Parameter[str], ResourceGroup]] = None,
     ) -> 'BlobStorage[ResourceReference]':
         from .types import RESOURCE, VERSION
@@ -171,11 +172,11 @@ class BlobStorage(_ClientResource[BlobServiceResourceType]):
             resource=resource,
             parent=parent,
         )
-        existing._name.set_value('default')
+        existing._settings['name'].set_value('default')
         return existing
 
     def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
-        return f"https://{self.parent.name(config_store=config_store)}.blob.core.windows.net/"
+        return f"https://{self.parent._settings['name'](config_store=config_store)}.blob.core.windows.net/"
 
     def _outputs(
             self,

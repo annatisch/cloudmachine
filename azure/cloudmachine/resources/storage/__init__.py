@@ -232,6 +232,7 @@ class StorageAccount(Resource[StorageAccountResourceType]):
     ) -> 'StorageAccount[ResourceReference]':
         from .types import RESOURCE, VERSION
         resource = f"{RESOURCE}@{VERSION}"
+        print("NAME", name)
         return super().reference(
             resource=resource,
             name=name,
