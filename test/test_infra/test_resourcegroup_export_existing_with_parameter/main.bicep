@@ -25,6 +25,10 @@ param managedIdentityId string = ''
 @sys.description('Principal ID of the managed identity to assign application roles')
 param managedIdentityPrincipalId string = ''
 
+param RgName string
+
+param RgSub string
+
 resource resourcegroup_rgname 'Microsoft.Resources/resourceGroups@2021-04-01' existing = {
   name: RgName
   scope: subscription(RgSub)

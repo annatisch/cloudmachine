@@ -4,9 +4,9 @@ import pytest
 from azure.cloudmachine._resource import FieldType
 from azure.cloudmachine.resources.resourcegroup import ResourceGroup
 from azure.cloudmachine._parameters import GLOBAL_PARAMS
-from azure.cloudmachine._component import InfrastructureResource
+from azure.cloudmachine._component import ComponentField
 from azure.cloudmachine._bicep.expressions import ResourceSymbol, Subscription
-from azure.cloudmachine import Parameter, export, AzureInfrastructure, resource
+from azure.cloudmachine import Parameter, export, AzureInfrastructure, field
 from azure.cloudmachine.resources._identifiers import ResourceIdentifiers
 
 TEST_SUB = "25b4d56c-0dc2-4c45-9a13-c3653a70b912"
@@ -101,13 +101,13 @@ def test_resourcegroup_reference():
     assert r._existing == True
     assert not r.parent
     assert r.extensions == {}
-    assert r.name() == 'foo'
+    assert r._settings['name']() == 'foo'
     with pytest.raises(RuntimeError):
-        r.resource_group()
+        r._settings['resource_group']()
     with pytest.raises(RuntimeError):
-        r.subscription()
+        r._settings['subscription']()
     with pytest.raises(RuntimeError):
-        r.resource_id()
+        r._settings['resource_id']()
 
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
@@ -125,8 +125,8 @@ def test_resourcegroup_reference():
 
     r = ResourceGroup.reference(name='bar', subscription=TEST_SUB)
     assert r.properties == {'name': 'bar', 'subscription': TEST_SUB}
-    assert r.subscription() == TEST_SUB
-    assert r.resource_id() == f"/subscriptions/{TEST_SUB}/providers/Microsoft.Resources/resourceGroups/bar"
+    assert r._settings['subscription']() == TEST_SUB
+    assert r._settings['resource_id']() == f"/subscriptions/{TEST_SUB}/providers/Microsoft.Resources/resourceGroups/bar"
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['resourcegroup_foo', 'resourcegroup_bar']
     assert fields['resourcegroup_bar'].resource == "Microsoft.Resources/resourceGroups"
@@ -150,13 +150,13 @@ def test_resourcegroup_parameter_reference():
     assert not r.parent
     assert r.extensions == {}
     with pytest.raises(RuntimeError):
-        r.name()
+        r._settings['name']()
     with pytest.raises(RuntimeError):
-        r.resource_group()
+        r._settings['resource_group']()
     with pytest.raises(RuntimeError):
-        r.subscription()
+        r._settings['subscription']()
     with pytest.raises(RuntimeError):
-        r.resource_id()
+        r._settings['resource_id']()
 
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
@@ -179,6 +179,9 @@ def test_resourcegroup_defaults():
     fields = {}
     r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     field = fields.popitem()[1]
+    assert field.properties == {
+        'name': rg_name,
+    }
     r._add_defaults(field, parameters=dict(GLOBAL_PARAMS))
     assert field.properties == {
         'name': rg_name,
@@ -188,63 +191,64 @@ def test_resourcegroup_defaults():
 
 def test_resourcegroup_export(export_dir):
     class TestInfra(AzureInfrastructure):
-        r: ResourceGroup = resource()
-    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+        ...
+    export(TestInfra(identity=None), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_resourcegroup_export_with_properties(export_dir):
     class TestInfra(AzureInfrastructure):
-        r: ResourceGroup = resource(default=ResourceGroup(name="foo", location="eastus", tags={"key": "value"}))
-    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+        resource_group: ResourceGroup = field(default=ResourceGroup(name="foo", location="eastus", tags={"key": "value"}))
+    export(TestInfra(identity=None), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_resourcegroup_export_with_parameter(export_dir):
     param = Parameter("resourceGroupName", default="foo")
     class TestInfra(AzureInfrastructure):
-        r: ResourceGroup = resource(default=ResourceGroup(name=param))
-    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+        resource_group: ResourceGroup = field(default=ResourceGroup(name=param))
+    export(TestInfra(identity=None), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_resourcegroup_export_with_config(export_dir):
     param = Parameter("resourceGroupName", default="foo")
     class TestInfra(AzureInfrastructure):
-        r: ResourceGroup = resource(default=ResourceGroup(name=param))
-    export(TestInfra(config_store={"resourceGroupName": "bar"}), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+        resource_group: ResourceGroup = field(default=ResourceGroup(name=param))
+    export(TestInfra(identity=None), output_dir=export_dir[0], infra_dir=export_dir[2], name="test", config_store={"resourceGroupName": "bar"})
 
 
 def test_resourcegroup_export_existing(export_dir):
     class TestInfra(AzureInfrastructure):
-        r: ResourceGroup = resource(default=ResourceGroup.reference(name="foo"))
-    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+        resource_group: ResourceGroup = field(default=ResourceGroup.reference(name="foo"))
+    export(TestInfra(identity=None), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_resourcegroup_export_existing_with_parameter(export_dir):
     rg_name = Parameter('RgName')
     rg_sub = Parameter('RgSub')
     class TestInfra(AzureInfrastructure):
-        r: ResourceGroup = resource(default=ResourceGroup.reference(name=rg_name, subscription=rg_sub))
-    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+        resource_group: ResourceGroup = field(default=ResourceGroup.reference(name=rg_name, subscription=rg_sub))
+    export(TestInfra(identity=None), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_resourcegroup_export_existing_with_subscription(export_dir):
     class TestInfra(AzureInfrastructure):
-        r: ResourceGroup = resource(default=ResourceGroup.reference(name="foo", subscription=TEST_SUB))
-    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+        resource_group: ResourceGroup = field(default=ResourceGroup.reference(name="foo", subscription=TEST_SUB))
+    export(TestInfra(identity=None), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_resourcegroup_infra():
     class TestInfra(AzureInfrastructure):
-        rg: ResourceGroup = resource()
+        resource_group: ResourceGroup = field()
     
-    assert isinstance(TestInfra.rg, ResourceGroup)
-    assert TestInfra.rg._infra is None
-    infra = TestInfra()
-    assert infra.rg._infra == infra
-    assert isinstance(infra.rg, ResourceGroup)
-    assert infra.rg.properties == {}
+    with pytest.raises(AttributeError):
+        TestInfra.resource_group
+    with pytest.raises(TypeError):
+        infra = TestInfra()
+    infra = TestInfra(resource_group=ResourceGroup())
+    assert isinstance(infra.resource_group, ResourceGroup)
+    assert infra.resource_group.properties == {}
 
-    infra = TestInfra(rg=ResourceGroup(name='foo'))
-    assert infra.rg.name() == 'foo'
+    infra = TestInfra(resource_group=ResourceGroup(name='foo'))
+    assert infra.resource_group._settings['name']() == 'foo'
 
     #TODO: Finish testing default behaviours
     # assert resource(default=ResourceGroup.reference(name='foo'))

@@ -11,7 +11,6 @@ resource userassignedidentity 'Microsoft.ManagedIdentity/userAssignedIdentities@
   name: defaultName
 }
 
-output AZURE_CLIENT_ID string = userassignedidentity.properties.clientId
 
 
 resource aiservices_account 'Microsoft.CognitiveServices/accounts@2024-10-01' = {

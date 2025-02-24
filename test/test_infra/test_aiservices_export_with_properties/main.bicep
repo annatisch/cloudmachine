@@ -36,7 +36,6 @@ module test_module 'test.bicep' = {
     azdTags: azdTags
   }
 }
-output AZURE_CLIENT_ID string = test_module.outputs.AZURE_CLIENT_ID
 output AZURE_AI_AISERVICES_ID string = test_module.outputs.AZURE_AI_AISERVICES_ID
 output AZURE_AI_AISERVICES_NAME string = test_module.outputs.AZURE_AI_AISERVICES_NAME
 output AZURE_AI_AISERVICES_RESOURCE_GROUP string = test_module.outputs.AZURE_AI_AISERVICES_RESOURCE_GROUP

@@ -3,11 +3,8 @@ param environmentName string
 param defaultName string
 param principalId string
 param azdTags object
-param aiChatModel string
-param aiChatModelFormat string
-param aiChatModelVersion string
-param aiChatModelSku string
-param aiChatModelCapacity int
+param aiEmbeddingsModelSku string
+param aiEmbeddingsModelCapacity int
 var managedIdentityId = userassignedidentity.id
 var managedIdentityPrincipalId = userassignedidentity.properties.principalId
 
@@ -45,28 +42,48 @@ output AZURE_AI_AISERVICES_RESOURCE_GROUP string = resourceGroup().name
 output AZURE_AI_AISERVICES_ENDPOINT string = aiservices_account.properties.endpoint
 
 
-resource chat_deployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
+resource embeddings_deployment_one 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
   parent: aiservices_account
   properties: {
     model: {
-      name: aiChatModel
-      format: aiChatModelFormat
-      version: aiChatModelVersion
+      name: 'one'
     }
   }
-  name: '${defaultName}-chat-deployment'
+  name: 'one'
   sku: {
-    name: aiChatModelSku
-    capacity: aiChatModelCapacity
+    name: aiEmbeddingsModelSku
+    capacity: aiEmbeddingsModelCapacity
   }
 }
 
-output AZURE_AI_CHAT_ID string = chat_deployment.id
-output AZURE_AI_CHAT_NAME string = chat_deployment.name
-output AZURE_AI_CHAT_RESOURCE_GROUP string = resourceGroup().name
-output AZURE_AI_CHAT_MODEL_NAME string = chat_deployment.properties.model.name
-output AZURE_AI_CHAT_MODEL_VERSION string = chat_deployment.properties.model.version
-output AZURE_AI_CHAT_ENDPOINT string = '${aiservices_account.properties.endpoint}openai/deployments/${chat_deployment.name}/chat/completions'
+output AZURE_AI_EMBEDDINGS_ID_ONE string = embeddings_deployment_one.id
+output AZURE_AI_EMBEDDINGS_NAME_ONE string = embeddings_deployment_one.name
+output AZURE_AI_EMBEDDINGS_RESOURCE_GROUP_ONE string = resourceGroup().name
+output AZURE_AI_EMBEDDINGS_MODEL_NAME_ONE string = embeddings_deployment_one.properties.model.name
+output AZURE_AI_EMBEDDINGS_MODEL_VERSION_ONE string = embeddings_deployment_one.properties.model.version
+output AZURE_AI_EMBEDDINGS_ENDPOINT_ONE string = '${aiservices_account.properties.endpoint}openai/deployments/${embeddings_deployment_one.name}/embeddings'
+
+
+resource embeddings_deployment_two 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
+  parent: aiservices_account
+  properties: {
+    model: {
+      name: 'two'
+    }
+  }
+  name: 'two'
+  sku: {
+    name: aiEmbeddingsModelSku
+    capacity: aiEmbeddingsModelCapacity
+  }
+}
+
+output AZURE_AI_EMBEDDINGS_ID_TWO string = embeddings_deployment_two.id
+output AZURE_AI_EMBEDDINGS_NAME_TWO string = embeddings_deployment_two.name
+output AZURE_AI_EMBEDDINGS_RESOURCE_GROUP_TWO string = resourceGroup().name
+output AZURE_AI_EMBEDDINGS_MODEL_NAME_TWO string = embeddings_deployment_two.properties.model.name
+output AZURE_AI_EMBEDDINGS_MODEL_VERSION_TWO string = embeddings_deployment_two.properties.model.version
+output AZURE_AI_EMBEDDINGS_ENDPOINT_TWO string = '${aiservices_account.properties.endpoint}openai/deployments/${embeddings_deployment_two.name}/embeddings'
 
 
 resource roleassignment_prmcdnytekaxfpxlctiu 'Microsoft.Authorization/roleAssignments@2022-04-01' = {

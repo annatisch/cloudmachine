@@ -9,7 +9,7 @@ from azure.cloudmachine._parameters import GLOBAL_PARAMS
 from azure.cloudmachine.resources._identifiers import ResourceIdentifiers
 from azure.cloudmachine._component import CLIENT_BY_ANNOTATION
 from azure.cloudmachine._bicep.expressions import ResourceSymbol, Output, ResourceGroup as DefaultResourceGroup
-from azure.cloudmachine import Parameter, resource, client, AzureInfrastructure, export, AzureApp
+from azure.cloudmachine import Parameter, field, client, AzureInfrastructure, export, AzureApp
 
 TEST_SUB = str(uuid4())
 RG = ResourceSymbol('resourcegroup')
@@ -47,7 +47,7 @@ def test_aiservices_properties():
     assert r.version
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'aiservices_account']
+    assert list(fields.keys()) == ['aiservices_account']
     assert fields['aiservices_account'].resource == "Microsoft.CognitiveServices/accounts"
     assert fields['aiservices_account'].properties == {'kind': 'AIServices', 'properties': {}}
     assert fields['aiservices_account'].outputs == _get_outputs()
@@ -55,14 +55,14 @@ def test_aiservices_properties():
     assert fields['aiservices_account'].existing == False
     assert fields['aiservices_account'].version
     assert fields['aiservices_account'].symbol == symbols[0]
-    assert fields['aiservices_account'].resource_group == RG
+    assert fields['aiservices_account'].resource_group == None
     assert not fields['aiservices_account'].name
     assert fields['aiservices_account'].add_defaults
 
     r2 = AIServices(location='westus', sku='F1')
     assert r2.properties == {'kind': 'AIServices', 'location': 'westus', 'sku': {'name': 'F1'}, 'properties': {}}
     r2.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'aiservices_account']
+    assert list(fields.keys()) == ['aiservices_account']
     assert fields['aiservices_account'].resource == "Microsoft.CognitiveServices/accounts"
     assert fields['aiservices_account'].properties == {'kind': 'AIServices', 'location': 'westus', 'sku': {'name': 'F1'}, 'properties': {}}
     assert fields['aiservices_account'].outputs == _get_outputs()
@@ -70,7 +70,7 @@ def test_aiservices_properties():
     assert fields['aiservices_account'].existing == False
     assert fields['aiservices_account'].version
     assert fields['aiservices_account'].symbol == symbols[0]
-    assert fields['aiservices_account'].resource_group == RG
+    assert fields['aiservices_account'].resource_group == None
     assert not fields['aiservices_account'].name
     assert fields['aiservices_account'].add_defaults
 
@@ -82,7 +82,7 @@ def test_aiservices_properties():
     r4 = AIServices(name='foo', tags={'test': 'value'}, public_network_access='Disabled')
     assert r4.properties == {'name': 'foo', 'kind': 'AIServices', 'tags': {'test': 'value'}, 'properties': {'publicNetworkAccess': 'Disabled'}}
     symbols = r4.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'aiservices_account', 'aiservices_account_foo']
+    assert list(fields.keys()) == ['aiservices_account', 'aiservices_account_foo']
     assert fields['aiservices_account_foo'].resource == "Microsoft.CognitiveServices/accounts"
     assert fields['aiservices_account_foo'].properties == {'name': 'foo', 'kind': 'AIServices', 'tags': {'test': 'value'}, 'properties': {'publicNetworkAccess': 'Disabled'}}
     assert fields['aiservices_account_foo'].outputs == _get_outputs("_foo")
@@ -90,7 +90,7 @@ def test_aiservices_properties():
     assert fields['aiservices_account_foo'].existing == False
     assert fields['aiservices_account_foo'].version
     assert fields['aiservices_account_foo'].symbol == symbols[0]
-    assert fields['aiservices_account_foo'].resource_group == RG
+    assert fields['aiservices_account_foo'].resource_group == None
     assert fields['aiservices_account_foo'].name == 'foo'
     assert fields['aiservices_account_foo'].add_defaults
 
@@ -102,7 +102,7 @@ def test_aiservices_properties():
     params = dict(GLOBAL_PARAMS)
     fields = {}
     symbols = r5.__bicep__(fields, parameters=params)
-    assert list(fields.keys()) == ['resourcegroup', 'userassignedidentity', 'aiservices_account_testa']
+    assert list(fields.keys()) == ['aiservices_account_testa']
     assert fields['aiservices_account_testa'].resource == "Microsoft.CognitiveServices/accounts"
     assert fields['aiservices_account_testa'].properties == {'name': param1, 'kind': 'AIServices', 'sku': {'name': param2}, 'properties': {'publicNetworkAccess': param3}}
     assert fields['aiservices_account_testa'].outputs == _get_outputs("_testa")
@@ -110,7 +110,7 @@ def test_aiservices_properties():
     assert fields['aiservices_account_testa'].existing == False
     assert fields['aiservices_account_testa'].version
     assert fields['aiservices_account_testa'].symbol == symbols[0]
-    assert fields['aiservices_account_testa'].resource_group == RG
+    assert fields['aiservices_account_testa'].resource_group == None
     assert fields['aiservices_account_testa'].name == param1
     assert fields['aiservices_account_testa'].add_defaults
     assert params.get('testA') == param1
@@ -124,31 +124,31 @@ def test_aiservices_reference():
     assert r._existing == True
     assert not r.parent
     assert r.extensions == {}
-    assert r.name() == 'foo'
+    assert r._settings['name']() == 'foo'
     with pytest.raises(RuntimeError):
-        r.resource_group()
+        r._settings['resource_group']()
     with pytest.raises(RuntimeError):
-        r.subscription()
+        r._settings['subscription']()
     with pytest.raises(RuntimeError):
-        r.resource_id()
+        r._settings['resource_id']()
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
-    assert list(fields.keys()) == ['resourcegroup', 'aiservices_account_foo']
+    assert list(fields.keys()) == ['aiservices_account_foo']
     assert fields['aiservices_account_foo'].resource == "Microsoft.CognitiveServices/accounts"
-    assert fields['aiservices_account_foo'].properties == {'name': 'foo', 'scope': RG}
+    assert fields['aiservices_account_foo'].properties == {'name': 'foo'}
     assert fields['aiservices_account_foo'].outputs == _get_outputs("_foo")
     assert fields['aiservices_account_foo'].extensions == {}
     assert fields['aiservices_account_foo'].existing == True
     assert fields['aiservices_account_foo'].version
     assert fields['aiservices_account_foo'].symbol == symbols[0]
-    assert fields['aiservices_account_foo'].resource_group == RG
+    assert fields['aiservices_account_foo'].resource_group == None
     assert fields['aiservices_account_foo'].name == 'foo'
     assert not fields['aiservices_account_foo'].add_defaults
 
     rg = ResourceSymbol('resourcegroup_bar')
     r = AIServices.reference(name='foo', resource_group='bar')
     assert r.properties == {'name': 'foo', 'resource_group': ResourceGroup(name='bar'), 'kind': 'AIServices'}
-    assert r.resource_group() == 'bar'
+    assert r._settings['resource_group']() == 'bar'
     fields = {}
     symbols = r.__bicep__(fields, parameters=dict(GLOBAL_PARAMS))
     assert list(fields.keys()) == ['resourcegroup_bar', 'aiservices_account_foo']
@@ -165,8 +165,8 @@ def test_aiservices_reference():
 
     r = AIServices.reference(name='foo', resource_group=ResourceGroup.reference(name='bar', subscription=TEST_SUB))
     assert r.properties == {'name': 'foo', 'resource_group': ResourceGroup(name='bar'), 'kind': 'AIServices'}
-    assert r.subscription() == TEST_SUB
-    assert r.resource_id() == f"/subscriptions/{TEST_SUB}/resourceGroups/bar/providers/Microsoft.CognitiveServices/accounts/foo"
+    assert r._settings['subscription']() == TEST_SUB
+    assert r._settings['resource_id']() == f"/subscriptions/{TEST_SUB}/resourceGroups/bar/providers/Microsoft.CognitiveServices/accounts/foo"
 
 
 def test_aiservices_defaults():
@@ -193,53 +193,53 @@ def test_aiservices_defaults():
 
 def test_aiservices_export(export_dir):
     class TestInfra(AzureInfrastructure):
-        r: AIServices = resource()
+        r: AIServices = AIServices()
     export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_aiservices_export_existing(export_dir):
     class TestInfra(AzureInfrastructure):
-        r: AIServices = resource(default=AIServices.reference(name='aitest', resource_group='aitest'))
-    export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
+        r: AIServices = field(default=AIServices.reference(name='aitest'))
+    export(TestInfra(resource_group=ResourceGroup.reference(name='aitest'), identity=None), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_aiservices_export_with_properties(export_dir):
     class TestInfra(AzureInfrastructure):
-        r: AIServices = resource(default=AIServices(sku='C2', location="westus", public_network_access='Disabled'))
+        r: AIServices = field(default=AIServices(sku='C2', location="westus", public_network_access='Disabled'))
     export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_aiservices_export_with_role_assignments(export_dir):
     user_role = Parameter("UserRole")
     class TestInfra(AzureInfrastructure):
-        r: AIServices = resource(default=AIServices(roles=['Cognitive Services OpenAI Contributor'], user_roles=['Cognitive Services OpenAI User']))
+        r: AIServices = field(default=AIServices(roles=['Cognitive Services OpenAI Contributor'], user_roles=['Cognitive Services OpenAI User']))
     export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_aiservices_export_with_no_user_access(export_dir):
     class TestInfra(AzureInfrastructure):
-        r: AIServices = resource(default=AIServices(roles=['Cognitive Services OpenAI Contributor'], user_roles=['Cognitive Services OpenAI User']))
+        r: AIServices = field(default=AIServices(roles=['Cognitive Services OpenAI Contributor'], user_roles=['Cognitive Services OpenAI User']))
     export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test", user_access=False)
 
 
 def test_aiservices_export_multiple_cogservices(export_dir):
     class TestInfra(AzureInfrastructure):
-        c: CognitiveServicesAccount = resource(default=CognitiveServicesAccount(kind='MetricsAdvisor'))
-        r: AIServices = resource()
+        c: CognitiveServicesAccount = field(default=CognitiveServicesAccount(kind='MetricsAdvisor'))
+        r: AIServices = AIServices()
 
     export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 
 def test_aiservices_export_multiple_ai(export_dir):
     class TestInfra(AzureInfrastructure):
-        r1: AIServices = resource(default=AIServices(disable_local_auth=False))
-        r2: AIServices = resource(default=AIServices(disable_local_auth=Parameter("LocalAuth", default=True)))
+        r1: AIServices = field(default=AIServices(disable_local_auth=False))
+        r2: AIServices = field(default=AIServices(disable_local_auth=Parameter("LocalAuth", default=True)))
     with pytest.raises(ValueError):
         export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
     
     class TestInfra(AzureInfrastructure):
-        r1: AIServices = resource(default=AIServices(disable_local_auth=False))
-        r2: AIServices = resource()
+        r1: AIServices = field(default=AIServices(disable_local_auth=False))
+        r2: AIServices = AIServices
     export(TestInfra(), output_dir=export_dir[0], infra_dir=export_dir[2], name="test")
 
 # TODO:
@@ -247,10 +247,10 @@ def test_aiservices_export_multiple_ai(export_dir):
 
 def test_aiservices_client():
     r = AIServices.reference(name='test', resource_group='test')
-    assert r.name() == 'test'
-    r.api_version.set_value("v1.0")
-    r.audience.set_value("noone")
-    r.client_options.set_value({'foo': 'bar'})
+    assert r._settings['name']() == 'test'
+    r._settings['api_version'].set_value("v1.0")
+    r._settings['audience'].set_value("noone")
+    r._settings['client_options'].set_value({'foo': 'bar'})
     client = r.get_client(EmptyClient, test_attr="test")
     assert client.endpoint == "https://test.openai.azure.com/"
     assert client.credential
@@ -262,17 +262,18 @@ def test_aiservices_client():
 
 def test_aiservices_infra():
     class TestInfra(AzureInfrastructure):
-        ai: AIServices = resource()
+        ai: AIServices
     
-    assert isinstance(TestInfra.ai, AIServices)
-    assert TestInfra.ai._infra is None
-    infra = TestInfra()
-    assert infra.ai._infra == infra
+    with pytest.raises(AttributeError):
+        TestInfra.ai
+    with pytest.raises(TypeError):
+        infra = TestInfra()
+    infra = TestInfra(ai=AIServices())
     assert isinstance(infra.ai, AIServices)
     assert infra.ai.properties == {'properties': {}, 'kind': 'AIServices'}
 
     infra = TestInfra(ai=AIServices(name='foo'))
-    assert infra.ai.name() == 'foo'
+    assert infra.ai._settings['name']() == 'foo'
 
 
 def test_aiservices_app():
@@ -332,7 +333,7 @@ def test_aiservices_app():
 
 
     class TestInfra(AzureInfrastructure):
-        ai: AIServices = resource()
+        ai: AIServices = AIServices()
 
     class TestApp(AzureApp):
         client: EmptyClient = client(api_version="v1.0")

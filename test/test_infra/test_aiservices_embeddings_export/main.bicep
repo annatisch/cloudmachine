@@ -19,15 +19,15 @@ var azdTags = {
   'azd-env-name': environmentName
 }
 
-param aiChatModel string = 'gpt-4o-mini'
+param aiEmbeddingsModel string = 'text-embedding-ada-002'
 
-param aiChatModelFormat string = 'OpenAI'
+param aiEmbeddingsModelFormat string = 'OpenAI'
 
-param aiChatModelVersion string = '2024-07-18'
+param aiEmbeddingsModelVersion string = '2'
 
-param aiChatModelSku string = 'Standard'
+param aiEmbeddingsModelSku string = 'Standard'
 
-param aiChatModelCapacity int = 30
+param aiEmbeddingsModelCapacity int = 30
 
 resource resourcegroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   name: defaultName
@@ -44,22 +44,22 @@ module test_module 'test.bicep' = {
     defaultName: defaultName
     principalId: principalId
     azdTags: azdTags
-    aiChatModel: aiChatModel
-    aiChatModelFormat: aiChatModelFormat
-    aiChatModelVersion: aiChatModelVersion
-    aiChatModelSku: aiChatModelSku
-    aiChatModelCapacity: aiChatModelCapacity
+    aiEmbeddingsModel: aiEmbeddingsModel
+    aiEmbeddingsModelFormat: aiEmbeddingsModelFormat
+    aiEmbeddingsModelVersion: aiEmbeddingsModelVersion
+    aiEmbeddingsModelSku: aiEmbeddingsModelSku
+    aiEmbeddingsModelCapacity: aiEmbeddingsModelCapacity
   }
 }
 output AZURE_AI_AISERVICES_ID string = test_module.outputs.AZURE_AI_AISERVICES_ID
 output AZURE_AI_AISERVICES_NAME string = test_module.outputs.AZURE_AI_AISERVICES_NAME
 output AZURE_AI_AISERVICES_RESOURCE_GROUP string = test_module.outputs.AZURE_AI_AISERVICES_RESOURCE_GROUP
 output AZURE_AI_AISERVICES_ENDPOINT string = test_module.outputs.AZURE_AI_AISERVICES_ENDPOINT
-output AZURE_AI_CHAT_ID string = test_module.outputs.AZURE_AI_CHAT_ID
-output AZURE_AI_CHAT_NAME string = test_module.outputs.AZURE_AI_CHAT_NAME
-output AZURE_AI_CHAT_RESOURCE_GROUP string = test_module.outputs.AZURE_AI_CHAT_RESOURCE_GROUP
-output AZURE_AI_CHAT_MODEL_NAME string = test_module.outputs.AZURE_AI_CHAT_MODEL_NAME
-output AZURE_AI_CHAT_MODEL_VERSION string = test_module.outputs.AZURE_AI_CHAT_MODEL_VERSION
-output AZURE_AI_CHAT_ENDPOINT string = test_module.outputs.AZURE_AI_CHAT_ENDPOINT
+output AZURE_AI_EMBEDDINGS_ID string = test_module.outputs.AZURE_AI_EMBEDDINGS_ID
+output AZURE_AI_EMBEDDINGS_NAME string = test_module.outputs.AZURE_AI_EMBEDDINGS_NAME
+output AZURE_AI_EMBEDDINGS_RESOURCE_GROUP string = test_module.outputs.AZURE_AI_EMBEDDINGS_RESOURCE_GROUP
+output AZURE_AI_EMBEDDINGS_MODEL_NAME string = test_module.outputs.AZURE_AI_EMBEDDINGS_MODEL_NAME
+output AZURE_AI_EMBEDDINGS_MODEL_VERSION string = test_module.outputs.AZURE_AI_EMBEDDINGS_MODEL_VERSION
+output AZURE_AI_EMBEDDINGS_ENDPOINT string = test_module.outputs.AZURE_AI_EMBEDDINGS_ENDPOINT
 
 

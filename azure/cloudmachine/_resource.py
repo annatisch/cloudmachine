@@ -444,12 +444,14 @@ class Resource(Generic[ResourcePropertiesType]):
             self,
             properties: Dict[str, Any],
             parameters: Dict[str, Parameter],
-            component: AzureInfrastructure
+            component: AzureInfrastructure = None
     ) -> Dict[str, Any]:
+        # TODO: Better design here? We need to gather Parameters both
+        # with and without resolving ComponentFields.
         from ._component import ComponentField
         new_props = {}
         for key, value in properties.items():
-            if isinstance(value, ComponentField):
+            if component and isinstance(value, ComponentField):
                 new_props[key] = value.get(component)
             elif isinstance(value, Parameter) and value.name:
                 parameters[value.name] = value
@@ -457,7 +459,7 @@ class Resource(Generic[ResourcePropertiesType]):
             elif isinstance(value, list):
                 resolved_items = []
                 for item in value:
-                    if isinstance(item, ComponentField):
+                    if component and isinstance(item, ComponentField):
                         resolved_items.append(item.get(component))
                     elif isinstance(item, Parameter) and item.name:
                         parameters[item.name] = item
@@ -491,7 +493,8 @@ class Resource(Generic[ResourcePropertiesType]):
                         pass
             else:
                 field.properties[key] = value
-        #self._resolve_properties(field.properties, parameters)
+        # TODO: This is making a copy of the properties, very slow...
+        self._resolve_properties(field.properties, parameters)
         if 'managed_identity_roles' not in field.extensions:
             field.extensions['managed_identity_roles'] = self.DEFAULT_EXTENSIONS.get('managed_identity_roles', [])
         if 'user_roles' not in field.extensions:

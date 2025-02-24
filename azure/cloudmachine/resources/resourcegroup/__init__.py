@@ -103,15 +103,15 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
         return self._version
 
     def _build_resource_id(self, *, config_store: Mapping[str, Any]) -> str:
-        prefix = f"/subscriptions/{self.subscription(config_store=config_store)}/providers/"
-        return prefix + f"{self._resource}/{self.name(config_store=config_store)}"
+        prefix = f"/subscriptions/{self._settings['subscription'](config_store=config_store)}/providers/"
+        return prefix + f"{self._resource}/{self._settings['name'](config_store=config_store)}"
 
     def __bicep__(
             self,
             fields: FieldsType,
             *,
             parameters: Dict[str, Parameter],
-            infra_component: 'AzureInfrastructure',
+            infra_component: Optional['AzureInfrastructure'] = None,
             **kwargs
     ) -> Tuple[ResourceSymbol, ...]:
         properties = self._resolve_resource(parameters, infra_component)
@@ -144,14 +144,14 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
 
         field = self._find_last_resource_match(fields, name=properties.get('name'))
         if field:
-            properties = field.properties
+            params = field.properties
             symbol = field.symbol
         else:
-            properties = {}
+            params = {}
             symbol = self._build_symbol()
             field = FieldType(
                 resource=self.resource,
-                properties=properties,
+                properties=params,
                 symbol=symbol,
                 outputs={},
                 resource_group=symbol,
@@ -162,5 +162,5 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
                 add_defaults=self._add_defaults
             )
             fields[self._get_field_id(symbol, ())] = field
-        self._merge_properties(properties, properties, symbol=symbol, resource_group=symbol)
+        self._merge_properties(params, properties, symbol=symbol, resource_group=symbol)
         return (symbol,)

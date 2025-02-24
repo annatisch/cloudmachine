@@ -160,8 +160,8 @@ class CognitiveServicesAccount(_ClientResource[CognitiveServicesAccountResourceT
         self._version = VERSION
         return self._version
 
-    def _symbol(self) -> ResourceSymbol:
-        symbol = super()._symbol()
+    def _build_symbol(self) -> ResourceSymbol:
+        symbol = super()._build_symbol()
         symbol._value = f"{self.properties['kind'].lower()}_" + symbol._value
         return symbol
 
