@@ -12,6 +12,6 @@ resource storageaccount_storagetest 'Microsoft.Storage/storageAccounts@2023-05-0
 
 output AZURE_STORAGE_ID_STORAGETEST string = storageaccount_storagetest.id
 output AZURE_STORAGE_NAME_STORAGETEST string = storageaccount_storagetest.name
-output AZURE_STORAGE_RESOURCE_GROUP_STORAGETEST string = 'testrg'
+output AZURE_STORAGE_RESOURCE_GROUP_STORAGETEST string = resourceGroup().name
 
 

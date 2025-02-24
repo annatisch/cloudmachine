@@ -1,6 +1,7 @@
 from inspect import get_annotations
 from typing import (
     TYPE_CHECKING,
+    Generic,
     Mapping,
     Protocol,
     Self,
@@ -10,7 +11,7 @@ from typing import (
     Any, Union, Literal, Optional, Callable, Dict, List, Type, Unpack
 )
 
-from ._bicep.expressions import Parameter, MISSING, Default
+from ._bicep.expressions import Parameter, MISSING, Default, ParameterType
 from ._resource import Resource, _load_dev_environment, ResourceReference
 from .resources._identifiers import ResourceIdentifiers
 from .resources.resourcegroup import ResourceGroup
@@ -47,17 +48,17 @@ CLIENT_BY_ANNOTATION: Dict[str, ResourceIdentifiers] = {
     'SearchIndexClient': ResourceIdentifiers.search
 }
 
-class DefaultFactory(Protocol):
-    def __call__(self, **kwargs) -> Any:
+class DefaultFactory(Protocol, Generic[ParameterType]):
+    def __call__(self, **kwargs) -> ParameterType:
         ...
 
 
-class ComponentField(Parameter[Any]):
+class ComponentField(Parameter[ParameterType]):
     def __init__(
             self,
             *,
-            default: Any,
-            factory: Union[Literal[Default.MISSING], DefaultFactory],
+            default: ParameterType,
+            factory: Union[Literal[Default.MISSING], DefaultFactory[ParameterType]],
             repr: bool,
             init: bool,
             alias: Optional[str],
@@ -100,7 +101,7 @@ class ComponentField(Parameter[Any]):
         except KeyError:
             raise RuntimeError(f"'{owner.__name__}.{name}' is missing type hint.") from None
 
-    def __get__(self, obj, obj_type):
+    def __get__(self, obj, obj_type) -> ParameterType:
         if obj is None:
             if self._default is not MISSING:
                 return self._default
@@ -109,10 +110,10 @@ class ComponentField(Parameter[Any]):
             raise AttributeError(f"No default value provided for '{self._owner.__name__}.{self._name}'.")
         return getattr(obj, self._attrname)
 
-    def __set__(self, obj, value):
+    def __set__(self, obj: 'AzureInfrastructure', value: ParameterType):
         setattr(obj, self._attrname, value)
 
-    def get(self, obj = None, /) -> Any:
+    def get(self, obj: Optional['AzureInfrastructure'] = None, /) -> ParameterType:
         return self.__get__(obj, obj.__class__)
 
 

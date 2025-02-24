@@ -111,36 +111,38 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
             fields: FieldsType,
             *,
             parameters: Dict[str, Parameter],
+            infra_component: 'AzureInfrastructure',
             **kwargs
     ) -> Tuple[ResourceSymbol, ...]:
+        properties = self._resolve_resource(parameters, infra_component)
         if self._suffix is None:
             # TODO: We're doing this delayed because if it's a ComponentField, it would
             # fail if we do it in the constructor (before __set_name__ is called).
-            self._suffix = self._build_suffix(self.properties.get('name'))
+            self._suffix = self._build_suffix(properties.get('name'))
             for resource_setting in self._settings.values():
                 resource_setting.suffix = self._suffix
 
         if self._existing:
-            properties = {'name': self.properties['name']}
-            if self.properties.get('subscription'):
-                properties['scope'] = Subscription(self.properties['subscription'])
+            ref_properties = {'name': properties['name']}
+            if properties.get('subscription'):
+                ref_properties['scope'] = Subscription(properties['subscription'])
             symbol = self._build_symbol()
             field = FieldType(
                 resource=self.resource,
-                properties=properties,
+                properties=ref_properties,
                 symbol=symbol,
                 outputs={},
                 resource_group=symbol,
                 version=self.version,
                 extensions={},
                 existing=True,
-                name=self.properties['name'],
+                name=properties['name'],
                 add_defaults=None,
             )
             fields[self._get_field_id(symbol, ())] = field
             return (symbol,)
 
-        field = self._find_last_resource_match(fields, name=self.properties.get('name'))
+        field = self._find_last_resource_match(fields, name=properties.get('name'))
         if field:
             properties = field.properties
             symbol = field.symbol
@@ -156,10 +158,9 @@ class ResourceGroup(Resource[ResourceGroupResourceType]):
                 version=self.version,
                 extensions={},
                 existing=False,
-                name=self.properties.get('name'),
+                name=properties.get('name'),
                 add_defaults=self._add_defaults
             )
             fields[self._get_field_id(symbol, ())] = field
-        self._merge_properties(properties, self.properties, symbol=symbol, resource_group=symbol)
-        self._add_parameters(field.properties, parameters)
+        self._merge_properties(properties, properties, symbol=symbol, resource_group=symbol)
         return (symbol,)

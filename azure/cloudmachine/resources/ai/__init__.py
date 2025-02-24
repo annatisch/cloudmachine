@@ -128,7 +128,6 @@ class CognitiveServicesAccount(_ClientResource[CognitiveServicesAccountResourceT
             identifier=kwargs.pop('identifier', ResourceIdentifiers.cognitive_services),
             **kwargs
         )
-        self._supports_managed_identity = True
 
     @classmethod
     def reference(

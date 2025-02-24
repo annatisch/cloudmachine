@@ -205,7 +205,6 @@ class StorageAccount(Resource[StorageAccountResourceType]):
             identifier=ResourceIdentifiers.storage_account,
             **kwargs
         )
-        self._supports_managed_identity = True
 
     @property
     def resource(self) -> str:

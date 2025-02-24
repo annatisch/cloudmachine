@@ -132,7 +132,6 @@ class BlobStorage(_ClientResource[BlobServiceResourceType]):
             identifier=ResourceIdentifiers.blob_storage,
             **kwargs
         )
-        self._supports_managed_identity = True
 
     @property
     def resource(self) -> str:

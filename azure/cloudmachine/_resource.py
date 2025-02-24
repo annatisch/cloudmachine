@@ -343,7 +343,7 @@ class Resource(Generic[ResourcePropertiesType]):
             except RuntimeError:
                 pass
         return outputs
-    
+
     def _merge_properties(
             self,
             current_properties: Dict[str, Any],
@@ -431,27 +431,52 @@ class Resource(Generic[ResourcePropertiesType]):
             return f"{prefix}.{symbol.value}"
         return symbol.value
 
-    def _add_parameters(self, obj: Dict[str, Any], parameters):
-        for value in obj.values():
-            if isinstance(value, Parameter) and value.name:
+    def _resolve_resource(self, parameters, component):
+        from ._component import ComponentField
+        name = self.properties.get('name')
+        if isinstance(name, ComponentField):
+            resolved = name.get(component)
+            if isinstance(resolved, Resource):
+                return resolved._resolve_resource(parameters, component)
+        return self._resolve_properties(self.properties, parameters, component)
+
+    def _resolve_properties(
+            self,
+            properties: Dict[str, Any],
+            parameters: Dict[str, Parameter],
+            component: AzureInfrastructure
+    ) -> Dict[str, Any]:
+        from ._component import ComponentField
+        new_props = {}
+        for key, value in properties.items():
+            if isinstance(value, ComponentField):
+                new_props[key] = value.get(component)
+            elif isinstance(value, Parameter) and value.name:
                 parameters[value.name] = value
+                new_props[key] = value
             elif isinstance(value, list):
+                resolved_items = []
                 for item in value:
-                    if isinstance(item, Parameter) and item.name:
+                    if isinstance(item, ComponentField):
+                        resolved_items.append(item.get(component))
+                    elif isinstance(item, Parameter) and item.name:
                         parameters[item.name] = item
+                        resolved_items.append(item)
                     else:
                         try:
-                            self._add_parameters(item, parameters)
+                            resolved_items.append(self._resolve_properties(item, parameters, component))
                             continue
                         except (AttributeError, TypeError):
-                            pass
+                            resolved_items.append(item)
+                new_props[key] = resolved_items
             else:
                 try:
-                    self._add_parameters(value, parameters)
+                    new_props[key] = self._resolve_properties(value, parameters, component)
                     continue
                 except (AttributeError, TypeError):
-                    pass
-                        
+                    new_props[key] = value
+        return new_props
+                   
     def _add_defaults(self, field: FieldType, parameters: Dict[str, Parameter]):
         for key, value in self.DEFAULTS.items():
             if field.properties.get(key):
@@ -466,7 +491,7 @@ class Resource(Generic[ResourcePropertiesType]):
                         pass
             else:
                 field.properties[key] = value
-        self._add_parameters(field.properties, parameters)
+        #self._resolve_properties(field.properties, parameters)
         if 'managed_identity_roles' not in field.extensions:
             field.extensions['managed_identity_roles'] = self.DEFAULT_EXTENSIONS.get('managed_identity_roles', [])
         if 'user_roles' not in field.extensions:
@@ -480,6 +505,7 @@ class Resource(Generic[ResourcePropertiesType]):
             infra_component: Optional[AzureInfrastructure] = None,
             module_name: Optional[str] = None,
     ) -> Tuple[ResourceSymbol, ...]:
+        properties = self._resolve_resource(parameters, infra_component)
         extensions = defaultdict(list)
         extensions.update(self.extensions)
         parents: Tuple[ResourceSymbol] = ()
@@ -493,42 +519,41 @@ class Resource(Generic[ResourcePropertiesType]):
         if self._suffix is None:
             # TODO: We're doing this delayed because if it's a ComponentField, it would
             # fail if we do it in the constructor (before __set_name__ is called).
-            self._suffix = self._build_suffix(self.properties.get('name'))
+            self._suffix = self._build_suffix(properties.get('name'))
             for resource_setting in self._settings.values():
                 resource_setting.suffix = self._suffix
 
         if self._existing:
-            if 'name' not in self.properties and 'name' not in self.DEFAULTS:
+            if 'name' not in properties and 'name' not in self.DEFAULTS:
                 raise ValueError(f"Reference to existing resource {repr(self)} is missing 'name'.")
-            properties = {'name': self.properties.get('name', self.DEFAULTS['name'])}
+            ref_properties = {'name': properties.get('name', self.DEFAULTS['name'])}
             rg = None
             if parents:
-                properties['parent'] = parents[0] 
-            elif 'resource_group' in self.properties:
-                rg = self.properties['resource_group'].__bicep__(
+                ref_properties['parent'] = parents[0] 
+            elif 'resource_group' in properties:
+                rg = properties['resource_group'].__bicep__(
                     fields,
                     parameters=parameters,
                     infra_component=infra_component,
                     module_name=module_name,
                 )[0]
-                properties['scope'] = rg
+                ref_properties['scope'] = rg
             symbol = self._build_symbol()
             outputs = self._outputs(
                 symbol=symbol,
                 resource_group=rg,
                 parents=parents,
             )
-            self._add_parameters(properties, parameters)
             field = FieldType(
                 resource=self.resource,
-                properties=properties,
+                properties=ref_properties,
                 symbol=symbol,
                 outputs=outputs,
                 resource_group=rg,
                 version=self.version,
                 extensions=extensions,
                 existing=True,
-                name=properties['name'],
+                name=ref_properties['name'],
                 add_defaults=None
             )
             fields[self._get_field_id(symbol, parents)] = field
@@ -536,9 +561,9 @@ class Resource(Generic[ResourcePropertiesType]):
 
         rg = self._find_resource_group(fields, parameters, module_name=module_name)
         if not parents:
-            field = self._find_last_resource_match(fields, resource_group=rg, name=self.properties.get('name'))
+            field = self._find_last_resource_match(fields, resource_group=rg, name=properties.get('name'))
         else:
-            field = self._find_last_resource_match(fields, parent=parents[0], name=self.properties.get('name'))
+            field = self._find_last_resource_match(fields, parent=parents[0], name=properties.get('name'))
 
         if field:
             params = field.properties
@@ -567,14 +592,14 @@ class Resource(Generic[ResourcePropertiesType]):
                 version=self.version,
                 extensions=extensions,
                 existing=False,
-                name=self.properties.get('name'),
+                name=properties.get('name'),
                 add_defaults=self._add_defaults
             )
             fields[self._get_field_id(symbol, parents)] = field
 
         output_config = self._merge_properties(
             params,
-            self.properties,
+            properties,
             fields=fields,
             parameters=parameters,
             symbol=symbol,
@@ -587,9 +612,6 @@ class Resource(Generic[ResourcePropertiesType]):
             **output_config
         )
         outputs.update(resource_outputs)
-        self._add_parameters(field.properties, parameters)
-        # TODO: this wont really work yet
-        # self._add_parameters(field.extensions, parameters)
         return (symbol, *parents)
 
     def get_client(

@@ -6,13 +6,19 @@ param azdTags object
 param managedIdentityId string
 param managedIdentityPrincipalId string
 
+resource resourcegroup_testrg 'Microsoft.Resources/resourceGroups@2021-04-01' existing = {
+  name: 'testrg'
+  scope: subscription()
+}
+
 resource storageaccount_storagetest 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: 'storagetest'
+  scope: resourcegroup_testrg
 }
 
 output AZURE_STORAGE_ID_STORAGETEST string = storageaccount_storagetest.id
 output AZURE_STORAGE_NAME_STORAGETEST string = storageaccount_storagetest.name
-output AZURE_STORAGE_RESOURCE_GROUP_STORAGETEST string = resourceGroup().name
+output AZURE_STORAGE_RESOURCE_GROUP_STORAGETEST string = 'testrg'
 
 
 resource tableservice_storagetest 'Microsoft.Storage/storageAccounts/tableServices@2024-01-01' existing = {
@@ -22,7 +28,7 @@ resource tableservice_storagetest 'Microsoft.Storage/storageAccounts/tableServic
 
 output AZURE_TABLES_ID_STORAGETEST string = tableservice_storagetest.id
 output AZURE_TABLES_NAME_STORAGETEST string = tableservice_storagetest.name
-output AZURE_TABLES_RESOURCE_GROUP_STORAGETEST string = resourceGroup().name
+output AZURE_TABLES_RESOURCE_GROUP_STORAGETEST string = 'testrg'
 output AZURE_TABLES_ENDPOINT_STORAGETEST string = storageaccount_storagetest.properties.primaryEndpoints.table
 
 

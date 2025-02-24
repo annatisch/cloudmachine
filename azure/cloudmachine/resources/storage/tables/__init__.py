@@ -73,7 +73,6 @@ class TableStorage(_ClientResource[TableServiceResourceType]):
             identifier=ResourceIdentifiers.table_storage,
             **kwargs
         )
-        self._supports_managed_identity = True
 
     @property
     def resource(self) -> str:
@@ -113,11 +112,11 @@ class TableStorage(_ClientResource[TableServiceResourceType]):
             resource=resource,
             parent=parent,
         )
-        existing._name.set_value('default')
+        existing._settings['name'].set_value('default')
         return existing
 
     def _build_endpoint(self, *, config_store: Mapping[str, Any]) -> str:
-        return f"https://{self.parent.name(config_store=config_store)}.table.core.windows.net/"
+        return f"https://{self.parent._settings['name'](config_store=config_store)}.table.core.windows.net/"
 
 
     def _outputs(
